@@ -280,6 +280,6 @@ example : Follows (fun _ _ _ ↦ True) (toyScript toyLadder (toyQ 8 7) (toyTarge
 
 /-- The toy stack is a candidate of its honest word, on every column. -/
 example : toyQ 8 7 ∈ Candidates 8 1 (2 ^ (8 - laneBits + 1)) (stackWord 8 1 (toyQ 8 7)) :=
-  ⟨Finset.univ, by simp, stackWord_agrees 8 1 _⟩
+  ⟨Finset.univ, by simp, fun v _ ↦ wellShaped_stackWord 8 1 _ v, stackWord_agrees 8 1 _⟩
 
 end LeanVMTests.Protocol.Whir.Complete.Opening

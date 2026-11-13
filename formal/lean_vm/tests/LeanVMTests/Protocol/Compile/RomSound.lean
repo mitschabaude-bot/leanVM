@@ -240,8 +240,8 @@ for `b > 64` its success fraction is `2^-64`, and the discount is `2^-min(b, 64)
 example : powOk 70 (E.ofLimbs 0 0 0) = true := by
   simp [powOk, limb_ofLimbs, K.lane]
 
-/-- Extraction from no answers gives the zero row of the width. -/
-example (r : Digest) (ht w p : ℕ) : extract (lookH []) r ht w p = List.replicate w 0 := by
+/-- Extraction from no answers gives the empty row: no column is listed. -/
+example (r : Digest) (ht w p : ℕ) : extract (lookH []) r ht w p = [] := by
   have : ¬ ∃ o : Opening, openOneWithHash (m := Option) (lookH []) r ht w p o = some true := by
     rintro ⟨o, ho⟩
     obtain ⟨-, -, ld, hld, -⟩ := (openOne_eq_some_true_iff _ _ _ _ _ _).mp ho

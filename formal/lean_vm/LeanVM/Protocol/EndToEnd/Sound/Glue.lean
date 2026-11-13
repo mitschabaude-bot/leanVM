@@ -25,8 +25,9 @@ into one specification:
 
 * `thrOf μ R`: the Johnson threshold of level `0` of the deployed ladder; the stack's doom
   (`CommitDoom`) and the opening's (`StackedPre`) are stated at it.
-* `candidates_finite`, `candidates_ncard_le`: the candidates of a level-0 word are the level-0
-  Johnson list (`mem_iList_of_candidate`), so there are at most `listMax ≤ 2^12` of them.
+* `candidates_finite`, `candidates_ncard_le`: the candidates of a level-0 word agree with it
+  (`AgreeingStacks`), whose stacks are the level-0 Johnson list (`mem_iList_of_agreeing`), so
+  there are at most `listMax ≤ 2^12` of them.
 * `stackedPre_of_ringPost`: **ring switching's postcondition is the opening's precondition**.
   If no candidate of the stack's word satisfies the program's column claims and the ring claim,
   and the stack's commitment is the only one with level 0's shape, then every candidate violates

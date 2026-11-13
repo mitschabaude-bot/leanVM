@@ -46,14 +46,17 @@ def seed : KeccakState := keccakF1600 (seedInput (keccak256 [0x6c, 0x65, 0x61, 0
 
 /-! ## Interactive completeness -/
 
+theorem length_word0 (p : ℕ) : (word0 p).length = 2 := by
+  unfold word0
+  split <;> rfl
+
 theorem complete (bits : ℕ) (chal : List Ev → E) : runI (prog bits) strat chal = some true := by
-  simp [runI, Strategy.runFrom, prog, strat, answer, commits]
+  simp [runI, Strategy.runFrom, prog, strat, answer, commits, length_word0]
 
 theorem shaped (bits : ℕ) (chal : List Ev → E) : shapedI (prog bits) strat chal := by
   simp only [shapedI, Strategy.ShapedFrom, prog, strat, answer]
-  refine ⟨fun p ↦ ?_, trivial⟩
-  unfold word0
-  split <;> rfl
+  refine ⟨length_word0, ?_⟩
+  simp [commits, length_word0]
 
 /-! ## The honest proof is accepted -/
 
