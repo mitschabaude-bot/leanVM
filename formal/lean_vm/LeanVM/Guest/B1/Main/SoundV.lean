@@ -51,7 +51,8 @@ def main_sound_V (bytecode : List K) (piOf : Reader → Val → FrameMap → Pro
       LoadHolds rd 1 0 (digestHalves D).1 → LoadHolds rd 1 1 (digestHalves D).2 →
       Stmt.HoldsList C rd σ Data.core0.body False (fun rs ↦ rs = []) →
         statementDigest (decSeed σ) (decStmt σ rd) = D ∧
-          NodeRelation bytecode (decSeed σ) (decStmt σ rd) (decWitV σ rd V piOf)
+          NodeRelation bytecode (decSeed σ) (decStmt σ rd) (decWitV σ rd V piOf) ∧
+          (decWitV σ rd V piOf).children.length ≤ 16
 
 /-- **`main` is sound, its witness decoded from the frame map**, given `verify_sub`'s statement
 with its proof named. -/

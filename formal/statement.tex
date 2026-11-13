@@ -546,7 +546,9 @@ the extractor returns a valid execution $t$ of $G$ on $x$. This is the only step
 and a probability.
 \item \textbf{Every execution of $G$ proves a statement} (\lean{GuestKnowledgeSoundness}). From
 every valid execution $t$ of $G$ on any public input $x$, the decoder program $D$ outputs, within
-its budget, a seed $\sigma'$, a statement $s'$ and a witness $w'$ with
+its budget, a seed $\sigma'$, a statement $s'$ and a witness $w'$ of at most $16$ children
+(\lean{ExplainsPublicInput}: $G$'s range check, \texttt{lean\_ethereum.py:4532}, which
+$\mathrm{NodeRel}$ does not ask) with
 \[
 \mathrm{dig}_{\sigma'}(s') = x \qquad\text{and}\qquad \mathrm{NodeRel}(B, \sigma', s', w').
 \]
@@ -562,8 +564,8 @@ the deployed function $G$ computes.
 
 \paragraph{Chained.} Steps 1 and 2 compose: except with probability $\varepsilon(Q)$, an accepted
 proof of $G$ on any $x$ yields an extracted execution on which $D$ outputs, within its budget, a
-decoding $(\sigma', s', w')$ with $\mathrm{dig}_{\sigma'}(s') = x$ and
-$\mathrm{NodeRel}(B, \sigma', s', w')$ (\lean{lean_vm} proves this for its
+decoding $(\sigma', s', w')$ with $\mathrm{dig}_{\sigma'}(s') = x$,
+$\mathrm{NodeRel}(B, \sigma', s', w')$ and at most $16$ children in $w'$ (\lean{lean_vm} proves this for its
 \lean{transcriptExtractor} and its memory decoder \lean{decode}: \lean{aggregate_knowledge}). Step 3
 with $(\sigma_0, s_0) = (iv_G, s)$ then gives \lean{AggregateSound} (from the fields alone,
 \lean{LeanVM.corollaries_of_theorems}, \lean{lean_vm}): except with probability $\varepsilon(Q)$, if
@@ -572,7 +574,8 @@ holds (\lean{DeferredClaim.HoldsWithShape}, as the outer verifier checks), the e
 \emph{explains} $s$
 (\lean{ExplainsStatement}):
 \begin{itemize}
-\item $D$ decodes $t$ to $(iv_G, s, w')$ with $\mathrm{NodeRel}(B, iv_G, s, w')$, or
+\item $D$ decodes $t$ to $(iv_G, s, w')$ with $\mathrm{NodeRel}(B, iv_G, s, w')$ and at most $16$
+children in $w'$, or
 \item the decoded seed and statement, with $(iv_G, s)$, give a Keccak-256 collision among the
 three pairs.
 \end{itemize}

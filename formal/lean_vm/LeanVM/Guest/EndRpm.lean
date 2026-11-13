@@ -122,10 +122,10 @@ theorem aggregate_sound_outer_dec {dec : MemoryDecoder} (h : MemoryGuestKnowledg
   refine le_trans (prEvent_mono _ _ _ ?_) (aggregate_knowledge_dec h A Q hA hQ)
   rintro z ⟨s, hb, hprog, hpub, hs, hno⟩
   refine ⟨hb, hprog, ?_⟩
-  rintro ⟨t, hx, hd, hrel⟩
+  rintro ⟨t, hx, hd, hrel, hkids⟩
   refine hno ⟨t, hx, ?_⟩
   rcases decoded_binds hs hrel.hasBytecodeShape hpub hd with ⟨h1, h2⟩ | hc
-  · exact Or.inl ⟨h1, h2, h1 ▸ h2 ▸ hrel⟩
+  · exact Or.inl ⟨h1, h2, h1 ▸ h2 ▸ hrel, hkids⟩
   · exact Or.inr hc
 
 /-- **What the outer verifier's acceptance establishes** (`MemoryAggregateSound`), for `main`'s

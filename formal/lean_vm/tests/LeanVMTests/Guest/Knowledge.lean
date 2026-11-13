@@ -74,7 +74,7 @@ example (W : Val → Reader → FrameMap → NodeWitness) (h : SoundHyps W) (inp
     (t : Execution guestProgram) (hv : ValidExecution guestProgram input t) :
     ∃ seed s, statementDigest seed s = publicInputDigest input ∧ s.deferredClaim.HasBytecodeShape bytecode ∧
       ∃ w, NodeRelation bytecode seed s w := by
-  obtain ⟨hd, hrel⟩ := guest_knowledge_of h input t hv
+  obtain ⟨hd, hrel, -⟩ := guest_knowledge_of h input t hv
   exact ⟨_, _, hd, hrel.hasBytecodeShape, _, hrel⟩
 
 /-! ## The existential one is nearly vacuous -/

@@ -370,10 +370,10 @@ theorem LeanVM.corollaries_of_theorems {extractorProgram decoderProgram : LeanVM
     subst hprog
     refine ⟨hb, ?_⟩
     rintro ⟨t, hx, hv⟩
-    obtain ⟨d, hdec, hd, hrel⟩ := h.guestKnowledgeSoundness input t hv
+    obtain ⟨d, hdec, hd, hrel, hkids⟩ := h.guestKnowledgeSoundness input t hv
     refine hno ⟨t, d, hx, hdec, ?_⟩
     rcases h.statementDigestBinds _ _ _ _ _ hrel.hasBytecodeShape hs.1 (hd.trans hpub) with ⟨h1, h2⟩ | hc
-    · exact Or.inl ⟨h1, h2, h1 ▸ h2 ▸ hrel⟩
+    · exact Or.inl ⟨h1, h2, h1 ▸ h2 ▸ hrel, hkids⟩
     · exact Or.inr hc
 
 /-- info: 'LeanVM.corollaries_of_theorems' depends on axioms: [propext, Classical.choice, Quot.sound] -/

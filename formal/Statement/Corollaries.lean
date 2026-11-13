@@ -22,12 +22,14 @@ open LeanVM.Parameters LeanVM.Semantics LeanVM.Protocol LeanVM.Protocol.KeccakHa
 open LeanVM.Protocol.Compile LeanVM.Protocol.Verifier
 
 /-- **The decoding `decoding` explains the statement `statement`**: it is the deployed seed,
-`statement` and a witness holding `statement`; or the decoded seed and statement, with the deployed
-seed and `statement`, give a Keccak-256 collision among the candidates. -/
+`statement` and a witness holding `statement` with at most `16` children; or the decoded seed and
+statement, with the deployed seed and `statement`, give a Keccak-256 collision among the
+candidates. -/
 def ExplainsStatement (guest : LeanIsaProgram) (statement : NodeStatement)
     (decoding : SeedStatementAndWitness) : Prop :=
   (decoding.seed = deployedSeed guest ∧ decoding.statement = statement ∧
-      NodeRelation (bytecodeWords guest) (deployedSeed guest) statement decoding.witness) ∨
+      NodeRelation (bytecodeWords guest) (deployedSeed guest) statement decoding.witness ∧
+      decoding.witness.children.length ≤ 16) ∨
     HasCollision
       (collisionCandidates decoding.seed decoding.statement (deployedSeed guest) statement)
 
