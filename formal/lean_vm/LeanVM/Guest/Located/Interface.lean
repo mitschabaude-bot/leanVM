@@ -61,7 +61,8 @@ theorem unfoldsV_RL {κ : ℕ} (L : MemoryImage κ) : UnfoldsV L.read (RLg L) (f
 /-- **`main`, soundly, its witness `W σ rd V`, over any call relation that unfolds along a frame
 map** (B1-f's `main_sound_V bytecode piOf`, `W σ rd V = decWitV σ rd V piOf`): on a memory image
 whose public input cells hold the digest `D`, every run of `main`'s body over `C` gives the seed
-`decSeed σ` and the statement `decStmt σ rd` of digest `D`, which `W σ rd V` holds. -/
+`decSeed σ` and the statement `decStmt σ rd` of digest `D`, which `W σ rd V` holds, with at most
+`16` children. -/
 def MainSoundV (bytecode : List K) (W : Val → Reader → FrameMap → NodeWitness) : Prop :=
   bytecode.length = 2 ^ bytecodeVars →
   ∀ (rd : Reader), MemOk rd → ∀ (C : CallRel) (V : FrameMap), UnfoldsV rd C V →
@@ -70,7 +71,7 @@ def MainSoundV (bytecode : List K) (W : Val → Reader → FrameMap → NodeWitn
     LoadHolds rd 1 1 (digestHalves D).2 →
     Stmt.HoldsList C rd σ Data.core0.body False (fun rs => rs = []) →
       statementDigest (decSeed σ) (decStmt σ rd) = D ∧
-        NodeRelation bytecode (decSeed σ) (decStmt σ rd) (W σ rd V)
+        NodeRelation bytecode (decSeed σ) (decStmt σ rd) (W σ rd V) ∧ (W σ rd V).children.length ≤ 16
 
 end
 end LeanVM.Guest.Located

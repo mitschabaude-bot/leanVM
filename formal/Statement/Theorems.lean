@@ -57,11 +57,11 @@ structure Theorems
 
   /-- Every valid execution of the leanISA guest program proves the node statement its public input
   commits to: the decoder program outputs, within its size bound and budget, the encoding of a
-  seed, a statement whose digest under that seed is the input's, and a witness for it
-  (`NodeRelation`, `LeanVmGuest.lean`): each raw signature verifying and each signature claim held
-  by a raw signature or a child whose proof the deferring verifier accepts, the DA digest that of
-  the blob matrix it checks, zeros or a child's, and its deferred claim the batching of its
-  children's. A child's proof is accepted with the bytecode's value at the child's point taken from
+  seed, a statement whose digest under that seed is the input's, and a witness for it, of at most
+  `16` children (`NodeRelation`, `LeanVmGuest.lean`): each raw signature verifying and each
+  signature claim held by a raw signature or a child whose proof the deferring verifier accepts,
+  the DA digest that of the blob matrix it checks, zeros or a child's, and its deferred claim the
+  batching of its children's. A child's proof is accepted with the bytecode's value at the child's point taken from
   the witness, which no end statement requires true, so a child's claims carry knowledge only
   through the root's deferred claim and a batching sound in the circuit (`LeanVmGuest.lean`). The
   blob matrix opens the membership challenge the witness chooses: only the outer verifier's

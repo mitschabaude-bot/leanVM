@@ -140,7 +140,7 @@ theorem main_sound_exists [Nonempty LeanXmss.Signature] [Nonempty Sphincs.Signat
     statementDigest (decSeed σ) (decStmt σ rd) = D ∧
       ∃ w, NodeRelation bytecode (decSeed σ) (decStmt σ rd) w := by
   obtain ⟨wX, wS, wD, wV, wA, cw⟩ := callees_exist hx hs hv hd ha hm
-  obtain ⟨h1, h2⟩ := main_sound_w bytecode hbl rd hm wX wS wD wV wA cw D σ hp0 hp1 hb
+  obtain ⟨h1, h2, -⟩ := main_sound_w bytecode hbl rd hm wX wS wD wV wA cw D σ hp0 hp1 hb
   exact ⟨h1, _, h2⟩
 
 end

@@ -312,7 +312,8 @@ noncomputable def decWit (σ : Val) (rd : Reader) (wX : List E → LeanXmss.Sign
 public input cells (`[1]`, `[g]`) hold the digest `D`, given the callees' contracts with the
 witness functions, every run of `main`'s body (under `coreProgram.Rel`) gives the seed
 `decSeed σ` and the statement `decStmt σ rd` of digest `D`, which the witness
-`decWit σ rd wX wS wD wV wA` holds (`NodeRelation`) for the guest's bytecode of `2^23` words. -/
+`decWit σ rd wX wS wD wV wA` holds (`NodeRelation`) for the guest's bytecode of `2^23` words, with
+at most `16` children. -/
 def main_sound_Spec (bytecode : List K) : Prop :=
   bytecode.length = 2 ^ bytecodeVars →
   ∀ (rd : Reader), MemOk rd →
@@ -323,7 +324,8 @@ def main_sound_Spec (bytecode : List K) : Prop :=
     LoadHolds rd 1 1 (digestHalves D).2 →
     Stmt.HoldsList (coreProgram.Rel rd) rd σ Data.core0.body False (fun rs => rs = []) →
       statementDigest (decSeed σ) (decStmt σ rd) = D ∧
-        NodeRelation bytecode (decSeed σ) (decStmt σ rd) (decWit σ rd wX wS wD wV wA)
+        NodeRelation bytecode (decSeed σ) (decStmt σ rd) (decWit σ rd wX wS wD wV wA) ∧
+        (decWit σ rd wX wS wD wV wA).children.length ≤ 16
 
 /-! ## The functions, found -/
 

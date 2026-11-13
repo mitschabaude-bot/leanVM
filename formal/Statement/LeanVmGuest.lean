@@ -316,13 +316,15 @@ structure SeedStatementAndWitness where
   witness : NodeWitness
 
 /-- **The decoding explains the public input `input`**: its seed and statement have the input's
-digest (the statement is the one the input commits to), and its witness holds that statement's
-claims (`NodeRelation`). `GuestKnowledgeSoundness` (below) says this of what the decoder
-program outputs on every valid execution. -/
+digest (the statement is the one the input commits to), its witness holds that statement's
+claims (`NodeRelation`), and it has at most `MAX_RECURSIONS = 16` children, the guest program's
+range check (`lean_ethereum.py:4532`), which `NodeRelation` does not ask. `GuestKnowledgeSoundness`
+(below) says this of what the decoder program outputs on every valid execution. -/
 def ExplainsPublicInput (guest : LeanIsaProgram) (input : PublicInput)
     (decoding : SeedStatementAndWitness) : Prop :=
   statementDigest decoding.seed decoding.statement = publicInputDigest input ∧
-    NodeRelation (bytecodeWords guest) decoding.seed decoding.statement decoding.witness
+    NodeRelation (bytecodeWords guest) decoding.seed decoding.statement decoding.witness ∧
+    decoding.witness.children.length ≤ 16
 
 /-- **The candidate collisions** of two statements' digests: the pairs of inputs of the three
 hashes the digests compute, the outer one and the two claim lists'. The DA digest enters the

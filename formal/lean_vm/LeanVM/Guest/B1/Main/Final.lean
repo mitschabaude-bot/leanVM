@@ -21,7 +21,8 @@ the deferred claim's shape, every child's proof accepted by the deferring verifi
 decoded statement (`kid_sub`, `kid_digest`), every raw signature verifying and every declared
 signature claim held (`signatures_held`), the DA digest the direct DA check's, zeros or a child's (`da_rel`), and the
 deferred claim the leaf's zero point or the batching of the
-children's claims (`aggregate_claims`' contract). `exponent_tables` is B1-a's
+children's claims (`aggregate_claims`' contract); and at most `16` children (`MainFacts.kids`,
+`main`'s range check). `exponent_tables` is B1-a's
 (`exponent_tables_holds`); every other deterministic callee is this family's.
 -/
 
@@ -104,7 +105,8 @@ theorem main_sound_C {bytecode : List K} (hbl : bytecode.length = 2 ^ bytecodeVa
     (hp0 : LoadHolds rd 1 0 (digestHalves D).1) (hp1 : LoadHolds rd 1 1 (digestHalves D).2)
     (hb : Stmt.HoldsList C rd σ Data.core0.body False (fun rs => rs = [])) :
     statementDigest (decSeed σ) (decStmt σ rd) = D ∧
-      NodeRelation bytecode (decSeed σ) (decStmt σ rd) (decWit σ rd wX wS wD wV wA) := by
+      NodeRelation bytecode (decSeed σ) (decStmt σ rd) (decWit σ rd wX wS wD wV wA) ∧
+      (decWit σ rd wX wS wD wV wA).children.length ≤ 16 := by
   have MF := main_facts hCu hle hm exponent_tables_holds (fun _ h => ⟨_, cw.xmss _ h⟩) (σ := σ) hb
   obtain ⟨Kr, hK⟩ : ∃ Kr : ℕ → KidRec, ∀ c < lg σ 6, KidOk C rd σ c (Kr c) := by
     have hex : ∀ c, c < lg σ 6 → ∃ k : KidRec, KidOk C rd σ c k := kid_rec hm MF
@@ -120,7 +122,7 @@ theorem main_sound_C {bytecode : List K} (hbl : bytecode.length = 2 ^ bytecodeVa
     rw [← hown, loadHolds_unique MF.pub.1 hp0, loadHolds_unique MF.pub.2 hp1]
     rfl
   have hdlen : (readCells rd (σ (.n 417)) 24).length = 24 := length_readCells _ _ _
-  refine ⟨hdig, nodeRel_iff.mpr ⟨?_, ?_, signatures_held MF hK hW hm cw, ?_, ?_⟩⟩
+  refine ⟨hdig, nodeRel_iff.mpr ⟨?_, ?_, signatures_held MF hK hW hm cw, ?_, ?_⟩, ?_⟩
   · -- the deferred claim's shape
     show (deferOfCells (readCells rd (σ (.n 417)) 24)).bytecodePoint.length = _
     rw [deferOfCells_point hdlen, hlog]
@@ -187,6 +189,10 @@ theorem main_sound_C {bytecode : List K} (hbl : bytecode.length = 2 ^ bytecodeVa
       · show ReadsAt rd _ (deferOfCells (readCells rd (σ (.n 396) * gen ^ (24 * c)) 24)).cells
         rw [readCells_of_readsAt k.defreads k.deflen, deferOfCells_cells k.deflen]
         exact k.defreads
+  · -- the children's count
+    show ((List.range (nKids σ)).map (decKid rd σ wV)).length ≤ 16
+    rw [List.length_map, List.length_range, nKids_eq]
+    exact MF.kids.2
 
 /-- **`main`, soundly, its witness decoded** (`coreProgram.Rel`'s instance of `main_sound_C`). -/
 theorem main_sound_w (bytecode : List K) : main_sound_Spec bytecode := by

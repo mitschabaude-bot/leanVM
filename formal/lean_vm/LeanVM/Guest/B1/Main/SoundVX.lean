@@ -66,7 +66,8 @@ theorem main_sound_VX {bytecode : List K} {piOf : Reader → Val → FrameMap �
         LoadHolds rd 1 0 (digestHalves D).1 → LoadHolds rd 1 1 (digestHalves D).2 →
         Stmt.HoldsList C rd σ Data.core0.body False (fun rs ↦ rs = []) →
           statementDigest (decSeed σ) (decStmt σ rd) = D ∧
-            NodeRelation bytecode (decSeed σ) (decStmt σ rd) (decWitVX sigOf σ rd V piOf) := by
+            NodeRelation bytecode (decSeed σ) (decStmt σ rd) (decWitVX sigOf σ rd V piOf) ∧
+            (decWitVX sigOf σ rd V piOf).children.length ≤ 16 := by
   intro hbl rd hm C V hV hle D σ hp0 hp1 hb
   obtain ⟨κ, -, hκ, L, rfl⟩ := id hm
   refine main_sound_C hbl hm (unfolds_of_V hV) hle ⟨?_, ?_, ?_, ?_, ?_⟩ hp0 hp1 hb

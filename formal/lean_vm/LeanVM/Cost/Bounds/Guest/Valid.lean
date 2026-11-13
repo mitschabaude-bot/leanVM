@@ -160,7 +160,7 @@ theorem valid_cursor {input : PublicInput} {t : Execution guestProgram}
   intro rd σ fr
   have hk : Node.ExplainsPublicInput guestProgram input (End.decode t.memory) := End.guest_knowledge input t hv
   rw [← decTop_eq] at hk
-  have hrel := hk.2.2.2.1
+  have hrel := hk.2.1.2.2.1
   let w := decWitNStaged discreteLogTables Fast.readerTabs σ rd
     (frameAtA (entryArrayT pcTableT (Fast.preTestAt discreteLogTables Fast.preTable Fast.genPows rd)
       (replayStatesOf (powTable t.logMemorySize) (powTable guestProgram.logSize) guestProgram
