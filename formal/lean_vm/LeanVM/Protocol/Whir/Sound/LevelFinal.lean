@@ -175,14 +175,15 @@ noncomputable def finQuerySpec (H : FinHyp μ ℓ₀ w P level pre)
         have hκm := afterFold_κ haf
         have hd : μ - r.1.folds.length + level.logInvRate = P.κ + P.R := by rw [hκm, H.hR]
         have hlf : r.2.length = level.fold := haf.2
-        have hviol : Viol P (fun _ : Fin 0 → Bool ↦
+        have hviol : Viol P (listedO i (commits h₀) P.n) (fun _ : Fin 0 → Bool ↦
             fun v ↦ foldsN r.2 (laneO i (commits h₀) P.n) 0 v) (runW w ℓ₀ r.1) r.1.target := by
           have := haf.1.1.2.2.2.2.2
           rwa [hlf, Nat.sub_self, rowsOf_zero] at this
         rw [hd]
-        refine escRet_queryFrag_le_final P level.queries i h₀ (shapeOK_word haf.1.2).1 _
-          (runW w ℓ₀ r.1) r.1.target hviol (resMsg res) _ fun qs lam hr hlen hv ↦ ⟨hp, ?_⟩
-        rw [glueFin_runW, glueFin_target, enfOf_eq haf.1.2 r.2 hlf qs hr lam, hκm]
+        refine escRet_queryFrag_le_final P level.queries i h₀ (shapeOK_word haf.1.2).1
+          (listedO i (commits h₀) P.n) (fun v hv ↦ (mem_listedO_of_shapeOK haf.1.2 v).mpr hv) _
+          (runW w ℓ₀ r.1) r.1.target hviol (resMsg res) _ fun qs lam hr hlen hl hv ↦ ⟨hp, ?_⟩
+        rw [glueFin_runW, glueFin_target, enfOf_eq r.2 hlf qs hr hl lam, hκm]
         exact hv).mono (fun _ h ↦ h) (fun _ _ h ↦ h) le_rfl (by simp) le_rfl).bind' fun g ↦
     (roundPolyInv (GlueFinC μ ℓ₀ w i P level.fold pre r res g)
         (enfOf i r.2 g.1 g.2.1 g.2.2) (T := eTail) hεT).bind' fun hq ↦

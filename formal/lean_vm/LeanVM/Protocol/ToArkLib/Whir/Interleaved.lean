@@ -22,7 +22,8 @@ The objects of Annex B, `def:interleaved`, of the leanVM specification (leanVM `
   `agreeSet O U` is the largest such set, the coordinates where all rows agree.
 * `IsClose A O U`: `O` and `U` agree on some set of at least `A` coordinates
   (`isClose_iff_le_card_agreeSet`: the agreement set itself has at least `A` elements).
-* `iList C A O`: the finite set of interleaved codewords close to `O` at threshold `A`. The
+* `iList C A O`: the finite set of interleaved codewords close to `O` at threshold `A`;
+  `iListOn C A Λ O` the ones close to it on the coordinates `Λ` (`IsCloseOn`), a part of it. The
   Annex's list `Λ_γ(O)` at relative radius `γ` is `iListRad C γ O`, the threshold
   `⌈(1 - γ) n⌉₊` with `n = |ι|` (`mem_iListRad`: agreement on at least `(1 - γ) n` coordinates).
 
@@ -109,6 +110,28 @@ theorem isClose_iff_le_card_agreeSet [Fintype ι] [Fintype ρ] [DecidableEq F] (
   · intro h
     exact ⟨agreeSet O U, h, (agreeOn_iff_subset_agreeSet O U _).mpr subset_rfl⟩
 
+/-- `U` is close to `O` at threshold `A` on the coordinates `Λ`: they agree on some set of at least
+`A` coordinates of `Λ`. -/
+def IsCloseOn (A : ℕ) (Λ : Finset ι) (O U : ρ → ι → F) : Prop :=
+  ∃ S ⊆ Λ, A ≤ S.card ∧ AgreeOn O U S
+
+/-- Closeness on some coordinates is closeness. -/
+theorem IsCloseOn.isClose {A : ℕ} {Λ : Finset ι} {O U : ρ → ι → F} (h : IsCloseOn A Λ O U) :
+    IsClose A O U :=
+  let ⟨S, _, hS, hagree⟩ := h
+  ⟨S, hS, hagree⟩
+
+/-- Closeness on more coordinates. -/
+theorem IsCloseOn.mono {A : ℕ} {Λ Λ' : Finset ι} {O U : ρ → ι → F} (h : IsCloseOn A Λ O U)
+    (hΛ : Λ ⊆ Λ') : IsCloseOn A Λ' O U :=
+  let ⟨S, hSΛ, hS, hagree⟩ := h
+  ⟨S, hSΛ.trans hΛ, hS, hagree⟩
+
+/-- Closeness on every coordinate is closeness. -/
+theorem isCloseOn_univ [Fintype ι] {A : ℕ} {O U : ρ → ι → F} :
+    IsCloseOn A univ O U ↔ IsClose A O U :=
+  ⟨IsCloseOn.isClose, fun ⟨S, hS, hagree⟩ ↦ ⟨S, subset_univ S, hS, hagree⟩⟩
+
 /-- A larger threshold is a stronger closeness. -/
 theorem IsClose.mono {A A' : ℕ} {O U : ρ → ι → F} (h : IsClose A O U) (hA : A' ≤ A) :
     IsClose A' O U :=
@@ -130,6 +153,37 @@ noncomputable def iList (C : Submodule F (ι → F)) (A : ℕ) (O : ρ → ι �
     U ∈ iList C A O ↔ IsInterleavedCodeword C U ∧ IsClose A O U := by
   classical
   simp [iList]
+
+open Classical in
+/-- **The list on the coordinates `Λ`**: the interleaved codewords of `C` that agree with `O` on a
+common set of at least `A` coordinates of `Λ`. The list `iList` is the list on every coordinate
+(`iListOn_univ`), and a smaller `Λ` has a smaller list (`iListOn_mono`). -/
+noncomputable def iListOn (C : Submodule F (ι → F)) (A : ℕ) (Λ : Finset ι) (O : ρ → ι → F) :
+    Finset (ρ → ι → F) :=
+  univ.filter fun U ↦ IsInterleavedCodeword C U ∧ IsCloseOn A Λ O U
+
+@[simp] theorem mem_iListOn (C : Submodule F (ι → F)) (A : ℕ) (Λ : Finset ι) (O U : ρ → ι → F) :
+    U ∈ iListOn C A Λ O ↔ IsInterleavedCodeword C U ∧ IsCloseOn A Λ O U := by
+  classical
+  simp [iListOn]
+
+/-- **A smaller set of coordinates has a smaller list.** -/
+theorem iListOn_mono (C : Submodule F (ι → F)) (A : ℕ) {Λ Λ' : Finset ι} (hΛ : Λ ⊆ Λ')
+    (O : ρ → ι → F) : iListOn C A Λ O ⊆ iListOn C A Λ' O := fun U hU ↦ by
+  rw [mem_iListOn] at hU ⊢
+  exact ⟨hU.1, hU.2.mono hΛ⟩
+
+/-- The list on every coordinate is the list. -/
+theorem iListOn_univ (C : Submodule F (ι → F)) (A : ℕ) (O : ρ → ι → F) :
+    iListOn C A univ O = iList C A O := by
+  ext U
+  rw [mem_iListOn, mem_iList, isCloseOn_univ]
+
+/-- The list on some coordinates is part of the list. -/
+theorem iListOn_subset (C : Submodule F (ι → F)) (A : ℕ) (Λ : Finset ι) (O : ρ → ι → F) :
+    iListOn C A Λ O ⊆ iList C A O := by
+  rw [← iListOn_univ]
+  exact iListOn_mono C A (subset_univ Λ) O
 
 /-- The agreement threshold of the relative radius `γ` on `n` coordinates: `⌈(1 - γ) n⌉₊`. -/
 noncomputable def radiusThreshold (n : ℕ) (γ : ℝ) : ℕ :=

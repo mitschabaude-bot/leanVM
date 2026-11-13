@@ -398,8 +398,8 @@ theorem after_query_step {h : List Ev} {i : ℕ} {ps : List ℕ} {k : List (List
     P.after (h ++ [Ev.query rows]) = some (k rows) := by
   rw [VerifierProgram.after_append_single _ ha]; simp [VerifierProgram.after]
 
-/-- **Consumption keeps the invariants**, for well-shaped words. -/
-theorem consume_ok {W : Digest → ℕ → ℕ → Word} (hW : ∀ r ht w, WellShaped w (W r ht w)) :
+/-- **Consumption keeps the invariants**, for partly shaped words. -/
+theorem consume_ok {W : Digest → ℕ → ℕ → Word} (hW : ∀ r ht w, PartShaped w (W r ht w)) :
     ∀ (ps : List (E × ℕ)) (h : List Ev) (pos : Pos), InfoOk P (h, pos) →
       ConsOk P ps (consume W h pos ps)
   | [], h, pos, hi => ⟨hi, fun hne ↦ absurd rfl hne⟩
@@ -547,7 +547,7 @@ theorem stepF_ok_of (ℓ : Log) (δ : Dec) (t : KeccakState)
     · exact ⟨trivial, fun _ _ hi ↦ by simp at hi⟩
   · split
     · rename_i h pos hinfo
-      exact decodeAt_ok (consume_ok (fun r ht w ↦ wellShaped_extract _ r ht w) _ h pos
+      exact decodeAt_ok (consume_ok (fun r ht w ↦ partShaped_extract _ r ht w) _ h pos
         (hδ _ _ hinfo))
     · exact ⟨trivial, fun _ _ hi ↦ by simp at hi⟩
 

@@ -78,16 +78,16 @@ theorem claimSum_inducedWeight (P : LevelCode) {ℓ' κ' : ℕ} (hκ : P.κ = �
 open Classical in
 /-- **The batching step of a level with a next commitment.** -/
 theorem card_lambda_bad_le (P P' : LevelCode) {ℓ' : ℕ} (hκ : P.κ = ℓ' + P'.κ)
-    (Q' : (Fin ℓ' → Bool) → Fin P'.n → E) (C : Fin P.n → E) (Φ : List E → E) (σ : E)
-    (z : List E) (y : E) (qs : List ℕ) (hqs : ∀ q ∈ qs, q < P.n)
-    (hgood : QueryGood P P' hκ Q' C Φ σ z y qs) :
-    (univ.filter fun lam : E ↦ ¬ Viol P' Q'
+    (Λ' : Finset (Fin P'.n)) (Q' : (Fin ℓ' → Bool) → Fin P'.n → E) (C : Fin P.n → E)
+    (Φ : List E → E) (σ : E) (z : List E) (y : E) (qs : List ℕ) (hqs : ∀ q ∈ qs, q < P.n)
+    (hgood : QueryGood P P' hκ Λ' Q' C Φ σ z y qs) :
+    (univ.filter fun lam : E ↦ ¬ Viol P' Λ' Q'
         (fun r ↦ Φ r + 1 * lam * eqEval z r +
           1 * lam * lam * Verifier.inducedWeight P.κ qs (powers lam qs.length) r)
         (σ + 1 * lam * y + 1 * lam * lam *
           ∑ k : Fin qs.length, lam ^ (k : ℕ) * wordAt C qs[k])).card ≤
       (qs.length + 1) * P'.listMax := by
-  set L := iList P'.code P'.thr Q'
+  set L := iListOn P'.code P'.thr Λ' Q'
   refine (Finset.card_le_card fun lam hlam ↦ ?_).trans
     ((card_filter_exists_le L (fun V lam ↦
         claimSum Φ (decode P' V) + lam * oodVal z (decode P' V) + lam * lam *
@@ -108,7 +108,7 @@ theorem card_lambda_bad_le (P P' : LevelCode) {ℓ' : ℕ} (hκ : P.κ = ℓ' + 
     · obtain ⟨k, hk, rfl⟩ := List.getElem_of_mem hq
       exact Or.inr (Or.inr ⟨⟨k, hk⟩, hne⟩)
   · rw [mul_comm]
-    exact Nat.mul_le_mul_left _ (P'.card_iList_le Q')
+    exact Nat.mul_le_mul_left _ (P'.card_iListOn_le Λ' Q')
 
 /-- The residual of the final level as a message (entry `⟨x⟩` of the table). -/
 def resMsg {κ : ℕ} (res : List E) : (Fin κ → Bool) → E := fun x ↦ res.getD (bitsToNat x) 0

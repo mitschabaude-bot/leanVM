@@ -155,13 +155,13 @@ theorem noMoves_queryFrag (depth t i : ℕ) : NoMoves (queryFrag depth t i) :=
     (noMoves_queryP i _).bind fun _ ↦ NoMoves.ret _
 
 /-- **The query group's expectation.** For a function `F` of the group's values, if every
-in-range position list has `avg_λ F(qs, λ, W(qs)) ≤ allIn S qs + ε` (the rows read from the
-word `W` of commitment `i`), the expectation over the group is at most
-`(|S ∩ [0, 2^depth)| / 2^depth)^t + ε`. -/
+in-range list of listed positions has `avg_λ F(qs, λ, W(qs)) ≤ allIn S qs + ε` (the rows read
+from the word `W` of commitment `i`; an unlisted position is not opened), the expectation over
+the group is at most `(|S ∩ [0, 2^depth)| / 2^depth)^t + ε`. -/
 theorem retExp_queryFrag_le (depth t i : ℕ) (h1 : 1 ≤ depth) (h192 : depth ≤ 192)
     (h₀ : List Ev) {wd : ℕ} {W : Word} (hc : (commits h₀)[i]? = some (depth, wd, W))
     (F : List ℕ × E × List (List K) → ENNReal) (S : ℕ → Prop) [DecidablePred S] (ε : ENNReal)
-    (hF : ∀ qs : List ℕ, (∀ q ∈ qs, q < 2 ^ depth) → qs.length = t →
+    (hF : ∀ qs : List ℕ, (∀ q ∈ qs, q < 2 ^ depth) → qs.length = t → (∀ q ∈ qs, (W q).length = wd) →
       (Fintype.card E : ENNReal)⁻¹ * ∑ lam : E, F (qs, lam, qs.map W) ≤ allIn S qs + ε) :
     retExp (fun a _ ↦ F a) h₀ [] (queryFrag depth t i) ≤
       ((univ.filter fun j : Fin (2 ^ depth) ↦ S j).card / 2 ^ depth : ENNReal) ^ t + ε := by
@@ -184,7 +184,10 @@ theorem retExp_queryFrag_le (depth t i : ℕ) (h1 : 1 ≤ depth) (h192 : depth �
   simp only [hin]
   -- Its value along the run is that at `h₀`.
   have hcom := retExp_commits (fun qs cs ↦ (Fintype.card E : ENNReal)⁻¹ * ∑ lam : E,
-      (match (cs[i]?.map fun c ↦ qs.map fun p ↦ c.2.2 (p % 2 ^ c.1)) with
+      (match (cs[i]?.bind fun c ↦
+          if qs.all fun p ↦ (c.2.2 (p % 2 ^ c.1)).length == c.2.1 then
+            some (qs.map fun p ↦ c.2.2 (p % 2 ^ c.1))
+          else none) with
         | some rows => F (qs, lam, rows)
         | none => 0)) (sampleQueries depth t) h₀ []
   simp only [answer] at hcom ⊢
@@ -193,11 +196,15 @@ theorem retExp_queryFrag_le (depth t i : ℕ) (h1 : 1 ≤ depth) (h192 : depth �
   calc _ ≤ retExp (fun qs _ ↦ allIn S qs + ε) h₀ [] (sampleQueriesAux depth t t) := by
         refine retExp_mono (fun qs _ ↦ ?_) _ _ _
         split_ifs with hr
-        · simp only [hc, Option.map_some]
-          have hmap : (qs.map fun p ↦ W (p % 2 ^ depth)) = qs.map W :=
-            List.map_congr_left fun q hq ↦ by rw [Nat.mod_eq_of_lt (hr.1 q hq)]
-          rw [hmap]
-          exact hF qs hr.1 hr.2
+        · simp only [hc, Option.bind_some]
+          split_ifs with hl
+          · have hmap : (qs.map fun p ↦ W (p % 2 ^ depth)) = qs.map W :=
+              List.map_congr_left fun q hq ↦ by rw [Nat.mod_eq_of_lt (hr.1 q hq)]
+            rw [hmap]
+            refine hF qs hr.1 hr.2 fun q hq ↦ ?_
+            simp only [List.all_eq_true, beq_iff_eq] at hl
+            simpa [Nat.mod_eq_of_lt (hr.1 q hq)] using hl q hq
+          · simp
         · exact zero_le
     _ ≤ retExp (fun qs _ ↦ allIn S qs) h₀ [] (sampleQueriesAux depth t t) + ε :=
         retExp_le_add (fun _ _ ↦ le_rfl) _ _ _

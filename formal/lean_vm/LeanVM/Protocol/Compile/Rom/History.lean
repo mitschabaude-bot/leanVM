@@ -228,6 +228,44 @@ theorem rows_of_openAll {H : Bytes → Option Digest} (hH : AnswersInj H) (root 
         rw [← hrows.1, List.map_cons, extract_eq_of_openOne hH hb,
           rows_of_openAll hH root ht w qs os hr]
 
+/-- With injective answers, an accepted run of openings reads listed rows of the extracted word:
+each has the width. -/
+theorem length_extract_of_openAll {H : Bytes → Option Digest} (hH : AnswersInj H) (root : Digest)
+    (ht w : ℕ) :
+    ∀ (ps : List ℕ) (os : List Opening) {rows : List (List K)} {rest : List Opening},
+      openAllWithHash (m := Option) H root ht w ps os = some (some (rows, rest)) →
+        ∀ q ∈ ps, (extract H root ht w (q % 2 ^ ht)).length = w
+  | [], _, _, _, _ => by simp
+  | _ :: _, [], _, _, h => by simp [openAllWithHash, pure] at h
+  | q :: qs, o :: os, rows, rest, h => by
+    simp only [openAllWithHash, bind, Option.bind_eq_some_iff] at h
+    obtain ⟨b, hb, h⟩ := h
+    cases b
+    · simp [pure] at h
+    · simp only [↓reduceIte, Option.bind_eq_some_iff, pure, Option.some.injEq] at h
+      obtain ⟨r, hr, hrows⟩ := h
+      rcases r with _ | ⟨rows', rest'⟩
+      · simp at hrows
+      · intro q' hq'
+        rcases List.mem_cons.1 hq' with rfl | hq'
+        · rw [extract_eq_of_openOne hH hb]
+          exact ((openOne_eq_some_true_iff _ _ _ _ _ _).mp hb).1
+        · exact length_extract_of_openAll hH root ht w qs os hr q' hq'
+
+/-- With injective answers, an accepted phase reads listed rows of the extracted word. -/
+theorem length_extract_of_openPhase {H : Bytes → Option Digest} (hH : AnswersInj H)
+    (root : Digest) (ht w : ℕ) (ps : List ℕ) (phase : List Opening) {rows : List (List K)}
+    (h : openPhaseWithHash (m := Option) H root ht w ps phase = some (some rows)) :
+    ∀ q ∈ ps, (extract H root ht w (q % 2 ^ ht)).length = w := by
+  unfold openPhaseWithHash at h
+  split at h
+  · simp only [bind, Option.bind_eq_some_iff] at h
+    obtain ⟨o, ho, h⟩ := h
+    rcases o with _ | ⟨rows', rest⟩
+    · simp [pure] at h
+    · exact length_extract_of_openAll hH root ht w ps phase ho
+  · simp [pure] at h
+
 /-- With injective answers, the rows of an accepted phase are the rows the extracted word holds
 at the positions. -/
 theorem rows_of_openPhase {H : Bytes → Option Digest} (hH : AnswersInj H) (root : Digest)
@@ -258,8 +296,11 @@ theorem answer_of_openPhase {H : Bytes → Option Digest} (hH : AnswersInj H)
     {phase : List Opening}
     (ho : openPhaseWithHash (m := Option) H root ht w ps phase = some (some rows)) :
     answer h i ps = some rows := by
+  have hall : (ps.all fun q ↦ (extract H root ht w (q % 2 ^ ht)).length == w) = true := by
+    simp only [List.all_eq_true, beq_iff_eq]
+    exact length_extract_of_openPhase hH root ht w ps phase ho
   rw [answer, hR, List.getElem?_map, hi, rows_of_openPhase hH root ht w ps phase ho]
-  rfl
+  simp only [Option.map_some, Option.bind_some, hall, ↓reduceIte]
 
 theorem rootsInv_append_query {H : Bytes → Option Digest} {s : VerifierProgramState} {h : List Ev}
     (hR : RootsInv H s h) (rows : List (List K)) (rest : List (List Opening)) :

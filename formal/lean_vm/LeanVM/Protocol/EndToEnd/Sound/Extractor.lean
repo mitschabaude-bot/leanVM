@@ -36,8 +36,9 @@ a candidate satisfying the leanISA relation. The bridges:
 * `encode_eq`, `mem_candidates`: the specification's encoding is `enc` of the stack's blocks, so
   the proof's candidates are the specification's.
 * `haltingRun_imageOf`: the specification's memory image is the witness's (`imageOf`).
-* `committedWord_eq`: the word read from the Keccak-256 answers of a prefix of the log is the
-  word extracted from the whole log, provided no entry past the prefix answers the root.
+* `committedWord_getD_eq`: the word read from the Keccak-256 answers of a prefix of the log reads
+  the lanes of the word extracted from the whole log, provided no entry past the prefix answers the
+  root.
 * `logged2`, `prEvent_logged2_root_le`: the experiment in two stages, the adversary's log then the
   verifier's, and the probability that a fresh hash answer of the verifier is the announced root,
   at most one `2^-256` per verifier query.
@@ -444,7 +445,7 @@ theorem encode_eq {μ R : ℕ} (q : Column μ) (u : Fin (2 ^ laneBits))
 theorem mem_candidates {μ R A A' : ℕ} {W : Word} {q : Column μ}
     (hq : q ∈ Candidates μ R A W) (hA : A' ≤ A) :
     (q.values : Vector K (2 ^ μ)) ∈ Extraction.Candidates μ R A' W := by
-  obtain ⟨S, hS, hag⟩ := hq
+  obtain ⟨S, hS, -, hag⟩ := hq
   refine hA.trans (hS.trans ?_)
   rw [← Finset.card_map Fin.valEmbedding]
   refine Finset.card_le_card fun v hv ↦ ?_
@@ -454,10 +455,10 @@ theorem mem_candidates {μ R A A' : ℕ} {W : Word} {q : Column μ}
     (hag v hvS u).trans (encode_eq q u v)
   exact ofK_injective h
 
-/-- **The specification's candidates are the proof's**: a stack whose encoding agrees with the
-word on at least `A` columns is a candidate of the proof's at `A`. -/
+/-- **The specification's candidates are the proof's agreeing stacks**: a stack whose encoding
+agrees with the word on at least `A` columns agrees with it in the proof's terms. -/
 theorem candidates_of_values {μ R A : ℕ} {W : Word} {q : Vector K (2 ^ μ)}
-    (hq : q ∈ Extraction.Candidates μ R A W) : (⟨q⟩ : Column μ) ∈ Candidates μ R A W := by
+    (hq : q ∈ Extraction.Candidates μ R A W) : (⟨q⟩ : Column μ) ∈ AgreeingStacks μ R A W := by
   let S : Finset (Fin (2 ^ (μ - laneBits + R))) :=
     Finset.univ.filter fun v ↦ (v : ℕ) ∈ Extraction.agreement R W q
   refine ⟨S, hq.trans ?_, fun v hv u ↦ ?_⟩
@@ -494,12 +495,12 @@ theorem spec_candidates_ncard_le {μ R : ℕ} (h : Whir.Admissible μ R) (W : Wo
   obtain ⟨-, hμ, hκ, hR, hL, -, -⟩ := Whir.Params.deployed_spec_hyps h hc
   have hthr : (Whir.Params.deployedCodes μ R 0).thr = Extraction.johnsonThreshold μ R :=
     thrOf_eq_johnsonThreshold h hc
-  have hfin := candidates_finite (Whir.Params.deployedCodes μ R 0) hκ hR hμ W
-  have hcard := candidates_ncard_le (Whir.Params.deployedCodes μ R 0) hκ hR hμ W
+  have hfin := agreeingStacks_finite (Whir.Params.deployedCodes μ R 0) hκ hR hμ W
+  have hcard := agreeingStacks_ncard_le (Whir.Params.deployedCodes μ R 0) hκ hR hμ W
   rw [hthr] at hfin hcard
   have hsub : Extraction.Candidates μ R (Extraction.johnsonThreshold μ R) W ⊆
       (fun c : Column μ ↦ (c.values : Vector K (2 ^ μ))) ''
-        Candidates μ R (Extraction.johnsonThreshold μ R) W :=
+        AgreeingStacks μ R (Extraction.johnsonThreshold μ R) W :=
     fun q hq ↦ ⟨⟨q⟩, candidates_of_values hq, rfl⟩
   calc _ ≤ _ := Set.ncard_le_ncard hsub (hfin.image _)
     _ ≤ _ := Set.ncard_image_le hfin
@@ -576,11 +577,14 @@ theorem haltingRun_valid {κw : ℕ} {w : Air.Flat.EnsembleWitness (leanIsaEnsem
 
 /-! ## The extractor -/
 
-/-- **The word the specification reads from a prefix of the log is the word extracted from the
-whole log**, without failure and when no hash entry past the prefix answers the root. -/
-theorem committedWord_eq {X : Type} {σ : Seeds X} {ℓ : Log} {k : ℕ} {r : Digest}
-    (hf : ¬ Fail σ ℓ) (hr : ∀ x, .inl (x, r) ∉ ℓ.drop k) (ht w : ℕ) :
-    Extraction.committedWord (lookH (ℓ.take k)) r ht w = extract (lookH ℓ) r ht w := by
+/-- **The word the specification reads from a prefix of the log reads the lanes of the word
+extracted from the whole log**, without failure and when no hash entry past the prefix answers
+the root: the two words differ only at the unlisted columns, zeros in the one and empty in the
+other. -/
+theorem committedWord_getD_eq {X : Type} {σ : Seeds X} {ℓ : Log} {k : ℕ} {r : Digest}
+    (hf : ¬ Fail σ ℓ) (hr : ∀ x, .inl (x, r) ∉ ℓ.drop k) (ht w v u : ℕ) :
+    (Extraction.committedWord (lookH (ℓ.take k)) r ht w v).reverse.getD u 0 =
+      (extract (lookH ℓ) r ht w v).reverse.getD u 0 := by
   have hbefore : HEntriesBefore ℓ r k := by
     intro i hi x hei
     by_contra hik
@@ -589,7 +593,8 @@ theorem committedWord_eq {X : Type} {σ : Seeds X} {ℓ : Log} {k : ℕ} {r : Di
     exact ⟨i - k, by simp; omega, by
       simp only [List.getElem_drop, Nat.add_sub_cancel' (by omega : k ≤ i)]; exact hei⟩
   rw [← extract_take_eq hf hbefore ht w]
-  rfl
+  unfold Extraction.committedWord extract pickLeaf
+  split <;> simp
 
 /-! ## The experiment in two stages -/
 

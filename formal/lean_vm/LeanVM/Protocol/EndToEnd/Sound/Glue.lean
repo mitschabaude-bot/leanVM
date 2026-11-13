@@ -52,9 +52,9 @@ open scoped ENNReal NNReal
 /-- The Johnson threshold of level `0` of the deployed ladder of `(μ, R)`. -/
 noncomputable def thrOf (μ R : ℕ) : ℕ := (Whir.Params.deployedCodes μ R 0).thr
 
-/-- The candidates of a level-0 word are finite. -/
-theorem candidates_finite {μ R : ℕ} (P₀ : LevelCode) (hκ : P₀.κ = μ - laneBits) (hR : P₀.R = R)
-    (hμ : laneBits ≤ μ) (W : Word) : (Candidates μ R P₀.thr W).Finite := by
+/-- The stacks agreeing with a level-0 word are finite. -/
+theorem agreeingStacks_finite {μ R : ℕ} (P₀ : LevelCode) (hκ : P₀.κ = μ - laneBits)
+    (hR : P₀.R = R) (hμ : laneBits ≤ μ) (W : Word) : (AgreeingStacks μ R P₀.thr W).Finite := by
   rcases P₀ with ⟨κ, R', η, h64, hκ1, hR1, hη, hagr⟩
   simp only at hκ hR
   subst hκ hR
@@ -64,23 +64,35 @@ theorem candidates_finite {μ R : ℕ} (P₀ : LevelCode) (hκ : P₀.κ = μ - 
   refine (Whir.iList (ReedSolomon.code (Whir.domain (μ - laneBits) R' h64) (2 ^ (μ - laneBits)))
     P₀.thr (laneWord μ R' W)).finite_toSet.subset ?_
   rintro _ ⟨q, hq, rfl⟩
-  exact mem_iList_of_candidate h64 hq
+  exact mem_iList_of_agreeing h64 hq
 
-/-- **The candidates of a level-0 word are at most `listMax`.** -/
-theorem candidates_ncard_le {μ R : ℕ} (P₀ : LevelCode) (hκ : P₀.κ = μ - laneBits)
+/-- **The stacks agreeing with a level-0 word are at most `listMax`.** -/
+theorem agreeingStacks_ncard_le {μ R : ℕ} (P₀ : LevelCode) (hκ : P₀.κ = μ - laneBits)
     (hR : P₀.R = R) (hμ : laneBits ≤ μ) (W : Word) :
-    (Candidates μ R P₀.thr W).ncard ≤ P₀.listMax := by
+    (AgreeingStacks μ R P₀.thr W).ncard ≤ P₀.listMax := by
   rcases P₀ with ⟨κ, R', η, h64, hκ1, hR1, hη, hagr⟩
   simp only at hκ hR
   subst hκ hR
   set P₀ : LevelCode := ⟨μ - laneBits, R', η, h64, hκ1, hR1, hη, hagr⟩
   set L := Whir.iList (ReedSolomon.code (Whir.domain (μ - laneBits) R' h64)
     (2 ^ (μ - laneBits))) P₀.thr (laneWord μ R' W)
-  calc (Candidates μ R' P₀.thr W).ncard ≤ (L : Set _).ncard :=
-        Set.ncard_le_ncard_of_injOn (encStack μ R') (fun q hq ↦ mem_iList_of_candidate h64 hq)
+  calc (AgreeingStacks μ R' P₀.thr W).ncard ≤ (L : Set _).ncard :=
+        Set.ncard_le_ncard_of_injOn (encStack μ R') (fun q hq ↦ mem_iList_of_agreeing h64 hq)
           ((encStack_injective hμ h64).injOn) L.finite_toSet
     _ = L.card := Set.ncard_coe_finset L
     _ ≤ P₀.listMax := P₀.card_iList_le _
+
+/-- The candidates of a level-0 word are finite. -/
+theorem candidates_finite {μ R : ℕ} (P₀ : LevelCode) (hκ : P₀.κ = μ - laneBits) (hR : P₀.R = R)
+    (hμ : laneBits ≤ μ) (W : Word) : (Candidates μ R P₀.thr W).Finite :=
+  (agreeingStacks_finite P₀ hκ hR hμ W).subset (candidates_subset_agreeingStacks W)
+
+/-- **The candidates of a level-0 word are at most `listMax`.** -/
+theorem candidates_ncard_le {μ R : ℕ} (P₀ : LevelCode) (hκ : P₀.κ = μ - laneBits)
+    (hR : P₀.R = R) (hμ : laneBits ≤ μ) (W : Word) :
+    (Candidates μ R P₀.thr W).ncard ≤ P₀.listMax :=
+  (Set.ncard_le_ncard (candidates_subset_agreeingStacks W)
+    (agreeingStacks_finite P₀ hκ hR hμ W)).trans (agreeingStacks_ncard_le P₀ hκ hR hμ W)
 
 /-- A stack read on equal variables is a candidate exactly when it is one. -/
 theorem mem_candidates_castColumn {a b : ℕ} (e : a = b) (R : ℕ) (W : Word) (q : Column a) :

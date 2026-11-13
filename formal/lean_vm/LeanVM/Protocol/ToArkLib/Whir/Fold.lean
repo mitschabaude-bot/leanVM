@@ -149,6 +149,42 @@ theorem image_fold_iList_subset [DecidableEq F] [DecidableEq ι] (C : Submodule 
   obtain ⟨U, hU, rfl⟩ := Finset.mem_image.mp hV
   exact fold_mem_iList C hU s
 
+/-- The fold of a list member on `Λ` is in the list of the fold on `Λ`. -/
+theorem fold_mem_iListOn (C : Submodule F (ι → F)) {A : ℕ} {Λ : Finset ι} {O U : Bool × ρ → ι → F}
+    (hU : U ∈ iListOn C A Λ O) (s : F) : fold s U ∈ iListOn C A Λ (fold s O) := by
+  rw [mem_iListOn] at hU ⊢
+  obtain ⟨hcw, S, hSΛ, hS, hagree⟩ := hU
+  exact ⟨isInterleavedCodeword_fold C hcw s, S, hSΛ, hS, hagree.fold s⟩
+
+/-- The inclusion that always holds, on `Λ`. -/
+theorem image_fold_iListOn_subset [DecidableEq F] [DecidableEq ι] (C : Submodule F (ι → F))
+    (A : ℕ) (Λ : Finset ι) (O : Bool × ρ → ι → F) (s : F) :
+    (iListOn C A Λ O).image (fold s) ⊆ iListOn C A Λ (fold s O) := by
+  intro V hV
+  obtain ⟨U, hU, rfl⟩ := Finset.mem_image.mp hV
+  exact fold_mem_iListOn C hU s
+
+/-- The bad event of the fold-list lemma on the coordinates `Λ`. -/
+noncomputable def foldBadOn [DecidableEq F] [DecidableEq ι] (C : Submodule F (ι → F)) (A : ℕ)
+    (Λ : Finset ι) (O : Bool × ρ → ι → F) : Finset F :=
+  univ.filter fun s ↦ iListOn C A Λ (fold s O) ≠ (iListOn C A Λ O).image (fold s)
+
+theorem mem_foldBadOn [DecidableEq F] [DecidableEq ι] (C : Submodule F (ι → F)) (A : ℕ)
+    (Λ : Finset ι) (O : Bool × ρ → ι → F) (s : F) :
+    s ∈ foldBadOn C A Λ O ↔ iListOn C A Λ (fold s O) ≠ (iListOn C A Λ O).image (fold s) := by
+  simp [foldBadOn]
+
+/-- A challenge is good on `Λ` as soon as every member of the list of the fold on `Λ` is a fold of
+a member of the list on `Λ`. -/
+theorem not_mem_foldBadOn_of_subset [DecidableEq F] [DecidableEq ι] (C : Submodule F (ι → F))
+    (A : ℕ) (Λ : Finset ι) (O : Bool × ρ → ι → F) (s : F)
+    (h : ∀ V ∈ iListOn C A Λ (fold s O), ∃ W ∈ iListOn C A Λ O, fold s W = V) :
+    s ∉ foldBadOn C A Λ O := by
+  rw [mem_foldBadOn, not_not]
+  refine Finset.Subset.antisymm (fun V hV ↦ ?_) (image_fold_iListOn_subset C A Λ O s)
+  obtain ⟨W, hW, rfl⟩ := h V hV
+  exact Finset.mem_image_of_mem _ hW
+
 /-- The challenges at which folding the list differs from the list of the fold: the bad event of
 Annex B, `lem:fold-list`. -/
 noncomputable def foldBad [DecidableEq F] [DecidableEq ι] (C : Submodule F (ι → F)) (A : ℕ)
@@ -159,6 +195,12 @@ theorem mem_foldBad [DecidableEq F] [DecidableEq ι] (C : Submodule F (ι → F)
     (O : Bool × ρ → ι → F) (s : F) :
     s ∈ foldBad C A O ↔ iList C A (fold s O) ≠ (iList C A O).image (fold s) := by
   simp [foldBad]
+
+/-- The bad event on every coordinate is the bad event. -/
+theorem foldBadOn_univ [DecidableEq F] [DecidableEq ι] (C : Submodule F (ι → F)) (A : ℕ)
+    (O : Bool × ρ → ι → F) : foldBadOn C A univ O = foldBad C A O := by
+  ext s
+  rw [mem_foldBadOn, mem_foldBad, iListOn_univ, iListOn_univ]
 
 /-- A challenge is good as soon as every member of the list of the fold is a fold of a member of
 the list. -/
@@ -180,21 +222,23 @@ theorem lineExactAgreementBound_mono_threshold [DecidableEq F] {domain : ι ↪ 
     ReedSolomon.LineExactAgreementBound domain k A' B := fun f g ↦
   (h f g).imp fun _ hex ↦ ⟨hex.1, fun z hz P hP hagree ↦ hex.2 z hz P hP (hA.trans hagree)⟩
 
-/-- **The fold-list lemma, by exact line agreement** (Annex B, `lem:fold-list`, count form).
-If the Reed-Solomon code of degree below `k` has uniform exact line agreement at threshold `A`
-with at most `B` exceptional challenges per pair of words, then for every interleaved word with
-rows `Bool × ρ`, at most `|ρ| ⌊B⌋₊` challenges `s` have `Λ(fold s O) ≠ fold s '' Λ(O)`. -/
-theorem card_foldBad_le_of_lineExact [DecidableEq F] [DecidableEq ι] (domain : ι ↪ F)
+/-- **The fold-list lemma, by exact line agreement** (Annex B, `lem:fold-list`, count form), on
+the coordinates `Λ`. If the Reed-Solomon code of degree below `k` has uniform exact line agreement
+at threshold `A` with at most `B` exceptional challenges per pair of words, then for every
+interleaved word with rows `Bool × ρ`, at most `|ρ| ⌊B⌋₊` challenges `s` have
+`Λ(fold s O) ≠ fold s '' Λ(O)` for the lists on `Λ`: the pair a folded member decomposes into
+agrees with `O` on the same coordinates. -/
+theorem card_foldBadOn_le_of_lineExact [DecidableEq F] [DecidableEq ι] (domain : ι ↪ F)
     {k A : ℕ} {B : ℝ} (hline : ReedSolomon.LineExactAgreementBound domain k A B)
-    (O : Bool × ρ → ι → F) :
-    (foldBad (ReedSolomon.code domain k) A O).card ≤ Fintype.card ρ * ⌊B⌋₊ := by
+    (Λ : Finset ι) (O : Bool × ρ → ι → F) :
+    (foldBadOn (ReedSolomon.code domain k) A Λ O).card ≤ Fintype.card ρ * ⌊B⌋₊ := by
   choose ex hexcard hex using fun u : ρ ↦
     hline (O (false, u)) (fun x ↦ O (true, u) x - O (false, u) x)
   refine (Finset.card_le_card fun s hs ↦ ?_).trans (card_biUnion_le_floor ex hexcard)
   by_contra hsex
   simp only [Finset.mem_biUnion, Finset.mem_univ, true_and, not_exists] at hsex
-  refine not_mem_foldBad_of_subset _ A O s (fun V hV ↦ ?_) hs
-  obtain ⟨hVcw, S, hS, hagree⟩ := (mem_iList _ A _ V).mp hV
+  refine not_mem_foldBadOn_of_subset _ A Λ O s (fun V hV ↦ ?_) hs
+  obtain ⟨hVcw, S, hSΛ, hS, hagree⟩ := (mem_iListOn _ A Λ _ V).mp hV
   -- Decompose every row of `V` along the line of the matching pair of rows of `O`.
   have hdec : ∀ u, ∃ P₀ P₁ : F[X], P₀.degree < k ∧ P₁.degree < k ∧
       (∀ x, V u x = P₀.eval (domain x) + s * P₁.eval (domain x)) ∧
@@ -233,10 +277,21 @@ theorem card_foldBad_le_of_lineExact [DecidableEq F] [DecidableEq ι] (domain : 
     cases b
     · simp [W, (hP u x hx).1]
     · simp [W, (hP u x hx).1, (hP u x hx).2]
-  refine ⟨W, (mem_iList _ A O W).mpr ⟨hWcw, S, hS, hWagree⟩, ?_⟩
+  refine ⟨W, (mem_iListOn _ A Λ O W).mpr ⟨hWcw, S, hSΛ, hS, hWagree⟩, ?_⟩
   funext u x
   simp only [fold, W, hVeq u x, ite_false, ite_true, Bool.false_eq_true]
   ring
+
+/-- **The fold-list lemma, by exact line agreement** (Annex B, `lem:fold-list`, count form).
+If the Reed-Solomon code of degree below `k` has uniform exact line agreement at threshold `A`
+with at most `B` exceptional challenges per pair of words, then for every interleaved word with
+rows `Bool × ρ`, at most `|ρ| ⌊B⌋₊` challenges `s` have `Λ(fold s O) ≠ fold s '' Λ(O)`. -/
+theorem card_foldBad_le_of_lineExact [DecidableEq F] [DecidableEq ι] (domain : ι ↪ F)
+    {k A : ℕ} {B : ℝ} (hline : ReedSolomon.LineExactAgreementBound domain k A B)
+    (O : Bool × ρ → ι → F) :
+    (foldBad (ReedSolomon.code domain k) A O).card ≤ Fintype.card ρ * ⌊B⌋₊ := by
+  rw [← foldBadOn_univ]
+  exact card_foldBadOn_le_of_lineExact domain hline univ O
 
 omit [Fintype F] in
 /-- **ArkLib's Johnson line count as uniform exact line agreement.** For the Reed-Solomon code of
@@ -267,7 +322,16 @@ theorem lineExactAgreementBound_johnson [DecidableEq F] {n D : ℕ} {η : ℝ}
 `1 ≤ D ≤ n - 2`, `0 < η` and `a = √(D / n) + η ≤ 1`, i.e. at radius `γ = 1 - √ρ₋ - η` with
 `ρ₋ = D / n`, every interleaved word with rows `Bool × ρ` has at most
 `|ρ| ⌊johnsonExceptionCount n D ⌈a n⌉₊ η⌋₊` challenges `s` with
-`Λ(fold s O) ≠ fold s '' Λ(O)` at the threshold `⌈a n⌉₊`. Any characteristic. -/
+`Λ(fold s O) ≠ fold s '' Λ(O)` at the threshold `⌈a n⌉₊`, for the lists on any coordinates `Λ`.
+Any characteristic. -/
+theorem card_foldBadOn_le_johnson [DecidableEq F] {n D : ℕ} {η : ℝ} (domain : Fin n ↪ F)
+    (hD : 1 ≤ D) (hDn : D ≤ n - 2) (hη : 0 < η) (ha : johnsonAgreement n D η ≤ 1)
+    (Λ : Finset (Fin n)) (O : Bool × ρ → Fin n → F) :
+    (foldBadOn (ReedSolomon.code domain (D + 1)) ⌈johnsonAgreement n D η * n⌉₊ Λ O).card ≤
+      Fintype.card ρ * ⌊johnsonExceptionCount n D ⌈johnsonAgreement n D η * n⌉₊ η⌋₊ :=
+  card_foldBadOn_le_of_lineExact domain (lineExactAgreementBound_johnson domain hD hDn hη ha) Λ O
+
+/-- The fold-list lemma up to the Johnson bound, on every coordinate. -/
 theorem card_foldBad_le_johnson [DecidableEq F] {n D : ℕ} {η : ℝ} (domain : Fin n ↪ F)
     (hD : 1 ≤ D) (hDn : D ≤ n - 2) (hη : 0 < η) (ha : johnsonAgreement n D η ≤ 1)
     (O : Bool × ρ → Fin n → F) :

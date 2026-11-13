@@ -140,7 +140,19 @@ abbrev Commits : Type := List (ℕ × ℕ × Word)
 /-- The rows the `i`-th of the commitments `cs` holds at `positions`: `answer` on a list of
 commitments. -/
 def answerOf (cs : Commits) (i : ℕ) (positions : List ℕ) : Option (List (List K)) :=
-  cs[i]?.map fun c ↦ positions.map fun p ↦ c.2.2 (p % 2 ^ c.1)
+  cs[i]?.bind fun c ↦
+    if positions.all fun p ↦ (c.2.2 (p % 2 ^ c.1)).length == c.2.1 then
+      some (positions.map fun p ↦ c.2.2 (p % 2 ^ c.1))
+    else none
+
+/-- The rows of a well-shaped commitment at `positions`. -/
+theorem answerOf_of_wellShaped {cs : Commits} {i ht w : ℕ} {word : Word}
+    (hc : cs[i]? = some (ht, w, word)) (hw : WellShaped w word) (positions : List ℕ) :
+    answerOf cs i positions = some (positions.map fun p ↦ word (p % 2 ^ ht)) := by
+  have hall : (positions.all fun p ↦ (word (p % 2 ^ ht)).length == w) = true := by
+    simp only [List.all_eq_true, beq_iff_eq]
+    exact fun p _ ↦ hw _
+  simp only [answerOf, hc, Option.bind_some, hall, ↓reduceIte]
 
 /-- `answer` reads the commitments of the history. -/
 theorem answer_eq_answerOf (h : List Ev) (i : ℕ) (ps : List ℕ) :

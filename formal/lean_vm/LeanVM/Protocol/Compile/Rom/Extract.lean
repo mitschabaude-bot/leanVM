@@ -19,8 +19,8 @@ The compiled verifier authenticates a row by climbing a Merkle path to a root
 (`LeanVM.Protocol.Compile.run`, `openOne`). The random-oracle theorem replaces each commitment
 of the interactive reading by the word the oracle's answers determine under the root
 (`extract`): at position `p`, an opening that climbs to the root at `p` through answered
-queries, if there is one, gives the row; otherwise the row is zero. Extracted words are well
-shaped (`wellShaped_extract`).
+queries, if there is one, gives the row; otherwise the row is empty, the column unlisted.
+Extracted words are partly shaped (`partShaped_extract`).
 
 The hash is a partial function `H : Bytes → Option Digest` (the answers recorded so far); the
 climb runs in `Option`, a missing answer failing it.
@@ -118,25 +118,37 @@ theorem openOne_eq_some_true_iff (H : Bytes → Option Digest) (r : Digest) (ht 
 /-! ## Extraction -/
 
 open Classical in
-/-- The leaf of an opening with the property `A`, if any, and the zero row of width `w`
-otherwise. -/
-noncomputable def pickLeaf (A : Opening → Prop) (w : ℕ) : List K :=
-  if h : ∃ o, A o then (Classical.choose h).leaf else List.replicate w 0
+/-- The leaf of an opening with the property `A`, if any, and the empty row otherwise. -/
+noncomputable def pickLeaf (A : Opening → Prop) : List K :=
+  if h : ∃ o, A o then (Classical.choose h).leaf else []
 
 /-- The word a root commits to under the answers `H`: at position `p`, the leaf of an accepted
-opening at `p`, if any, and the zero row of the width otherwise. -/
+opening at `p`, if any, and the empty row, an unlisted column, otherwise. -/
 noncomputable def extract (H : Bytes → Option Digest) (r : Digest) (ht w : ℕ) : Word := fun p ↦
-  pickLeaf (fun o ↦ openOneWithHash (m := Option) H r ht w p o = some true) w
+  pickLeaf (fun o ↦ openOneWithHash (m := Option) H r ht w p o = some true)
 
-/-- Extracted words are well shaped. -/
-theorem wellShaped_extract (H : Bytes → Option Digest) (r : Digest) (ht w : ℕ) :
-    WellShaped w (extract H r ht w) := by
+/-- Extracted words are partly shaped. -/
+theorem partShaped_extract (H : Bytes → Option Digest) (r : Digest) (ht w : ℕ) :
+    PartShaped w (extract H r ht w) := by
   intro p
   unfold extract pickLeaf
   split
   · rename_i h
-    exact ((openOne_eq_some_true_iff _ _ _ _ _ _).mp (Classical.choose_spec h)).1
-  · simp
+    exact .inr ((openOne_eq_some_true_iff _ _ _ _ _ _).mp (Classical.choose_spec h)).1
+  · exact .inl rfl
+
+/-- A column of an extracted word is listed exactly when an accepted opening reaches it. -/
+theorem length_extract {H : Bytes → Option Digest} {r : Digest} {ht w p : ℕ} (hw : w ≠ 0) :
+    (extract H r ht w p).length = w ↔
+      ∃ o, openOneWithHash (m := Option) H r ht w p o = some true := by
+  unfold extract pickLeaf
+  split
+  · rename_i h
+    exact ⟨fun _ ↦ h, fun _ ↦ ((openOne_eq_some_true_iff _ _ _ _ _ _).mp
+      (Classical.choose_spec h)).1⟩
+  · rename_i h
+    simp only [List.length_nil]
+    exact ⟨fun h0 ↦ absurd h0.symm hw, fun h' ↦ absurd h' h⟩
 
 /-- Two accepted openings at one position through injective answers have one leaf. -/
 theorem leaf_eq_of_openOne {H : Bytes → Option Digest} (hH : AnswersInj H) {r : Digest}
@@ -258,7 +270,7 @@ theorem extract_take_eq {X : Type} {σ : Seeds X} {ℓ : Log} (hf : ¬ Fail σ �
       (fun o ↦ openOneWithHash (m := Option) (lookH ℓ) r ht w p o = some true) := fun p ↦
     funext fun o ↦ propext ⟨openOne_mono hpre, openOne_take hf hr⟩
   funext p
-  show pickLeaf _ w = pickLeaf _ w
+  show pickLeaf _ = pickLeaf _
   rw [heq p]
 
 end

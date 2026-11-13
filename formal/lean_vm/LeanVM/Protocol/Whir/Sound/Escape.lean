@@ -27,16 +27,19 @@ glued with powers of `λ`: the running claim with `λ⁰`, the out-of-domain cla
 consistency claims with `λ^(2+q)`. On the final level the residual `f` is sent instead of `O'`,
 and the consistency claims get `λ^(1+q)`.
 
-* `OodSep P' Q z`: the members of the list of the next oracle `Q` have pairwise distinct
-  out-of-domain values at `z`, i.e. distinct `claimSum (eqEval z)` of their decoded messages.
+The lists are on the listed columns of their words (`iListOn`, `Viol`).
+
+* `OodSep P' Λ Q z`: the members of the list of the next oracle `Q` on its listed columns `Λ`
+  have pairwise distinct out-of-domain values at `z`, i.e. distinct `claimSum (eqEval z)` of their decoded messages.
   `card_oodSep_bad_le`: at most `C(listMax', 2)·κ·|E|^(κ−1)` points `z` break it
   (`card_ood_collision_image_le`).
 * `QueryGood`: after positions `qs`, every member `V` of the next list violates the running claim,
   or the out-of-domain claim, or the consistency claim at some queried column. `exists_agreeSet`:
   under the doom before the positions, there is a set `A` of at most `thr − 1` columns such that
-  positions breaking `QueryGood` all lie in `A`: the one candidate `V*` with the right
-  out-of-domain value (`OodSep`) either is close to the folded word, then it violates the running
-  claim by the doom, or agrees with it on fewer than `thr` columns.
+  listed positions breaking `QueryGood` all lie in `A`: the one candidate `V*` with the right
+  out-of-domain value (`OodSep`) either is close to the folded word on its listed columns, then it
+  violates the running claim by the doom, or agrees with it on fewer than `thr` listed columns. An
+  unlisted position is not opened (`Compile.answer`).
 * `card_lambda_bad_le`: under `QueryGood`, at most `(t + 1)·listMax'` values `λ` let a member
   satisfy the glued claim: its discrepancy is a nonzero polynomial of degree `t + 1` in `λ`.
 * The final level: `exists_agreeSet_final`, `card_lambda_bad_le_final` (degree `t`, the residual
@@ -57,8 +60,9 @@ def oodVal {m κ : ℕ} (z : List E) (g : (Fin m → Bool) → (Fin κ → Bool)
   claimSum (eqEval z) g
 
 /-- The members of the list of `Q` have pairwise distinct out-of-domain values at `z`. -/
-def OodSep (P : LevelCode) {m : ℕ} (Q : (Fin m → Bool) → Fin P.n → E) (z : List E) : Prop :=
-  ∀ V ∈ iList P.code P.thr Q, ∀ V' ∈ iList P.code P.thr Q, V ≠ V' →
+def OodSep (P : LevelCode) {m : ℕ} (Λ : Finset (Fin P.n)) (Q : (Fin m → Bool) → Fin P.n → E)
+    (z : List E) : Prop :=
+  ∀ V ∈ iListOn P.code P.thr Λ Q, ∀ V' ∈ iListOn P.code P.thr Λ Q, V ≠ V' →
     oodVal z (decode P V) ≠ oodVal z (decode P V')
 
 /-- The out-of-domain claim against a vector point reads the extension of the table. -/
@@ -103,10 +107,10 @@ open Classical in
 /-- **Out-of-domain separation** (Annex B, `lem:ood`): at most `C(listMax, 2)·κ·|E|^(κ−1)` points
 `z` leave two members of the list of `Q` with equal out-of-domain values. -/
 theorem card_oodSep_bad_le (P : LevelCode) {m κ : ℕ} (hκ : κ = m + P.κ)
-    (Q : (Fin m → Bool) → Fin P.n → E) :
-    (univ.filter fun v : Vector E κ ↦ ¬ OodSep P Q v.toList).card ≤
+    (Λ : Finset (Fin P.n)) (Q : (Fin m → Bool) → Fin P.n → E) :
+    (univ.filter fun v : Vector E κ ↦ ¬ OodSep P Λ Q v.toList).card ≤
       P.listMax.choose 2 * (κ * Fintype.card E ^ (κ - 1)) := by
-  set L := iList P.code P.thr Q
+  set L := iListOn P.code P.thr Λ Q
   let dec : ((Fin m → Bool) → Fin P.n → E) → CMlPolynomialEval E κ :=
     fun V ↦ tableOf (joinMsg hκ (decode P V))
   have hval : ∀ V (v : Vector E κ), oodVal v.toList (decode P V) = evalMle (dec V) v := by
@@ -114,11 +118,11 @@ theorem card_oodSep_bad_le (P : LevelCode) {m κ : ℕ} (hκ : κ = m + P.κ)
     rw [oodVal, ← sum_joinMsg hκ, sum_eqEval_vec]
   have hinj : Set.InjOn dec L := by
     intro V hV V' hV' h
-    exact decode_injOn P ((mem_iList _ _ _ _).mp hV).1 ((mem_iList _ _ _ _).mp hV').1
+    exact decode_injOn P ((mem_iListOn _ _ _ _ _).mp hV).1 ((mem_iListOn _ _ _ _ _).mp hV').1
       (joinMsg_injective hκ (tableOf_injective h))
   refine (Finset.card_le_card fun v hv ↦ ?_).trans
     ((card_ood_collision_image_le L dec hinj).trans
-      (Nat.mul_le_mul_right _ (Nat.choose_le_choose 2 (P.card_iList_le Q))))
+      (Nat.mul_le_mul_right _ (Nat.choose_le_choose 2 (P.card_iListOn_le Λ Q))))
   have hv' := (Finset.mem_filter.mp hv).2
   simp only [OodSep, not_forall, not_not, exists_prop] at hv'
   obtain ⟨V, hV, V', hV', hne, heq⟩ := hv'
@@ -163,44 +167,47 @@ def wordAt {n : ℕ} (C : Fin n → E) (q : ℕ) : E := if h : q < n then C ⟨q
 /-- After positions `qs`, every member of the list of `Q'` violates the running claim `(Φ, σ)`,
 the out-of-domain claim `(eq_eval(z, ·), y)`, or the consistency claim at a queried column of the
 folded word `C`. -/
-def QueryGood (P P' : LevelCode) {m : ℕ} (hκ : P.κ = m + P'.κ)
+def QueryGood (P P' : LevelCode) {m : ℕ} (hκ : P.κ = m + P'.κ) (Λ' : Finset (Fin P'.n))
     (Q' : (Fin m → Bool) → Fin P'.n → E) (C : Fin P.n → E) (Φ : List E → E) (σ : E)
     (z : List E) (y : E) (qs : List ℕ) : Prop :=
-  ∀ V ∈ iList P'.code P'.thr Q', claimSum Φ (decode P' V) ≠ σ ∨ oodVal z (decode P' V) ≠ y ∨
+  ∀ V ∈ iListOn P'.code P'.thr Λ' Q', claimSum Φ (decode P' V) ≠ σ ∨ oodVal z (decode P' V) ≠ y ∨
     ∃ q ∈ qs, encAt P.κ P.R (joinMsg hκ (decode P' V)) q ≠ wordAt C q
 
-/-- A message whose encoding agrees with the folded word on `thr` columns is caught by the
+/-- A message whose encoding agrees with the folded word on `thr` listed columns is caught by the
 running claim. -/
-theorem viol_of_close (P : LevelCode) (C : Fin P.n → E) (Φ : List E → E) (σ : E)
-    (hviol : Viol P (fun _ : Fin 0 → Bool ↦ C) Φ σ) (G : (Fin P.κ → Bool) → E)
-    (hclose : P.thr ≤ (univ.filter fun x ↦ enc P.κ P.R G x = C x).card) :
+theorem viol_of_close (P : LevelCode) (Λ : Finset (Fin P.n)) (C : Fin P.n → E) (Φ : List E → E)
+    (σ : E) (hviol : Viol P Λ (fun _ : Fin 0 → Bool ↦ C) Φ σ) (G : (Fin P.κ → Bool) → E)
+    (hclose : P.thr ≤ (Λ.filter fun x ↦ enc P.κ P.R G x = C x).card) :
     ∑ x, Φ (bitsL x) * G x ≠ σ := by
-  have hmem : (fun _ : Fin 0 → Bool ↦ enc P.κ P.R G) ∈ iList P.code P.thr fun _ ↦ C := by
-    rw [mem_iList]
-    refine ⟨fun _ ↦ ?_, _, hclose, fun _ x hx ↦ ((Finset.mem_filter.mp hx).2).symm⟩
+  have hmem : (fun _ : Fin 0 → Bool ↦ enc P.κ P.R G) ∈ iListOn P.code P.thr Λ fun _ ↦ C := by
+    rw [mem_iListOn]
+    refine ⟨fun _ ↦ ?_, _, Finset.filter_subset _ _, hclose,
+      fun _ x hx ↦ ((Finset.mem_filter.mp hx).2).symm⟩
     show _ ∈ ReedSolomon.code (domain P.κ P.R P.h64) (2 ^ P.κ)
     rw [← range_enc P.h64]; exact LinearMap.mem_range_self _ _
   have := hviol _ hmem
   rwa [decode_enc P (fun _ ↦ G), claimSum_zero] at this
 
 /-- **The query step.** Under the doom before the positions (every member of the list of the
-folded word `C` violates `(Φ, σ)`, and the out-of-domain values separate the list of `Q'`), the
-positions breaking `QueryGood` all lie in a set of at most `thr − 1` columns. -/
-theorem exists_agreeSet (P P' : LevelCode) {m : ℕ} (hκ : P.κ = m + P'.κ)
-    (Q' : (Fin m → Bool) → Fin P'.n → E) (C : Fin P.n → E) (Φ : List E → E) (σ : E)
-    (z : List E) (y : E) (hviol : Viol P (fun _ : Fin 0 → Bool ↦ C) Φ σ)
-    (hsep : OodSep P' Q' z) :
+folded word `C` on the listed columns `Λ` violates `(Φ, σ)`, and the out-of-domain values separate
+the list of `Q'` on its listed columns `Λ'`), the listed positions breaking `QueryGood` all lie in
+a set of at most `thr − 1` columns. -/
+theorem exists_agreeSet (P P' : LevelCode) {m : ℕ} (hκ : P.κ = m + P'.κ) (Λ : Finset (Fin P.n))
+    (Λ' : Finset (Fin P'.n)) (Q' : (Fin m → Bool) → Fin P'.n → E) (C : Fin P.n → E)
+    (Φ : List E → E) (σ : E) (z : List E) (y : E)
+    (hviol : Viol P Λ (fun _ : Fin 0 → Bool ↦ C) Φ σ) (hsep : OodSep P' Λ' Q' z) :
     ∃ A : Finset (Fin P.n), A.card + 1 ≤ P.thr ∧ ∀ qs : List ℕ,
-      ¬ QueryGood P P' hκ Q' C Φ σ z y qs → ∀ q ∈ qs, ∀ h : q < P.n, (⟨q, h⟩ : Fin P.n) ∈ A := by
-  by_cases hex : ∃ V ∈ iList P'.code P'.thr Q', claimSum Φ (decode P' V) = σ ∧
+      ¬ QueryGood P P' hκ Λ' Q' C Φ σ z y qs → ∀ q ∈ qs, ∀ h : q < P.n,
+        (⟨q, h⟩ : Fin P.n) ∈ Λ → (⟨q, h⟩ : Fin P.n) ∈ A := by
+  by_cases hex : ∃ V ∈ iListOn P'.code P'.thr Λ' Q', claimSum Φ (decode P' V) = σ ∧
       oodVal z (decode P' V) = y
   · obtain ⟨V₀, hV₀, hclaim, hood⟩ := hex
     set G := joinMsg hκ (decode P' V₀)
-    refine ⟨univ.filter fun x ↦ enc P.κ P.R G x = C x, ?_, fun qs hqs q hq ↦ ?_⟩
+    refine ⟨Λ.filter fun x ↦ enc P.κ P.R G x = C x, ?_, fun qs hqs q hq ↦ ?_⟩
     · by_contra hlt
-      exact viol_of_close P C Φ σ hviol G (Nat.lt_succ_iff.mp (not_le.mp hlt))
+      exact viol_of_close P Λ C Φ σ hviol G (Nat.lt_succ_iff.mp (not_le.mp hlt))
         (by rw [sum_joinMsg]; exact hclaim)
-    · intro hlt
+    · intro hlt hΛ
       simp only [QueryGood, not_forall, not_or, not_not, exists_prop, not_exists, not_and] at hqs
       obtain ⟨V, hV, hc, ho, hall⟩ := hqs
       have hVV : V = V₀ := by
@@ -208,7 +215,7 @@ theorem exists_agreeSet (P P' : LevelCode) {m : ℕ} (hκ : P.κ = m + P'.κ)
         exact hsep V hV V₀ hV₀ hne (ho.trans hood.symm)
       subst hVV
       have h := hall q hq
-      exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
+      exact Finset.mem_filter.mpr ⟨hΛ, by
         simpa [encAt, wordAt, LevelCode.n, hlt] using h⟩
   · refine ⟨∅, by simpa using Nat.succ_le_of_lt (Nat.lt_of_lt_of_le (Nat.two_pow_pos _)
       P.two_pow_le_thr), fun qs hqs ↦ absurd ?_ hqs⟩
@@ -272,20 +279,22 @@ def QueryGoodFinal (P : LevelCode) (C : Fin P.n → E) (Φ : List E → E) (σ :
     (G : (Fin P.κ → Bool) → E) (qs : List ℕ) : Prop :=
   ∑ x, Φ (bitsL x) * G x ≠ σ ∨ ∃ q ∈ qs, encAt P.κ P.R G q ≠ wordAt C q
 
-/-- **The final query step.** Positions breaking `QueryGoodFinal` lie in a set of at most
+/-- **The final query step.** Listed positions breaking `QueryGoodFinal` lie in a set of at most
 `thr − 1` columns. -/
-theorem exists_agreeSet_final (P : LevelCode) (C : Fin P.n → E) (Φ : List E → E) (σ : E)
-    (hviol : Viol P (fun _ : Fin 0 → Bool ↦ C) Φ σ) (G : (Fin P.κ → Bool) → E) :
+theorem exists_agreeSet_final (P : LevelCode) (Λ : Finset (Fin P.n)) (C : Fin P.n → E)
+    (Φ : List E → E) (σ : E) (hviol : Viol P Λ (fun _ : Fin 0 → Bool ↦ C) Φ σ)
+    (G : (Fin P.κ → Bool) → E) :
     ∃ A : Finset (Fin P.n), A.card + 1 ≤ P.thr ∧ ∀ qs : List ℕ,
-      ¬ QueryGoodFinal P C Φ σ G qs → ∀ q ∈ qs, ∀ h : q < P.n, (⟨q, h⟩ : Fin P.n) ∈ A := by
+      ¬ QueryGoodFinal P C Φ σ G qs → ∀ q ∈ qs, ∀ h : q < P.n,
+        (⟨q, h⟩ : Fin P.n) ∈ Λ → (⟨q, h⟩ : Fin P.n) ∈ A := by
   by_cases hc : ∑ x, Φ (bitsL x) * G x = σ
-  · refine ⟨univ.filter fun x ↦ enc P.κ P.R G x = C x, ?_, fun qs hqs q hq ↦ ?_⟩
+  · refine ⟨Λ.filter fun x ↦ enc P.κ P.R G x = C x, ?_, fun qs hqs q hq ↦ ?_⟩
     · by_contra hlt
-      exact viol_of_close P C Φ σ hviol G (Nat.lt_succ_iff.mp (not_le.mp hlt)) hc
+      exact viol_of_close P Λ C Φ σ hviol G (Nat.lt_succ_iff.mp (not_le.mp hlt)) hc
     · simp only [QueryGoodFinal, not_or, not_not, not_exists, not_and] at hqs
-      intro hlt
+      intro hlt hΛ
       have h := hqs.2 q hq
-      exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
+      exact Finset.mem_filter.mpr ⟨hΛ, by
         simpa [encAt, wordAt, LevelCode.n, hlt] using h⟩
   · refine ⟨∅, by simpa using Nat.succ_le_of_lt (Nat.lt_of_lt_of_le (Nat.two_pow_pos _)
       P.two_pow_le_thr), fun qs hqs ↦ absurd (Or.inl hc) hqs⟩

@@ -546,8 +546,8 @@ theorem shaped_sample (S : Strategy) {α : Type} {k : E → VerifierProgram α} 
     simp at this
   simp [chal', hne]
 
-/-- Every word committed in a history has rows of at most `maxWidth` words. -/
-def HistOK (h : List Ev) : Prop := ∀ c ∈ commits h, RowsLE c.2.2
+/-- Every word committed in a history is well shaped, with rows of at most `maxWidth` words. -/
+def HistOK (h : List Ev) : Prop := ∀ c ∈ commits h, RowsLE c.2.2 ∧ WellShaped c.2.1 c.2.2
 
 theorem histOK_append_of_nil {h : List Ev} (e : Ev) (he : commits [e] = []) (hh : HistOK h) :
     HistOK (h ++ [e]) := by
@@ -573,19 +573,19 @@ theorem treesOK_commit {cs : List Tree} {h : List Ev} (hT : TreesOK cs h) (ht w 
   rfl
 
 /-- An opening the prover reads off a tree is the history's answer. -/
-theorem answer_of_treesOK {cs : List Tree} {h : List Ev} (hT : TreesOK cs h) {i : ℕ}
+theorem answer_of_treesOK {cs : List Tree} {h : List Ev} (hT : TreesOK cs h)
+    (hw : ∀ c ∈ commits h, WellShaped c.2.1 c.2.2) {i : ℕ}
     {tree : Tree} (hc : cs[i]? = some tree) (ps : List ℕ) :
     answer h i ps = some (ps.map fun q ↦ tree.word (q % 2 ^ tree.height)) := by
   have e := congrArg (·[i]?) hT
   simp only [List.getElem?_map, hc, Option.map_some] at e
-  unfold answer
   rcases hci : (commits h)[i]? with _ | ⟨a, b, c⟩
   · rw [hci] at e
     cases e
   · rw [hci] at e
     simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at e
     obtain ⟨rfl, rfl⟩ := e
-    rfl
+    exact answer_of_wellShaped hci (hw _ (List.mem_of_getElem? hci)) ps
 
 theorem allQ_proveFromM (S : Strategy) (fuel : ℕ) {α : Type} :
     ∀ (P : VerifierProgram α) (sp : Sponge) (h : List Ev) (cs : List Tree), WidthsLE maxWidth P →
@@ -622,7 +622,7 @@ theorem allQ_proveFromM (S : Strategy) (fuel : ℕ) {α : Type} :
       · exact hh c hc
       · simp only [commits, List.mem_singleton] at hc
         subst hc
-        exact hrows
+        exact ⟨hrows, hs⟩
     exact allQueriesSatisfy_bind (allQ_leafDigestsM _ hrows) fun _ ↦
       allQueriesSatisfy_bind (allQ_levelsM _ _) fun lv ↦
       allQueriesSatisfy_bind (allQ_absorb _ _ _) fun _ ↦
@@ -634,7 +634,7 @@ theorem allQ_proveFromM (S : Strategy) (fuel : ℕ) {α : Type} :
     split
     · exact allQ_pure _
     · rename_i tree hi
-      have ha := answer_of_treesOK hT hi ps
+      have ha := answer_of_treesOK hT (fun c hc ↦ (hh c hc).2) hi ps
       have hG' : ∀ chal, S.ShapedFrom chal (k (ps.map fun q ↦ tree.word (q % 2 ^ tree.height)))
           (h ++ [Ev.query (ps.map fun q ↦ tree.word (q % 2 ^ tree.height))]) := fun chal ↦ by
         have := hG chal

@@ -34,7 +34,8 @@ weighted claim:
   values to the target, and keeps `QuadOK` (`glue_two`, `glue_one`).
 * `laneO i cs`: the lane oracle of commitment `i` of the commitments `cs`: lane `j` of column `v`
   is entry `j` of the reversed leaf (level `0`, `row.reverse.map ofK`) or of the leaf regrouped
-  into `E` (deeper levels, `ext_row`). `enforcedSum_eq`: the verifier's `enforcedSum` of the
+  into `E` (deeper levels, `ext_row`). `listedO i cs`: its listed columns, whose leaves have the
+  commitment's width. `enforcedSum_eq`: the verifier's `enforcedSum` of the
   opened rows is `Σ_q λ^q c[x_q]` with `c` the oracle folded by the level's challenges.
 -/
 
@@ -190,6 +191,15 @@ def lanesOf (i : ℕ) (row : List K) : List E :=
 /-- **The lane oracle of commitment `i`**: lane `j` of column `v`. -/
 def laneO (i : ℕ) (cs : List (ℕ × ℕ × Word)) (n : ℕ) : ℕ → Fin n → E :=
   fun j v ↦ (lanesOf i (wordOf cs i v)).getD j 0
+
+/-- **The listed columns** of commitment `i`: those whose leaf has the commitment's width (the
+extraction of a compiled run leaves an unlisted column's leaf empty). -/
+def listedO (i : ℕ) (cs : List (ℕ × ℕ × Word)) (n : ℕ) : Finset (Fin n) :=
+  univ.filter fun v ↦ (wordOf cs i v).length = (cs[i]?.map fun c ↦ c.2.1).getD 0
+
+theorem mem_listedO {i : ℕ} {cs : List (ℕ × ℕ × Word)} {n ht wd : ℕ} {W : Word}
+    (hc : cs[i]? = some (ht, wd, W)) (v : Fin n) : v ∈ listedO i cs n ↔ (W v).length = wd := by
+  simp [listedO, wordOf, hc]
 
 theorem length_extRow (m : ℕ) : ∀ (l : List K), l.length = 3 * m → (extRow l).length = m
   | c0 :: c1 :: c2 :: rest, h => by

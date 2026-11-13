@@ -249,7 +249,7 @@ noncomputable def readE {Post : E → List Ev → Prop}
       exact (min_le_right _ _).trans hT
 
 private theorem reach_commitP {ht w : ℕ} {h₀ l : List Ev} (hl : (readCommitment ht w).Reach h₀ l) :
-    l = [] ∨ ∃ word, WellShaped w word ∧ l = [Ev.commit ht w word] := by
+    l = [] ∨ ∃ word, PartShaped w word ∧ l = [Ev.commit ht w word] := by
   induction hl with
   | nil => exact .inl rfl
   | commit word _ ha hw ih =>
@@ -262,10 +262,10 @@ private theorem reach_commitP {ht w : ℕ} {h₀ l : List Ev} (hl : (readCommitm
     rcases ih with rfl | ⟨y, -, rfl⟩ <;> simp [readCommitment, after] at ha
 
 open Classical in
-/-- **Commit** a matrix: `Post` after every well-shaped word; the boundary after the commitment
+/-- **Commit** a matrix: `Post` after every partly shaped word; the boundary after the commitment
 carries the follower's lead. -/
 noncomputable def commitP {Post : Unit → List Ev → Prop} (ht w : ℕ)
-    (h : ∀ h₀ word, Pre h₀ → WellShaped w word → Post () (h₀ ++ [Ev.commit ht w word]))
+    (h : ∀ h₀ word, Pre h₀ → PartShaped w word → Post () (h₀ ++ [Ev.commit ht w word]))
     (hT : T ≤ εmax) : Spec (VerifierProgram.readCommitment ht w) Pre Post εmax 0 T where
   D h₀ l := match l with
     | [] => Pre h₀

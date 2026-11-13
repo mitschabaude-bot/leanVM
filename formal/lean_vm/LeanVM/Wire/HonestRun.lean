@@ -128,8 +128,8 @@ theorem proveFrom_phases :
       simp only [Prod.mk.injEq] at he
       obtain ⟨-, rfl⟩ := he
       have hrows' : rows = ps.map fun q ↦ word (q % 2 ^ ht) := by
-        simp only [answer, hci, Option.map_some, Option.some.injEq] at hrows
-        exact hrows.symm
+        rw [answer_of_wellShaped hci (hws _ (List.mem_of_getElem? hci))] at hrows
+        exact (Option.some.inj hrows).symm
       subst hrows'
       have hshape : (shapesOf (commits hist)).getD i (0, 0) = (ht, w') := by
         simp [shapesOf, List.getD_eq_getElem?_getD, hci]

@@ -2,7 +2,7 @@
   LeanVM.Protocol.EndToEnd.Sound.Runs
 
   Facts about runs of the compiled verifier the knowledge statement reads: the extracted history
-  of an accepted run as a return of the program with well-shaped commitments, and the shape of the
+  of an accepted run as a return of the program with partly shaped commitments, and the shape of the
   first phases' runs.
 -/
 
@@ -16,7 +16,7 @@ public import LeanVM.Protocol.EndToEnd.Sound.Frame
 # Runs of the compiled verifier
 
 * `xrun_after`: the extracted history of a compiled run that returns `a` is a history of the
-  program that returns `a`, and every commitment in it holds a well-shaped word;
+  program that returns `a`, and every commitment in it holds a partly shaped word;
   `after_extractedHistory`: hence for an accepted proof.
 * `commitStack_after_ret`, `readSizes_ne_ret`, `verifyExecution_ne_ret`,
   `verifyBusBalance_ne_ret`: the shapes of the first phases' runs.
@@ -42,13 +42,13 @@ variable (H : Bytes → Option Digest) (F : KeccakState → Option KeccakState)
 
 /-- **The extracted history of a compiled run is a run of the program**: it extends the
 starting history by a history along which the program returns the run's value, and every
-commitment in it holds a well-shaped word. -/
+commitment in it holds a partly shaped word. -/
 theorem xrun_after {α : Type} :
     ∀ (p : VerifierProgram α) (s : VerifierProgramState) (h : List Ev) {a : α} {s' :
         VerifierProgramState} {hist : List Ev},
       xrun H F p s h = some (a, s', hist) →
         ∃ l, hist = h ++ l ∧ p.after l = some (.ret a) ∧
-          ∀ ht w W, Ev.commit ht w W ∈ l → WellShaped w W
+          ∀ ht w W, Ev.commit ht w W ∈ l → PartShaped w W
   | .ret a, s, h, _, _, _, hr => by
     simp only [xrun, Option.some.injEq, Prod.mk.injEq] at hr
     obtain ⟨rfl, -, rfl⟩ := hr
@@ -98,7 +98,7 @@ theorem xrun_after {α : Type} :
         rcases List.mem_cons.1 hm with he | hm
         · simp only [Ev.commit.injEq] at he
           obtain ⟨-, rfl, rfl⟩ := he
-          exact wellShaped_extract _ _ _ _
+          exact partShaped_extract _ _ _ _
         · exact hw _ _ _ hm
       · simp at hr
     · simp at hr
@@ -115,11 +115,11 @@ theorem xrun_after {α : Type} :
     · simp at hr
 
 /-- **An accepted proof's extracted history is an accepting history of the program**, whose
-commitments hold well-shaped words. -/
+commitments hold partly shaped words. -/
 theorem after_extractedHistory {σ : Seed} {P : VerifierProgram Bool} {π : Proof}
     (hv : Rom.verify H F σ P π = some true) :
     P.after (extractedHistory H F σ P π) = some (.ret true) ∧
-      ∀ ht w W, Ev.commit ht w W ∈ extractedHistory H F σ P π → WellShaped w W := by
+      ∀ ht w W, Ev.commit ht w W ∈ extractedHistory H F σ P π → PartShaped w W := by
   obtain ⟨seed, s, -, hx⟩ := xrun_of_verify hv
   obtain ⟨l, hl, ha, hw⟩ := xrun_after H F P _ [] hx
   simp only [List.nil_append] at hl

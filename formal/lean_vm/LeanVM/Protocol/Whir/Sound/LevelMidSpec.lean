@@ -65,15 +65,17 @@ noncomputable def midQuerySpec (H : MidHyp μ ℓ₀ w P P' level next pre)
         have hd : μ - r.1.folds.length + level.logInvRate = P.κ + P.R := by rw [hκm, H.hR]
         have hκ' : P.κ = next.fold + P'.κ := by have := H.hP; have := H.hP'; omega
         have hlf : r.2.length = level.fold := haf.2
-        have hviol : Viol P (fun _ : Fin 0 → Bool ↦ fun v ↦ foldsN r.2 (laneO i cs₀ P.n) 0 v)
+        have hviol : Viol P (listedO i cs₀ P.n)
+            (fun _ : Fin 0 → Bool ↦ fun v ↦ foldsN r.2 (laneO i cs₀ P.n) 0 v)
             (runW w ℓ₀ r.1) r.1.target := by
           have := haf.1.1.2.2.2.2.2
           rwa [hlf, Nat.sub_self, rowsOf_zero] at this
         rw [hd]
-        refine escRet_queryFrag_le P P' hκ' level.queries i h₀ hW
+        refine escRet_queryFrag_le P P' hκ' level.queries i h₀ hW (listedO i cs₀ P.n)
+          (fun v hv ↦ (mem_listedO_of_shapeOK haf.1.2 v).mpr hv) (listedO (i + 1) (commits h₀) P'.n)
           (rowsOf next.fold (laneO (i + 1) (commits h₀) P'.n)) _ (runW w ℓ₀ r.1) r.1.target z y
-          hviol hp.2.2.2 _ fun qs lam hr hlen hv ↦ ⟨hp, ?_⟩
-        rw [glueMid_runW, glueMid_target, enfOf_eq haf.1.2 r.2 hlf qs hr lam, hκm]
+          hviol hp.2.2.2 _ fun qs lam hr hlen hl hv ↦ ⟨hp, ?_⟩
+        rw [glueMid_runW, glueMid_target, enfOf_eq r.2 hlf qs hr hl lam, hκm]
         exact hv).mono (fun _ h ↦ h) (fun _ _ h ↦ h) le_rfl (by simp) le_rfl).bind' fun g ↦
     (roundPolyInv (GlueC μ ℓ₀ w i P P' level.fold next.fold pre r z y hy g)
         (enfOf i r.2 g.1 g.2.1 g.2.2) (T := εmax) le_rfl).bind' fun hq ↦
@@ -105,7 +107,8 @@ noncomputable def midTailSpec (H : MidHyp μ ℓ₀ w P P' level next pre)
         have hκ : μ - r.1.folds.length = next.fold + P'.κ := by
           rw [hκm]; have := H.hP; have := H.hP'; omega
         have hκ1 : 1 ≤ μ - r.1.folds.length := by rw [hκm]; exact P.hκ
-        refine (escRet_sampleN_le P' hκ hκ1 (rowsOf next.fold (laneO (i + 1) (commits h₀) P'.n))
+        refine (escRet_sampleN_le P' hκ hκ1 (listedO (i + 1) (commits h₀) P'.n)
+          (rowsOf next.fold (laneO (i + 1) (commits h₀) P'.n))
           (fun z cs ↦ OodC μ ℓ₀ w i P P' level.fold next.fold pre r z cs) h₀
           fun z hz hsep ↦ ⟨hp, hz.trans hκm, hsep⟩).trans (by rw [hκm])).mono
       (fun _ h ↦ h) (fun _ _ h ↦ h) le_rfl (by simp) le_rfl).bind' fun z ↦

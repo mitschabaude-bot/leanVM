@@ -578,12 +578,12 @@ theorem move (hf : ¬ Fail σ ℓ) {p : VerifierProgram Bool} (hm : Move p) (hp 
         obtain ⟨hv1, hne1, h₀'', pos₀'', hk1, hc1⟩ := absorb_step hf hk0 hv0 hc0'
           (fun p₁' he ↦ by cases he) (Or.inl rfl) h1
         have hr' := VerifierProgram.Reachable.commit (extract (lookH ℓ) root ht w) hr ha
-          (wellShaped_extract _ _ _ _)
+          (partShaped_extract _ _ _ _)
         have ha' := after_commit_step ha (extract (lookH ℓ) root ht w)
         refine ⟨_, _, k, by simp [hs], rootsInv_append_commit hR root ht w sp1 xs, hr',
           boundary_append_commit _ _ _ _, ha', ⟨hv1, h₀'', pos₀'', hk1, ?_⟩,
           Or.inr ⟨hne1, grindBits_append_commit _ _ _ _⟩, hx,
-          fun hD ↦ C.commit _ hr ha (wellShaped_extract _ _ _ _) hD,
+          fun hD ↦ C.commit _ hr ha (partShaped_extract _ _ _ _) hD,
           List.prefix_append _ _, by simp⟩
         rw [hc1]
         simp [consume, hroot]

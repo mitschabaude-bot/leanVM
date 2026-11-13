@@ -30,8 +30,8 @@ the lanes, which are the stack's six high bits, and its weight at a point `p` is
 * `claimSum_encStack`: the running claim of the encoding of a stack `q` is `Σ_j w(j) q_j`: the
   rotation exactly undoes the stack/lane relayout `f(u, x) = q(x, u)`.
 * `levelPre_zero`: **the starting doom** `LevelPre` of level `0` from the candidates' violation,
-  through the bridge `exists_candidate_of_mem_iList` (a list member is the encoding of a
-  candidate: `K`-valuedness and injectivity of the encoder).
+  through the bridge `exists_candidate_of_mem_iList` (a member of the list on the listed columns is
+  the encoding of a candidate: `K`-valuedness and injectivity of the encoder).
 -/
 
 namespace LeanVM.Protocol.Whir.Sound
@@ -44,15 +44,17 @@ open LeanVM.Parameters LeanVM.Protocol.Compile LeanVM.Protocol.Verifier
 /-! ## Reindexing -/
 
 /-- Lists are invariant under reindexing the rows. -/
-theorem mem_iList_comp {F ι ρ ρ' : Type*} [Field F] [Fintype F] [Fintype ι] [Fintype ρ]
-    [Fintype ρ'] (C : Submodule F (ι → F)) (A : ℕ) (e : ρ' ≃ ρ) (O V : ρ' → ι → F) :
-    V ∈ iList C A O ↔ (fun r ↦ V (e.symm r)) ∈ iList C A (fun r ↦ O (e.symm r)) := by
-  simp only [mem_iList, IsInterleavedCodeword, IsClose, AgreeOn]
+theorem mem_iListOn_comp {F ι ρ ρ' : Type*} [Field F] [Fintype F] [Fintype ι] [Fintype ρ]
+    [Fintype ρ'] (C : Submodule F (ι → F)) (A : ℕ) (Λ : Finset ι) (e : ρ' ≃ ρ)
+    (O V : ρ' → ι → F) :
+    V ∈ iListOn C A Λ O ↔ (fun r ↦ V (e.symm r)) ∈ iListOn C A Λ (fun r ↦ O (e.symm r)) := by
+  simp only [mem_iListOn, IsInterleavedCodeword, IsCloseOn, AgreeOn]
   constructor
-  · rintro ⟨hc, S, hS, hag⟩
-    exact ⟨fun r ↦ hc _, S, hS, fun r x hx ↦ hag _ x hx⟩
-  · rintro ⟨hc, S, hS, hag⟩
-    refine ⟨fun r ↦ by simpa using hc (e r), S, hS, fun r x hx ↦ by simpa using hag (e r) x hx⟩
+  · rintro ⟨hc, S, hSΛ, hS, hag⟩
+    exact ⟨fun r ↦ hc _, S, hSΛ, hS, fun r x hx ↦ hag _ x hx⟩
+  · rintro ⟨hc, S, hSΛ, hS, hag⟩
+    refine ⟨fun r ↦ by simpa using hc (e r), S, hSΛ, hS,
+      fun r x hx ↦ by simpa using hag (e r) x hx⟩
 
 theorem bitsToNat_append {m n : ℕ} (x : Fin m → Bool) (u : Fin n → Bool) :
     bitsToNat (Fin.append x u) = bitsToNat x + 2 ^ m * bitsToNat u := by
@@ -122,16 +124,22 @@ theorem levelPre_zero {μ R : ℕ} (P₀ : LevelCode) (hκ : P₀.κ = μ - lane
     (hpre : WhirPre μ R P₀ w t cs) (hq : QuadOK quad t) :
     LevelPre μ laneBits w 0 P₀ laneBits 0 ⟨t, quad, [], []⟩ cs := by
   refine ⟨⟨by simp, by simp, by omega, by simp [GluedOK], hq, ?_⟩, hpre.1⟩
-  obtain ⟨-, hcand⟩ := hpre
+  obtain ⟨hshape, hcand⟩ := hpre
   rcases P₀ with ⟨κ, R', η, h64, hκ1, hR1, hη, hagr⟩
   simp only at hκ hR
   subst hκ hR
   intro V hV
   simp only [List.length_nil, Nat.sub_zero, foldsN, List.foldl_nil] at hV
-  have hV' : V ∈ iList (ReedSolomon.code (domain (μ - laneBits) R' h64) (2 ^ (μ - laneBits)))
+  have hΛ : listedO 0 cs (2 ^ (μ - laneBits + R')) = listedCols μ R' (wordOf cs 0) := by
+    ext v
+    rw [mem_listedO_of_shapeOK hshape]
+    simp [listedCols, wdOf]
+  have hV' : V ∈ iListOn (ReedSolomon.code (domain (μ - laneBits) R' h64) (2 ^ (μ - laneBits)))
       (LevelCode.thr ⟨μ - laneBits, R', η, h64, hκ1, hR1, hη, hagr⟩)
-      (rowsOf laneBits (laneO 0 cs (2 ^ (μ - laneBits + R')))) := hV
-  rw [rowsOf_laneO_zero, mem_iList_comp _ _ (bitsEquiv laneBits)] at hV'
+      (listedCols μ R' (wordOf cs 0))
+      (rowsOf laneBits (laneO 0 cs (2 ^ (μ - laneBits + R')))) := by
+    rw [← hΛ]; exact hV
+  rw [rowsOf_laneO_zero, mem_iListOn_comp _ _ _ (bitsEquiv laneBits)] at hV'
   clear hV
   have hV := hV'
   simp only [Equiv.apply_symm_apply] at hV

@@ -79,7 +79,7 @@ inductive Reach (p : VerifierProgram α) (h₀ : List Ev) : List Ev → Prop whe
   | grind {l b k} : Reach p h₀ l → p.after l = some (grind b k) →
       Reach p h₀ (l ++ [Ev.grind b])
   | commit {l ht w k} (word : Word) : Reach p h₀ l → p.after l = some (commit ht w k) →
-      WellShaped w word → Reach p h₀ (l ++ [Ev.commit ht w word])
+      PartShaped w word → Reach p h₀ (l ++ [Ev.commit ht w word])
   | query {l i ps k rows} : Reach p h₀ l → p.after l = some (query i ps k) →
       answer (h₀ ++ l) i ps = some rows → Reach p h₀ (l ++ [Ev.query rows])
 
@@ -114,9 +114,9 @@ structure Spec (p : VerifierProgram α) (Pre : List Ev → Prop) (Post : α → 
   /-- A proof of work keeps doom. -/
   grind : ∀ {h₀ l b k}, p.Reach h₀ l → p.after l = some (.grind b k) → D h₀ l →
     D h₀ (l ++ [Ev.grind b])
-  /-- A well-shaped commitment keeps doom. -/
+  /-- A partly shaped commitment keeps doom. -/
   commit : ∀ {h₀ l ht w k} (word : Word), p.Reach h₀ l → p.after l = some (.commit ht w k) →
-    WellShaped w word → D h₀ l → D h₀ (l ++ [Ev.commit ht w word])
+    PartShaped w word → D h₀ l → D h₀ (l ++ [Ev.commit ht w word])
   /-- The potential is a supermartingale over a challenge. -/
   sample : ∀ {h₀ l k}, p.Reach h₀ l → p.after l = some (.sample k) →
     (Fintype.card E : ENNReal)⁻¹ * ∑ c : E, V h₀ (l ++ [Ev.sample c]) ≤ V h₀ l

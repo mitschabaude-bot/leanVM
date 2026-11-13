@@ -31,7 +31,9 @@ runs at ArkLib's Johnson radius `1 − √ρ₋ − η` with `ρ₋ = (2^κ − 
   Johnson threshold. `LevelCode.two_pow_le_thr`: the threshold exceeds the degree, so list
   members are unique on their agreement sets and the level-0 bridge applies.
 * `decode`: the message of a codeword row (`enc` is injective), `Viol`: every member of the list
-  of a word violates a claim, the invariant `A(i, j)` of the design note.
+  of a word on its listed columns violates a claim, the invariant `A(i, j)` of the design note.
+  The listed columns of a committed word are the ones its extraction reads (an unlisted column's
+  leaf is empty); the deployed analysis is the case of a word that lists every column.
 * Lane oracles are indexed by integers, `O : ℕ → Fin n → E` (lane `j` of column `v`), read on `m`
   lane bits by `rowsOf m O`. One fold binds the low lane bit: `foldN s O j = (1 − s) O(2j) +
   s O(2j+1)`, the order of the verifier's `eq_kernel` (first challenge, low bit).
@@ -127,6 +129,18 @@ theorem card_iList_le {ρ : Type*} [Fintype ρ] (O : ρ → Fin P.n → E) :
   exact card_iList_johnsonAgreement_le_floor _ (by have := P.one_le_D; omega)
     (Nat.two_pow_pos _) P.hη O
 
+/-- **The list bound** on listed columns. -/
+theorem card_iListOn_le {ρ : Type*} [Fintype ρ] (Λ : Finset (Fin P.n)) (O : ρ → Fin P.n → E) :
+    (iListOn P.code P.thr Λ O).card ≤ P.listMax :=
+  (Finset.card_le_card (iListOn_subset _ _ Λ O)).trans (P.card_iList_le O)
+
+/-- **The fold-list count** on listed columns. -/
+theorem card_foldBadOn_le {ρ : Type*} [Fintype ρ] (Λ : Finset (Fin P.n))
+    (O : Bool × ρ → Fin P.n → E) :
+    (foldBadOn P.code P.thr Λ O).card ≤ Fintype.card ρ * P.mcaMax := by
+  rw [code_eq]
+  exact card_foldBadOn_le_johnson _ P.one_le_D P.D_le P.hη P.hagr Λ O
+
 /-- **The fold-list count**: at most `|ρ|·mcaMax` challenges create new list members. -/
 theorem card_foldBad_le {ρ : Type*} [Fintype ρ] (O : Bool × ρ → Fin P.n → E) :
     (foldBad P.code P.thr O).card ≤ Fintype.card ρ * P.mcaMax := by
@@ -180,9 +194,10 @@ theorem decode_enc {ρ : Type*} (g : ρ → (Fin P.κ → Bool) → E) :
     rw [← range_enc P.h64]; exact LinearMap.mem_range_self _ _
   exact enc_injective P.h64 (enc_decode P hcw u)
 
-/-- Every member of the list of `O` violates the claim `(Φ, σ)`. -/
-def Viol {m : ℕ} (O : (Fin m → Bool) → Fin P.n → E) (Φ : List E → E) (σ : E) : Prop :=
-  ∀ V ∈ iList P.code P.thr O, claimSum Φ (decode P V) ≠ σ
+/-- Every member of the list of `O` on the listed columns `Λ` violates the claim `(Φ, σ)`. -/
+def Viol {m : ℕ} (Λ : Finset (Fin P.n)) (O : (Fin m → Bool) → Fin P.n → E) (Φ : List E → E)
+    (σ : E) : Prop :=
+  ∀ V ∈ iListOn P.code P.thr Λ O, claimSum Φ (decode P V) ≠ σ
 
 /-! ## Lane oracles -/
 
@@ -226,6 +241,18 @@ theorem rowsOf_foldN {m : ℕ} {ι : Type*} (s : E) (O : ℕ → ι → E) :
   funext u x
   simp [rowsOf, foldN, fold, consRows, bitsToNat_cons, add_comm]
 
+/-- Lists on listed columns are invariant under splitting the rows. -/
+theorem consRows_mem_iListOn {m : ℕ} {ι : Type*} [Fintype ι] (C : Submodule E (ι → E)) (A : ℕ)
+    (Λ : Finset ι) {Q V : (Fin (m + 1) → Bool) → ι → E} :
+    consRows V ∈ iListOn C A Λ (consRows Q) ↔ V ∈ iListOn C A Λ Q := by
+  simp only [mem_iListOn, IsInterleavedCodeword, IsCloseOn, AgreeOn, consRows]
+  constructor
+  · rintro ⟨hcw, S, hSΛ, hS, hag⟩
+    refine ⟨fun u ↦ by simpa using hcw (u 0, Fin.tail u), S, hSΛ, hS, fun u x hx ↦ ?_⟩
+    simpa using hag (u 0, Fin.tail u) x hx
+  · rintro ⟨hcw, S, hSΛ, hS, hag⟩
+    exact ⟨fun r ↦ hcw _, S, hSΛ, hS, fun r x hx ↦ hag _ x hx⟩
+
 /-- Lists are invariant under splitting the rows. -/
 theorem consRows_mem_iList {m : ℕ} {ι : Type*} [Fintype ι] (C : Submodule E (ι → E)) (A : ℕ)
     {Q V : (Fin (m + 1) → Bool) → ι → E} :
@@ -257,28 +284,28 @@ theorem decode_fold {m : ℕ} {V : (Fin (m + 1) → Bool) → Fin P.n → E}
 
 open Classical in
 /-- **The fold step** (Annex B, proof of `thm:rbr`, "Fold challenge"): if every member of the list
-of `rowsOf (m+1) O` violates `(Φ, σ)` and the prover's quadratic `[c₀, c₁, c₂]` has
-`h(0) + h(1) = σ`, at most `2·listMax + 2^m·mcaMax` challenges `s` leave a member of the list of
-`rowsOf m (foldN s O)` satisfying `(Φ(s, ·), h(s))`. -/
+of `rowsOf (m+1) O` on the listed columns `Λ` violates `(Φ, σ)` and the prover's quadratic
+`[c₀, c₁, c₂]` has `h(0) + h(1) = σ`, at most `2·listMax + 2^m·mcaMax` challenges `s` leave a
+member of the list of `rowsOf m (foldN s O)` on `Λ` satisfying `(Φ(s, ·), h(s))`. -/
 theorem card_foldStep_bad_le {m : ℕ} (Φ : List E → E) (hΦ : IsMultiaffine (m + 1 + P.κ) Φ)
-    (O : ℕ → Fin P.n → E) (σ c₀ c₁ c₂ : E)
+    (Λ : Finset (Fin P.n)) (O : ℕ → Fin P.n → E) (σ c₀ c₁ c₂ : E)
     (hσ : polyEval [c₀, c₁, c₂] 0 + polyEval [c₀, c₁, c₂] 1 = σ)
-    (hviol : Viol P (rowsOf (m + 1) O) Φ σ) :
+    (hviol : Viol P Λ (rowsOf (m + 1) O) Φ σ) :
     (univ.filter fun s ↦
-        ¬ Viol P (rowsOf m (foldN s O)) (fun r ↦ Φ (s :: r)) (polyEval [c₀, c₁, c₂] s)).card ≤
+        ¬ Viol P Λ (rowsOf m (foldN s O)) (fun r ↦ Φ (s :: r)) (polyEval [c₀, c₁, c₂] s)).card ≤
       2 * P.listMax + 2 ^ m * P.mcaMax := by
   classical
   set Q := rowsOf (m + 1) O
-  set L := iList P.code P.thr Q
+  set L := iListOn P.code P.thr Λ Q
   let B₁ : Finset E := univ.filter fun s ↦
     ∃ V ∈ L, polyEval [c₀, c₁, c₂] s = claimSum (fun r ↦ Φ (s :: r)) (foldRows s (decode P V))
   have hB₁ : B₁.card ≤ 2 * P.listMax := by
     refine (card_filter_exists_le L _ (N := 2) fun V hV ↦
       card_sumcheck_bad_le Φ hΦ (decode P V) σ c₀ c₁ c₂ hσ (hviol V hV)).trans ?_
     rw [mul_comm]
-    exact Nat.mul_le_mul_left _ (P.card_iList_le Q)
-  have hB₂ : (foldBad P.code P.thr (consRows Q)).card ≤ 2 ^ m * P.mcaMax := by
-    have := P.card_foldBad_le (consRows Q)
+    exact Nat.mul_le_mul_left _ (P.card_iListOn_le Λ Q)
+  have hB₂ : (foldBadOn P.code P.thr Λ (consRows Q)).card ≤ 2 ^ m * P.mcaMax := by
+    have := P.card_foldBadOn_le Λ (consRows Q)
     simpa using this
   refine (Finset.card_le_card fun s hs ↦ ?_).trans ((Finset.card_union_le _ _).trans
     (Nat.add_le_add hB₁ hB₂))
@@ -288,11 +315,11 @@ theorem card_foldStep_bad_le {m : ℕ} (Φ : List E → E) (hΦ : IsMultiaffine 
   obtain ⟨hs₁, hs₂⟩ := hgood
   refine (Finset.mem_filter.mp hs).2 fun V' hV' ↦ ?_
   rw [rowsOf_foldN] at hV'
-  have hlist := not_not.mp ((not_congr (mem_foldBad _ _ _ s)).mp hs₂)
+  have hlist := not_not.mp ((not_congr (mem_foldBadOn _ _ _ _ s)).mp hs₂)
   rw [hlist] at hV'
   obtain ⟨W', hW', rfl⟩ := Finset.mem_image.mp hV'
-  rw [← consRows_unconsRows W', consRows_mem_iList] at hW'
-  rw [← consRows_unconsRows W', decode_fold P ((mem_iList _ _ _ _).mp hW').1]
+  rw [← consRows_unconsRows W', consRows_mem_iListOn] at hW'
+  rw [← consRows_unconsRows W', decode_fold P ((mem_iListOn _ _ _ _ _).mp hW').1]
   intro heq
   exact hs₁ (Finset.mem_filter.mpr ⟨Finset.mem_univ _, _, hW', heq.symm⟩)
 

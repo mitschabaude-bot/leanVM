@@ -18,8 +18,8 @@ public import LeanVM.Protocol.Extraction.Extract
 (`LeanVM/Protocol/Extraction/Extractor.lean`). Its hypotheses are the ones it had when the extractor was a classical choice; the proof now runs the algorithm:
 
 * the verifier's steps 1 and 2 announce the layout, the rate and a root whose committed word is
-  the extracted history's first word (`commitment_eq`), the word the prefix's answers commit to
-  (`committedWord_eq`);
+  the extracted history's first word (`commitment_eq`), whose lanes the word the prefix's answers
+  commit to reads (`committedWord_getD_eq`);
 * the proof's candidate, a stack satisfying the leanISA relation, is a candidate of that word at
   the statement's Johnson threshold (`mem_candidates`, `thrOf_eq_johnsonThreshold`), and its
   execution, the capped halting run of its memory image, is valid
@@ -61,8 +61,8 @@ theorem keysCover_lookH (ℓ : Log) : Extraction.MerkleProofs.KeysCover (lookH �
 /-- **When the proof's extractor succeeds on an accepted proof, the specification's, reading
 the Keccak-256 answers of the first `k` entries of the log, returns a valid execution**, without
 failure and when no hash entry past the first `k` answers the announced root: the proof's
-candidate is a candidate of the word the root commits to, whose word is the history's
-(`committedWord_eq`), and its memory image runs to a valid execution
+candidate is a candidate of the word the root commits to, whose word reads the history's lanes
+(`committedWord_getD_eq`), and its memory image runs to a valid execution
 (`Halting.candidateExecution_of_extracted`); the extractor decodes every candidate
 (`ExtractProofs.extract_of_candidate`). -/
 theorem extractor_of_extracted {X : Type} (σ : Seeds X) {ℓ : Log} {k : ℕ} {π : Proof}
@@ -88,9 +88,19 @@ theorem extractor_of_extracted {X : Type} (σ : Seeds X) {ℓ : Log} {k : ℕ} {
       simp only [stackLog_verifierLayout] at hadm hcfg
       have hcand := mem_candidates (A' := Extraction.johnsonThreshold (leanIsaμ prog s) ρ) hqc
         (thrOf_eq_johnsonThreshold hadm hcfg).ge
-      have hWk : W = Extraction.committedWord (lookH (ℓ.take k)) root ht w :=
-        hW.trans (committedWord_eq hf (hroot root hroot') ht w).symm
-      rw [hWk] at hcand
+      have hagr : ∀ q : Vector K (2 ^ leanIsaμ prog s), Extraction.agreement ρ W q =
+          Extraction.agreement ρ (Extraction.committedWord (lookH (ℓ.take k)) root ht w) q := by
+        intro q
+        unfold Extraction.agreement
+        refine Finset.filter_congr fun v _ ↦ forall_congr' fun u ↦ ?_
+        rw [committedWord_getD_eq hf (hroot root hroot') ht w v u, hW]
+        rfl
+      replace hcand : q.values ∈ Extraction.Candidates (leanIsaμ prog s) ρ
+          (Extraction.johnsonThreshold (leanIsaμ prog s) ρ)
+          (Extraction.committedWord (lookH (ℓ.take k)) root ht w) := by
+        show _ ≤ (Extraction.agreement ρ _ q.values).card
+        rw [← hagr]
+        exact hcand
       have hμ : 16 ≤ leanIsaμ prog s ∧ leanIsaμ prog s ≤ 30 := by
         have h1 := hadm.1
         have h2 := hadm.2.1

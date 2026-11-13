@@ -473,7 +473,7 @@ at every position of its domain, as the lanes' codeword entries of the level's m
 variables. -/
 def LevelCommit (cs : Commits) (index m : ℕ) (g : List E) (level : Whir.Level) : Prop :=
   cs.length = index + 1 ∧ ∃ w word, cs[index]? = some (m - level.fold + level.logInvRate, w, word) ∧
-    ∀ p < 2 ^ (m - level.fold + level.logInvRate),
+    WellShaped w word ∧ ∀ p < 2 ^ (m - level.fold + level.logInvRate),
       readRow index (word p) = laneCodes (m - level.fold) level.fold g p
 
 section Levels
@@ -522,7 +522,7 @@ theorem follows_whirLevels (hf₀ : f₀.length = 2 ^ μ) (hμ : μ ≤ 64) :
         (whirLevelsT μ lf B index levels s) cs
   | [], _, _, _, _, h, _, _, _ => absurd rfl h
   | level :: rest, index, s, W, cs, _, hI, hsum, hC => by
-    obtain ⟨hcl, w, word, hcs, hrow⟩ := hC level (by simp)
+    obtain ⟨hcl, w, word, hcs, hws, hrow⟩ := hC level (by simp)
     simp only [List.map_cons, List.sum_cons] at hsum
     have hle := hI.folds_le
     rw [hLevels, whirLevelsT]
@@ -547,7 +547,7 @@ theorem follows_whirLevels (hf₀ : f₀.length = 2 ^ μ) (hμ : μ ≤ 64) :
         (∀ x ∈ queries, x < 2 ^ (μ - s1.folds.length + level.logInvRate)) →
           answerOf cs' index queries = some (queries.map fun p ↦ word p) := by
       intro cs' hidx queries hq
-      simp only [answerOf, hidx, hcs, Option.map_some]
+      rw [answerOf_of_wellShaped (hidx.trans hcs) hws]
       congr 1
       refine List.map_congr_left fun p hp ↦ ?_
       rw [Nat.mod_eq_of_lt (by have := hq p hp; rwa [hm] at this)]
@@ -587,7 +587,7 @@ theorem follows_whirLevels (hf₀ : f₀.length = 2 ^ μ) (hμ : μ ≤ 64) :
           hans0 _ (List.getElem?_append_left (by omega)), ?_⟩) ?_
       refine ⟨by simp [hcl], 3 * 2 ^ next.fold,
         levelWord (μ - s1.folds.length - next.fold) next.fold next.logInvRate
-          (foldAll f₀ s1.folds), ?_, fun p hp ↦ ?_⟩
+          (foldAll f₀ s1.folds), ?_, wellShaped_levelWord _ _ _ _, fun p hp ↦ ?_⟩
       · rw [List.getElem?_append_right (by omega)]
         simp [hcl]
       · simp only [readRow, Nat.add_one_ne_zero, ite_false]
@@ -830,7 +830,8 @@ theorem follows_whirRun {μ R q₀ : ℕ} {rest : List Whir.Level} (hμ6 : laneB
   · intro level hl
     simp only [List.head?_cons, Option.mem_def, Option.some.injEq] at hl
     subst hl
-    refine ⟨rfl, 2 ^ laneBits, stackWord μ R q, by simp [stackCommit], fun p hp ↦ ?_⟩
+    refine ⟨rfl, 2 ^ laneBits, stackWord μ R q, by simp [stackCommit],
+      wellShaped_stackWord μ R q, fun p hp ↦ ?_⟩
     simp only [readRow, ite_true, List.length_nil, Nat.sub_zero, foldAll_nil] at hp ⊢
     exact readRow_stackWord hμ6 q hp
 

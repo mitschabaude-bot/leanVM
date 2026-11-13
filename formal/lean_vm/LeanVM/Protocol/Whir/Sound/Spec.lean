@@ -221,8 +221,8 @@ theorem card_batch_bad_le {μ R : ℕ} (P₀ : LevelCode) (hκ : P₀.κ = μ - 
   simp only at hκ hR
   subst hκ hR
   set P₀ : LevelCode := ⟨μ - laneBits, R', η, h64, hκ1, hR1, hη, hagr⟩
-  set L := iList (ReedSolomon.code (domain (μ - laneBits) R' h64) (2 ^ (μ - laneBits))) P₀.thr
-    (laneWord μ R' (wordOf cs 0))
+  set L := iListOn (ReedSolomon.code (domain (μ - laneBits) R' h64) (2 ^ (μ - laneBits))) P₀.thr
+    (listedCols μ R' (wordOf cs 0)) (laneWord μ R' (wordOf cs 0))
   -- The discrepancy of a candidate.
   let d : Column μ → Fin claims.length → E := fun q k ↦
     (∑ j : Fin (2 ^ μ), claims[k].1 (boolPoint μ j) * ofK (q.values.getD j 0)) - claims[k].2
@@ -256,7 +256,8 @@ theorem card_batch_bad_le {μ R : ℕ} (P₀ : LevelCode) (hκ : P₀.κ = μ - 
       rw [Finset.mem_filter] at hρ
       obtain ⟨q, hq, hqV, -⟩ := hρ.2
       exact absurd ⟨q, hq, hqV⟩ hex
-  · exact Nat.mul_le_mul_right _ (P₀.card_iList_le _)
+  · exact Nat.mul_le_mul_right _ ((Finset.card_le_card (iListOn_subset _ _ _ _)).trans
+      (P₀.card_iList_le _))
 
 /-- `verifyStackedOpening`: the batching challenge, then the opening. -/
 theorem verifyStackedOpening_eq (stackLog R : ℕ) (claims : List StackClaim) :

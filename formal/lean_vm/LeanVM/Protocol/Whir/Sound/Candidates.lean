@@ -18,8 +18,8 @@ The level-0 oracle of the deployed WHIR opening (`verify_whir` level `0`,
 `crates/verifier/src/whir.rs:141-232` at leanVM `40f877dc`)
 is the committed word read lane by lane: lane `u` of column `v` is `laneOf W u v`, word `63 − u`
 of leaf `v` (the program's `row.reverse.map ofK`). Its code is the novel-basis Reed-Solomon code
-`C₀ = RS[E, D_{μ−6,R}, 2^(μ−6)]` (`range_enc`), and its list at agreement threshold `A` is
-`iList C₀ A (laneWord μ R W)`.
+`C₀ = RS[E, D_{μ−6,R}, 2^(μ−6)]` (`range_enc`), and its list at agreement threshold `A` on the
+listed columns is `iListOn C₀ A (listedCols μ R W) (laneWord μ R W)`.
 
 * `isInK_of_agree`: a codeword of the `E`-code whose entries lie in `K` on at least `2^κ`
   coordinates has a `K`-valued message. The message's limbs `1` and `2` encode `K`-codewords
@@ -51,6 +51,10 @@ def laneWord (μ R : ℕ) (W : Word) : Fin (2 ^ laneBits) → Fin (2 ^ (μ - lan
 /-- The lane-wise encoding of a stack: lane `u` encodes block `u`. -/
 def encStack (μ R : ℕ) (q : Column μ) : Fin (2 ^ laneBits) → Fin (2 ^ (μ - laneBits + R)) → E :=
   fun u ↦ enc (μ - laneBits) R (blockOf q u)
+
+/-- The listed columns of a level-0 word, as columns of the code. -/
+def listedCols (μ R : ℕ) (W : Word) : Finset (Fin (2 ^ (μ - laneBits + R))) :=
+  Finset.univ.filter fun v ↦ (W v).length = 2 ^ laneBits
 
 /-- `Agrees` is agreement of the lane word with the stack's encoding. -/
 theorem agrees_iff_agreeOn (μ R : ℕ) (W : Word) (q : Column μ)
@@ -196,16 +200,16 @@ theorem isInterleavedCodeword_encStack (h : μ - laneBits + R ≤ 64) (q : Colum
   rw [← range_enc h]; exact LinearMap.mem_range_self _ _
 
 /-- **Every level-0 list member is the encoding of a candidate.** An interleaved codeword of the
-level-0 code agreeing with the lane word of `W` on at least `A ≥ 2^(μ−6)` columns is
+level-0 code agreeing with the lane word of `W` on at least `A ≥ 2^(μ−6)` listed columns is
 `encStack q` for a candidate `q` of `W`. -/
 theorem exists_candidate_of_mem_iList (hμ : laneBits ≤ μ) (h : μ - laneBits + R ≤ 64)
     (hA : 2 ^ (μ - laneBits) ≤ A) {W : Word}
     {U : Fin (2 ^ laneBits) → Fin (2 ^ (μ - laneBits + R)) → E}
-    (hU : U ∈ iList (ReedSolomon.code (domain (μ - laneBits) R h) (2 ^ (μ - laneBits))) A
-      (laneWord μ R W)) :
+    (hU : U ∈ iListOn (ReedSolomon.code (domain (μ - laneBits) R h) (2 ^ (μ - laneBits))) A
+      (listedCols μ R W) (laneWord μ R W)) :
     ∃ q ∈ Candidates μ R A W, U = encStack μ R q := by
-  rw [mem_iList] at hU
-  obtain ⟨hcw, S, hS, hagree⟩ := hU
+  rw [mem_iListOn] at hU
+  obtain ⟨hcw, S, hSΛ, hS, hagree⟩ := hU
   -- Every row is the encoding of a message.
   have hmsg : ∀ u, ∃ g, enc (μ - laneBits) R g = U u := fun u ↦ by
     have := hcw u
@@ -221,20 +225,33 @@ theorem exists_candidate_of_mem_iList (hμ : laneBits ≤ μ) (h : μ - laneBits
   have hga : ∀ u, g u = fun x ↦ ofK (a u x) := fun u ↦ funext fun x ↦ by
     obtain ⟨c, hc⟩ := (isInK_iff _).mp (hK u x)
     simp [a, hc]
-  refine ⟨stackOf hμ a, ⟨S, hS, (agrees_iff_agreeOn _ _ _ _ _).mpr ?_⟩, ?_⟩
+  refine ⟨stackOf hμ a, ⟨S, hS, fun v hv ↦ (Finset.mem_filter.mp (hSΛ hv)).2,
+    (agrees_iff_agreeOn _ _ _ _ _).mpr ?_⟩, ?_⟩
   · intro u v hv
     rw [hagree u v hv, encStack, blockOf_stackOf, ← hga, hg]
   · funext u
     rw [encStack, blockOf_stackOf, ← hga, hg]
 
-/-- **The encoding of a candidate is a level-0 list member.** -/
-theorem mem_iList_of_candidate (h : μ - laneBits + R ≤ 64) {W : Word} {q : Column μ}
-    (hq : q ∈ Candidates μ R A W) :
+/-- The encoding of a stack agreeing with the word is a member of the level-0 list on every
+column. -/
+theorem mem_iList_of_agreeing (h : μ - laneBits + R ≤ 64) {W : Word} {q : Column μ}
+    (hq : q ∈ AgreeingStacks μ R A W) :
     encStack μ R q ∈ iList (ReedSolomon.code (domain (μ - laneBits) R h) (2 ^ (μ - laneBits))) A
       (laneWord μ R W) := by
   obtain ⟨S, hS, hagree⟩ := hq
   rw [mem_iList]
   exact ⟨isInterleavedCodeword_encStack h q, S, hS, (agrees_iff_agreeOn _ _ _ _ _).mp hagree⟩
+
+/-- **The encoding of a candidate is a level-0 list member.** -/
+theorem mem_iList_of_candidate (h : μ - laneBits + R ≤ 64) {W : Word} {q : Column μ}
+    (hq : q ∈ Candidates μ R A W) :
+    encStack μ R q ∈ iListOn (ReedSolomon.code (domain (μ - laneBits) R h) (2 ^ (μ - laneBits))) A
+      (listedCols μ R W) (laneWord μ R W) := by
+  obtain ⟨S, hS, hl, hagree⟩ := hq
+  rw [mem_iListOn]
+  exact ⟨isInterleavedCodeword_encStack h q, S,
+    fun v hv ↦ Finset.mem_filter.mpr ⟨Finset.mem_univ _, hl v hv⟩, hS,
+    (agrees_iff_agreeOn _ _ _ _ _).mp hagree⟩
 
 end
 end LeanVM.Protocol.Whir.Sound

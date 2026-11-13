@@ -104,19 +104,19 @@ def AfterFold (r : WhirStateT × List E) (cs : List (ℕ × ℕ × Word)) : Prop
 
 /-- After the commitment of the next oracle. -/
 def MidC (r : WhirStateT × List E) (cs : List (ℕ × ℕ × Word)) : Prop :=
-  ∃ cs₀ W', cs = cs₀ ++ [(P'.κ + P'.R, 3 * 2 ^ ℓ', W')] ∧ WellShaped (3 * 2 ^ ℓ') W' ∧
+  ∃ cs₀ W', cs = cs₀ ++ [(P'.κ + P'.R, 3 * 2 ^ ℓ', W')] ∧ PartShaped (3 * 2 ^ ℓ') W' ∧
     AfterFold μ ℓ₀ w i P ℓ pre r cs₀
 
 /-- After the out-of-domain point: the next list is separated at `z`. -/
 def OodC (r : WhirStateT × List E) (z : List E) (cs : List (ℕ × ℕ × Word)) : Prop :=
   MidC μ ℓ₀ w i P P' ℓ ℓ' pre r cs ∧ z.length = P.κ ∧
-    OodSep P' (rowsOf ℓ' (laneO (i + 1) cs P'.n)) z
+    OodSep P' (listedO (i + 1) cs P'.n) (rowsOf ℓ' (laneO (i + 1) cs P'.n)) z
 
 /-- After the query group: every member of the next list violates the glued claim. -/
 def GlueC (r : WhirStateT × List E) (z : List E) (y : E) (hy : List E)
     (g : List ℕ × E × List (List K)) (cs : List (ℕ × ℕ × Word)) : Prop :=
   (QuadOK hy y ∧ OodC μ ℓ₀ w i P P' ℓ ℓ' pre r z cs) ∧
-    Viol P' (rowsOf ℓ' (laneO (i + 1) cs P'.n))
+    Viol P' (listedO (i + 1) cs P'.n) (rowsOf ℓ' (laneO (i + 1) cs P'.n))
       (runW w ℓ₀ (glueMid μ i r z y hy g.1 g.2.1 g.2.2 []))
       (glueMid μ i r z y hy g.1 g.2.1 g.2.2 []).target
 
@@ -160,14 +160,15 @@ theorem glueMid_target (r : WhirStateT × List E) (z : List E) (y : E) (hy : Lis
       r.1.target + 1 * lam * y + 1 * lam * lam * enfOf i r.2 qs lam words := by
   rw [glueMid, glue_two]
 
-/-- The enforced sum of the rows of commitment `i` at in-range positions. -/
-theorem enfOf_eq {cs : List (ℕ × ℕ × Word)} (hshape : ShapeOK i P ℓ cs) (lf : List E)
-    (hlf : lf.length = ℓ) (qs : List ℕ) (hqs : ∀ q ∈ qs, q < P.n) (lam : E) :
+/-- The enforced sum of the listed rows of commitment `i` at in-range positions. -/
+theorem enfOf_eq {cs : List (ℕ × ℕ × Word)} (lf : List E)
+    (hlf : lf.length = ℓ) (qs : List ℕ) (hqs : ∀ q ∈ qs, q < P.n)
+    (hl : ∀ q ∈ qs, (wordOf cs i q).length = wdOf i ℓ) (lam : E) :
     enfOf i lf qs lam (qs.map (wordOf cs i)) =
       ∑ k : Fin qs.length, lam ^ (k : ℕ) *
         wordAt (fun v : Fin P.n ↦ foldsN lf (laneO i cs P.n) 0 v) qs[k] := by
   rw [enfOf, rows_eq]
-  exact enforcedSum_eq i cs lf hlf qs hqs lam fun q _ ↦ length_wordOf hshape q
+  exact enforcedSum_eq i cs lf hlf qs hqs lam fun q hq ↦ hl q hq
 
 /-- **The next level's doom** from the glued doom and the query intro polynomial. -/
 theorem levelPre_next (hP' : P'.κ + (pre + ℓ) + ℓ' = μ) (r : WhirStateT × List E) (z : List E)
@@ -211,7 +212,7 @@ theorem levelPre_next (hP' : P'.κ + (pre + ℓ) + ℓ' = μ) (r : WhirStateT ×
 theorem midC_of_commit {r : WhirStateT × List E} {cs : List (ℕ × ℕ × Word)} {W : Word}
     (next : Whir.Level) (hℓ' : next.fold = ℓ') (hP' : P'.κ + (pre + ℓ) + ℓ' = μ)
     (hR' : P'.R = next.logInvRate) (h : AfterFold μ ℓ₀ w i P ℓ pre r cs)
-    (hW : WellShaped (3 * 2 ^ next.fold) W) :
+    (hW : PartShaped (3 * 2 ^ next.fold) W) :
     MidC μ ℓ₀ w i P P' ℓ ℓ' pre r
       (cs ++ [(μ - r.1.folds.length - next.fold + next.logInvRate, 3 * 2 ^ next.fold, W)]) := by
   have hlen := afterFold_len h

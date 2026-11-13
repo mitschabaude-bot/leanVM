@@ -40,9 +40,13 @@ verifier.
 * A committed matrix is a `Word`: position `p` holds the row `word (p % 2^height)`, the reading
   the Merkle path gives a position (its low `height` bits pick the leaf,
   `crates/verifier/src/merkle.rs:30-35`).
+* A committed word may leave columns unlisted: their rows are empty, the other rows have the
+  width (`PartShaped`). The word a compiled run's extraction reads leaves empty the positions no
+  accepted opening reaches; an honest word lists every column (`WellShaped`).
 * A history records a commitment with its shape and word, an opening with the rows the words
-  give (`answer`); `Reachable P h` says `h` is a run of `P` with every opening answered from the
-  words committed before it, and every committed word well shaped.
+  give (`answer`), which opens no unlisted column; `Reachable P h` says `h` is a run of `P` with
+  every opening answered from the words committed before it, and every committed word partly
+  shaped.
 * The nonce of a proof of work is not recorded: no interactive reading depends on it.
 -/
 
@@ -115,6 +119,13 @@ noncomputable instance instFintypeKState : Fintype LeanVM.Semantics.KeccakState 
 /-- Every row of a word has `width` entries. -/
 def WellShaped (width : ℕ) (word : Word) : Prop := ∀ p, (word p).length = width
 
+/-- Every row of a word has `width` entries or none: a column with none is unlisted. -/
+def PartShaped (width : ℕ) (word : Word) : Prop := ∀ p, word p = [] ∨ (word p).length = width
+
+/-- A well-shaped word is partly shaped. -/
+theorem WellShaped.partShaped {width : ℕ} {word : Word} (h : WellShaped width word) :
+    PartShaped width word := fun p ↦ .inr (h p)
+
 /-- An event of an interactive run. -/
 inductive Ev where
   /-- The prover sent the scalar `x`. -/
@@ -134,9 +145,37 @@ def commits : List Ev → List (ℕ × ℕ × Word)
   | Ev.commit h w word :: es => (h, w, word) :: commits es
   | _ :: es => commits es
 
-/-- The rows the `i`-th commitment of `h` holds at `positions`, if there is such a commitment. -/
+/-- The rows the `i`-th commitment of `h` holds at `positions`, if there is such a commitment and
+every one of the rows has its width: an opening of an unlisted column is not answered. -/
 def answer (h : List Ev) (i : ℕ) (positions : List ℕ) : Option (List (List K)) :=
-  (commits h)[i]?.map fun c ↦ positions.map fun p ↦ c.2.2 (p % 2 ^ c.1)
+  (commits h)[i]?.bind fun c ↦
+    if positions.all fun p ↦ (c.2.2 (p % 2 ^ c.1)).length == c.2.1 then
+      some (positions.map fun p ↦ c.2.2 (p % 2 ^ c.1))
+    else none
+
+/-- The answer of an opening of a well-shaped word: its rows. -/
+theorem answer_of_wellShaped {h : List Ev} {i ht w : ℕ} {word : Word}
+    (hc : (commits h)[i]? = some (ht, w, word)) (hw : WellShaped w word) (positions : List ℕ) :
+    answer h i positions = some (positions.map fun p ↦ word (p % 2 ^ ht)) := by
+  have hall : (positions.all fun p ↦ (word (p % 2 ^ ht)).length == w) = true := by
+    simp only [List.all_eq_true, beq_iff_eq]
+    exact fun p _ ↦ hw _
+  simp only [answer, hc, Option.bind_some, hall, ↓reduceIte]
+
+/-- The rows of an answer have the commitment's width. -/
+theorem length_of_answer {h : List Ev} {i : ℕ} {positions : List ℕ} {rows : List (List K)}
+    (ha : answer h i positions = some rows) :
+    ∃ ht w word, (commits h)[i]? = some (ht, w, word) ∧
+      rows = positions.map (fun p ↦ word (p % 2 ^ ht)) ∧ ∀ p ∈ positions, (word (p % 2 ^ ht)).length = w := by
+  unfold answer at ha
+  rcases hc : (commits h)[i]? with _ | ⟨ht, w, word⟩
+  · simp [hc] at ha
+  · simp only [hc, Option.bind_some] at ha
+    split at ha
+    · rename_i hall
+      simp only [List.all_eq_true, beq_iff_eq] at hall
+      exact ⟨ht, w, word, rfl, (Option.some.inj ha).symm, hall⟩
+    · simp at ha
 
 namespace VerifierProgram
 
@@ -153,7 +192,7 @@ def after : VerifierProgram α → List Ev → Option (VerifierProgram α)
   | _, _ :: _ => none
 
 /-- The interactive runs of a program: every prover move the program expects, every challenge,
-every well-shaped commitment, and every opening answered from the words committed so far. -/
+every partly shaped commitment, and every opening answered from the words committed so far. -/
 inductive Reachable (P : VerifierProgram α) : List Ev → Prop where
   | nil : Reachable P []
   | read {h k} (x : E) : Reachable P h → P.after h = some (read k) →
@@ -163,7 +202,7 @@ inductive Reachable (P : VerifierProgram α) : List Ev → Prop where
   | grind {h b k} : Reachable P h → P.after h = some (grind b k) →
       Reachable P (h ++ [Ev.grind b])
   | commit {h ht w k} (word : Word) : Reachable P h → P.after h = some (commit ht w k) →
-      WellShaped w word → Reachable P (h ++ [Ev.commit ht w word])
+      PartShaped w word → Reachable P (h ++ [Ev.commit ht w word])
   | query {h i ps k rows} : Reachable P h → P.after h = some (query i ps k) →
       answer h i ps = some rows → Reachable P (h ++ [Ev.query rows])
 
@@ -202,7 +241,7 @@ noncomputable def esc (D : List Ev → Prop) : List Ev → VerifierProgram Bool 
 /-- A **doom certificate** for the program `P`: a predicate `D` on histories ("the prover has
 lost") with
 
-* `read`, `grind`, `commit`: prover moves keep it (`commit` for well-shaped words);
+* `read`, `grind`, `commit`: prover moves keep it (`commit` for partly shaped words);
 * `group`: from a boundary history in `D` at which the program draws a challenge or opens rows,
   the group of challenges escapes `D` with probability at most `ε h`;
 * `final`: the program does not accept from a history in `D`.
@@ -221,9 +260,9 @@ structure Cert (P : VerifierProgram Bool) where
   /-- A proof of work keeps doom. -/
   grind : ∀ {h b k}, P.Reachable h → P.after h = some (.grind b k) → D h →
     D (h ++ [Ev.grind b])
-  /-- A well-shaped commitment keeps doom. -/
+  /-- A partly shaped commitment keeps doom. -/
   commit : ∀ {h ht w k} (word : Word), P.Reachable h → P.after h = some (.commit ht w k) →
-    WellShaped w word → D h → D (h ++ [Ev.commit ht w word])
+    PartShaped w word → D h → D (h ++ [Ev.commit ht w word])
   /-- A group of challenges escapes doom with probability at most `ε`. -/
   group : ∀ {h p}, P.Reachable h → Boundary h → P.after h = some p →
     (∃ k, p = .sample k) ∨ (∃ i ps k, p = .query i ps k) → D h → esc D h p ≤ ε h

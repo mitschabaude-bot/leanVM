@@ -141,8 +141,8 @@ theorem queriesOf_proveFrom (S : Strategy) (fuel : ℕ) :
       simp only [Prod.mk.injEq] at he
       obtain ⟨rfl, rfl⟩ := he
       have hrows : rows = ps.map fun q ↦ word (q % 2 ^ ht) := by
-        simp only [answer, hc, Option.map_some, Option.some.injEq] at hans
-        exact hans.symm
+        rw [answer_of_wellShaped hc (hws _ (List.mem_of_getElem? hc))] at hans
+        exact (Option.some.inj hans).symm
       subst hrows
       have hcq : commits (h ++ [Ev.query (ps.map fun q ↦ word (q % 2 ^ ht))]) = commits h := by
         simp [commits_append, commits]

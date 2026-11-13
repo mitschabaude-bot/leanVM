@@ -255,7 +255,7 @@ theorem doomed_of_not_extracted {c : KeccakCalls.QueryCache} {π : Proof}
   obtain ⟨-, -, hκ, hR, -⟩ := Whir.Params.deployed_spec_hyps hg.2.2.1 hc
   have hshape : StackShape a.1.stackLog a.2 (l₁ ++ [e]) := by
     have hmem : e ∈ hist := by rw [hm]; simp
-    have hWs : WellShaped (2 ^ laneBits) W := by rw [he] at hmem; exact hws _ _ W hmem
+    have hWs : PartShaped (2 ^ laneBits) W := by rw [he] at hmem; exact hws _ _ W hmem
     refine ⟨by rw [hcomm]; rfl, W, ?_, hWs⟩
     rw [hcomm]
     simp only [List.getElem?_cons_zero, Option.some.injEq, Prod.mk.injEq, levelShape, wdOf,

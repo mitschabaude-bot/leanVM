@@ -95,7 +95,7 @@ noncomputable def grindInv (I : CInv) {b : ℕ} (hb : b ≠ 0) (hT : (2 : ENNRea
 
 /-- A commitment appends its word. -/
 noncomputable def commitInv (I I' : CInv) (ht wd : ℕ)
-    (hI : ∀ cs W, I cs → WellShaped wd W → I' (cs ++ [(ht, wd, W)])) (hT : T ≤ εmax) :
+    (hI : ∀ cs W, I cs → PartShaped wd W → I' (cs ++ [(ht, wd, W)])) (hT : T ≤ εmax) :
     Spec (readCommitment ht wd) (fun h ↦ I (commits h)) (fun _ h ↦ I' (commits h)) εmax 0 T :=
   Spec.commitP ht wd (fun h₀ W hI0 hW ↦ by simpa using hI _ W hI0 hW) hT
 

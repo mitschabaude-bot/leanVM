@@ -46,25 +46,26 @@ theorem avg_ite_le (p : E → Prop) [DecidablePred p] :
 open Classical in
 /-- **The out-of-domain group.** -/
 theorem escRet_sampleN_le (P' : LevelCode) {κ ℓ' : ℕ} (hκ : κ = ℓ' + P'.κ) (hκ1 : 1 ≤ κ)
-    (Q' : (Fin ℓ' → Bool) → Fin P'.n → E) (J : List E → List (ℕ × ℕ × Word) → Prop)
-    (h₀ : List Ev) (hJ : ∀ z : List E, z.length = κ → OodSep P' Q' z → J z (commits h₀)) :
+    (Λ' : Finset (Fin P'.n)) (Q' : (Fin ℓ' → Bool) → Fin P'.n → E)
+    (J : List E → List (ℕ × ℕ × Word) → Prop)
+    (h₀ : List Ev) (hJ : ∀ z : List E, z.length = κ → OodSep P' Λ' Q' z → J z (commits h₀)) :
     escRet (fun z h ↦ J z (commits h)) h₀ [] (sampleChallenges κ) ≤ eOod P' κ := by
   unfold escRet
   rw [retExp_commits (fun z cs ↦ if J z cs then 0 else 1), List.append_nil, retExp_sampleN]
-  set N := (univ.filter fun v : Vector E κ ↦ ¬ OodSep P' Q' v.toList).card
+  set N := (univ.filter fun v : Vector E κ ↦ ¬ OodSep P' Λ' Q' v.toList).card
   have hsum : ∑ f : Fin κ → E, (if J (List.ofFn f) (commits h₀) then 0 else 1 : ENNReal) ≤ N := by
     calc ∑ f : Fin κ → E, (if J (List.ofFn f) (commits h₀) then 0 else 1 : ENNReal)
-        ≤ ∑ f : Fin κ → E, (if OodSep P' Q' (List.ofFn f) then 0 else 1 : ENNReal) := by
+        ≤ ∑ f : Fin κ → E, (if OodSep P' Λ' Q' (List.ofFn f) then 0 else 1 : ENNReal) := by
           gcongr with f
-          by_cases hs : OodSep P' Q' (List.ofFn f)
+          by_cases hs : OodSep P' Λ' Q' (List.ofFn f)
           · simp [hs, hJ _ (List.length_ofFn) hs]
           · split_ifs <;> simp
-      _ = ((univ.filter fun f : Fin κ → E ↦ ¬ OodSep P' Q' (List.ofFn f)).card : ENNReal) := by
+      _ = ((univ.filter fun f : Fin κ → E ↦ ¬ OodSep P' Λ' Q' (List.ofFn f)).card : ENNReal) := by
           rw [Finset.card_filter, Nat.cast_sum]
           exact Finset.sum_congr rfl fun f _ ↦ by
-            by_cases h : OodSep P' Q' (List.ofFn f) <;> simp [h]
+            by_cases h : OodSep P' Λ' Q' (List.ofFn f) <;> simp [h]
       _ = N := by
-          have hcard : (univ.filter fun f : Fin κ → E ↦ ¬ OodSep P' Q' (List.ofFn f)).card = N := by
+          have hcard : (univ.filter fun f : Fin κ → E ↦ ¬ OodSep P' Λ' Q' (List.ofFn f)).card = N := by
             refine Finset.card_bij' (fun f _ ↦ Vector.ofFn f) (fun v _ ↦ fun j : Fin κ ↦ v[j.val])
               ?_ ?_ ?_ ?_
             · intro f hf
@@ -77,7 +78,7 @@ theorem escRet_sampleN_le (P' : LevelCode) {κ ℓ' : ℕ} (hκ : κ = ℓ' + P'
             · intro v _; exact Vector.ofFn_getElem
           rw [hcard]
   have hN : (N : ENNReal) ≤ ((P'.listMax.choose 2 * (κ * Fintype.card E ^ (κ - 1)) : ℕ) :
-      ENNReal) := by exact_mod_cast card_oodSep_bad_le P' hκ Q'
+      ENNReal) := by exact_mod_cast card_oodSep_bad_le P' hκ Λ' Q'
   calc (Fintype.card E : ENNReal)⁻¹ ^ κ * ∑ f : Fin κ → E, _
       ≤ (Fintype.card E : ENNReal)⁻¹ ^ κ *
         ((P'.listMax.choose 2 * (κ * Fintype.card E ^ (κ - 1)) : ℕ) : ENNReal) := by
@@ -114,24 +115,26 @@ open Classical in
 /-- **The query group of a level with a next commitment.** -/
 theorem escRet_queryFrag_le (P P' : LevelCode) {ℓ' : ℕ} (hκ : P.κ = ℓ' + P'.κ) (t i : ℕ)
     (h₀ : List Ev) {wd : ℕ} {W : Word} (hW : (commits h₀)[i]? = some (P.κ + P.R, wd, W))
-    (Q' : (Fin ℓ' → Bool) → Fin P'.n → E) (C : Fin P.n → E) (Φ : List E → E) (σ : E)
-    (z : List E) (y : E) (hviol : Viol P (fun _ : Fin 0 → Bool ↦ C) Φ σ)
-    (hsep : OodSep P' Q' z) (J : List ℕ × E × List (List K) → List (ℕ × ℕ × Word) → Prop)
+    (Λ : Finset (Fin P.n)) (hΛ : ∀ v : Fin P.n, (W v).length = wd → v ∈ Λ)
+    (Λ' : Finset (Fin P'.n)) (Q' : (Fin ℓ' → Bool) → Fin P'.n → E) (C : Fin P.n → E)
+    (Φ : List E → E) (σ : E) (z : List E) (y : E)
+    (hviol : Viol P Λ (fun _ : Fin 0 → Bool ↦ C) Φ σ)
+    (hsep : OodSep P' Λ' Q' z) (J : List ℕ × E × List (List K) → List (ℕ × ℕ × Word) → Prop)
     (hJ : ∀ (qs : List ℕ) (lam : E), (∀ q ∈ qs, q < P.n) → qs.length = t →
-      Viol P' Q' (fun r ↦ Φ r + 1 * lam * eqEval z r +
+      (∀ q ∈ qs, (W q).length = wd) → Viol P' Λ' Q' (fun r ↦ Φ r + 1 * lam * eqEval z r +
           1 * lam * lam * Verifier.inducedWeight P.κ qs (powers lam qs.length) r)
         (σ + 1 * lam * y + 1 * lam * lam * ∑ k : Fin qs.length, lam ^ (k : ℕ) * wordAt C qs[k]) →
       J (qs, lam, qs.map W) (commits h₀)) :
     escRet (fun g h ↦ J g (commits h)) h₀ [] (queryFrag (P.κ + P.R) t i) ≤ eQuery P P' t := by
   unfold escRet
   rw [retExp_commits (fun g cs ↦ if J g cs then 0 else 1), List.append_nil]
-  obtain ⟨A, hA, hcatch⟩ := exists_agreeSet P P' hκ Q' C Φ σ z y hviol hsep
+  obtain ⟨A, hA, hcatch⟩ := exists_agreeSet P P' hκ Λ Λ' Q' C Φ σ z y hviol hsep
   have hd1 : 1 ≤ P.κ + P.R := by have := P.hκ; omega
   have hd2 : P.κ + P.R ≤ 192 := by have := P.h64; omega
   refine (retExp_queryFrag_le (P.κ + P.R) t i hd1 hd2 h₀ hW _
     (fun q ↦ ∀ h : q < P.n, (⟨q, h⟩ : Fin P.n) ∈ A)
     ((((t + 1) * P'.listMax : ℕ) : ENNReal) / Fintype.card E) ?_).trans ?_
-  · intro qs hr hlen
+  · intro qs hr hlen hl
     by_cases hall : ∀ q ∈ qs, ∀ h : q < P.n, (⟨q, h⟩ : Fin P.n) ∈ A
     · have : allIn (fun q ↦ ∀ h : q < P.n, (⟨q, h⟩ : Fin P.n) ∈ A) qs = 1 := by
         unfold allIn
@@ -140,20 +143,21 @@ theorem escRet_queryFrag_le (P P' : LevelCode) {ℓ' : ℕ} (hκ : P.κ = ℓ' +
         · exact absurd hall h
       rw [this]
       exact (avg_le_one _ fun _ ↦ by split_ifs <;> simp).trans le_self_add
-    · have hgood : QueryGood P P' hκ Q' C Φ σ z y qs := by
-        by_contra hng; exact hall (hcatch qs hng)
-      have hcard := card_lambda_bad_le P P' hκ Q' C Φ σ z y qs hr hgood
+    · have hgood : QueryGood P P' hκ Λ' Q' C Φ σ z y qs := by
+        by_contra hng
+        exact hall fun q hq h ↦ hcatch qs hng q hq h (hΛ _ (hl q hq))
+      have hcard := card_lambda_bad_le P P' hκ Λ' Q' C Φ σ z y qs hr hgood
       refine le_trans ?_ le_add_self
       rw [avg_ite_le, ENNReal.div_eq_inv_mul]
       gcongr
       have hsub := Finset.card_le_card (s := univ.filter fun lam ↦ ¬ J (qs, lam, qs.map W)
-          (commits h₀)) (t := univ.filter fun lam : E ↦ ¬ Viol P' Q'
+          (commits h₀)) (t := univ.filter fun lam : E ↦ ¬ Viol P' Λ' Q'
           (fun r ↦ Φ r + 1 * lam * eqEval z r +
             1 * lam * lam * Verifier.inducedWeight P.κ qs (powers lam qs.length) r)
           (σ + 1 * lam * y + 1 * lam * lam *
             ∑ k : Fin qs.length, lam ^ (k : ℕ) * wordAt C qs[k])) fun lam hlam ↦ by
         simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hlam ⊢
-        exact fun hv ↦ hlam (hJ qs lam hr hlen hv)
+        exact fun hv ↦ hlam (hJ qs lam hr hlen hl hv)
       rw [← hlen]
       exact_mod_cast hsub.trans hcard
   · rw [card_filter_mem, eQuery]
@@ -163,11 +167,12 @@ open Classical in
 /-- **The query group of the final level.** -/
 theorem escRet_queryFrag_le_final (P : LevelCode) (t i : ℕ)
     (h₀ : List Ev) {wd : ℕ} {W : Word} (hW : (commits h₀)[i]? = some (P.κ + P.R, wd, W))
+    (Λ : Finset (Fin P.n)) (hΛ : ∀ v : Fin P.n, (W v).length = wd → v ∈ Λ)
     (C : Fin P.n → E) (Φ : List E → E) (σ : E)
-    (hviol : Viol P (fun _ : Fin 0 → Bool ↦ C) Φ σ) (G : (Fin P.κ → Bool) → E)
+    (hviol : Viol P Λ (fun _ : Fin 0 → Bool ↦ C) Φ σ) (G : (Fin P.κ → Bool) → E)
     (J : List ℕ × E × List (List K) → List (ℕ × ℕ × Word) → Prop)
     (hJ : ∀ (qs : List ℕ) (lam : E), (∀ q ∈ qs, q < P.n) → qs.length = t →
-      ∑ x, (Φ (bitsL x) + 1 * lam * Verifier.inducedWeight P.κ qs (powers lam qs.length)
+      (∀ q ∈ qs, (W q).length = wd) → ∑ x, (Φ (bitsL x) + 1 * lam * Verifier.inducedWeight P.κ qs (powers lam qs.length)
           (bitsL x)) * G x ≠
         σ + 1 * lam * ∑ k : Fin qs.length, lam ^ (k : ℕ) * wordAt C qs[k] →
       J (qs, lam, qs.map W) (commits h₀)) :
@@ -175,12 +180,12 @@ theorem escRet_queryFrag_le_final (P : LevelCode) (t i : ℕ)
       eQueryFinal P t := by
   unfold escRet
   rw [retExp_commits (fun g cs ↦ if J g cs then 0 else 1), List.append_nil]
-  obtain ⟨A, hA, hcatch⟩ := exists_agreeSet_final P C Φ σ hviol G
+  obtain ⟨A, hA, hcatch⟩ := exists_agreeSet_final P Λ C Φ σ hviol G
   have hd1 : 1 ≤ P.κ + P.R := by have := P.hκ; omega
   have hd2 : P.κ + P.R ≤ 192 := by have := P.h64; omega
   refine (retExp_queryFrag_le (P.κ + P.R) t i hd1 hd2 h₀ hW _
     (fun q ↦ ∀ h : q < P.n, (⟨q, h⟩ : Fin P.n) ∈ A) ((t : ENNReal) / Fintype.card E) ?_).trans ?_
-  · intro qs hr hlen
+  · intro qs hr hlen hl
     by_cases hall : ∀ q ∈ qs, ∀ h : q < P.n, (⟨q, h⟩ : Fin P.n) ∈ A
     · have : allIn (fun q ↦ ∀ h : q < P.n, (⟨q, h⟩ : Fin P.n) ∈ A) qs = 1 := by
         unfold allIn
@@ -190,7 +195,8 @@ theorem escRet_queryFrag_le_final (P : LevelCode) (t i : ℕ)
       rw [this]
       exact (avg_le_one _ fun _ ↦ by split_ifs <;> simp).trans le_self_add
     · have hgood : QueryGoodFinal P C Φ σ G qs := by
-        by_contra hng; exact hall (hcatch qs hng)
+        by_contra hng
+        exact hall fun q hq h ↦ hcatch qs hng q hq h (hΛ _ (hl q hq))
       have hcard := card_lambda_bad_le_final P C Φ σ G qs hr hgood
       refine le_trans ?_ le_add_self
       rw [avg_ite_le, ENNReal.div_eq_inv_mul]
@@ -202,7 +208,7 @@ theorem escRet_queryFrag_le_final (P : LevelCode) (t i : ℕ)
           σ + 1 * lam * ∑ k : Fin qs.length, lam ^ (k : ℕ) * wordAt C qs[k]) fun lam hlam ↦ by
         simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hlam ⊢
         by_contra hne
-        exact hlam (hJ qs lam hr hlen hne)
+        exact hlam (hJ qs lam hr hlen hl hne)
       rw [← hlen]
       exact_mod_cast hsub.trans hcard
   · rw [card_filter_mem, eQueryFinal]

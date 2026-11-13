@@ -22,8 +22,8 @@ samples a challenge `c`, moves the running claim to `q(c)` and reads the next ro
 the state has `pre + j` folds, `j ≤ ℓ`, the level's code has `κ = μ − pre − ℓ` message variables,
 the glued claims are well formed (`GluedOK`), the round polynomial sums to the target
 (`QuadOK`), and every member of the list of the level's oracle `laneO i cs` folded by the level's
-`j` challenges (`foldsN lf`, `ℓ − j` lanes left) violates the running claim
-`(runW w ℓ₀ s, s.target)`.
+`j` challenges (`foldsN lf`, `ℓ − j` lanes left), on the commitment's listed columns
+(`listedO i cs`), violates the running claim `(runW w ℓ₀ s, s.target)`.
 
 * `card_foldBad_le_eFold`: one round's escape count, `2·listMax + 2^(ℓ−j−1)·mcaMax`
   (`card_foldStep_bad_le`), at most `eFold P ℓ · |E|`.
@@ -51,12 +51,13 @@ variable (μ ℓ₀ : ℕ) (w : List E → E) (i : ℕ) (P : LevelCode) (ℓ pre
 def FoldInv (s : WhirStateT) (lf : List E) (cs : List (ℕ × ℕ × Word)) : Prop :=
   s.folds.length = pre + lf.length ∧ lf.length ≤ ℓ ∧ P.κ + pre + ℓ = μ ∧ GluedOK μ s ∧
     QuadOK s.quad s.target ∧
-    Viol P (rowsOf (ℓ - lf.length) (foldsN lf (laneO i cs P.n))) (runW w ℓ₀ s) s.target
+    Viol P (listedO i cs P.n) (rowsOf (ℓ - lf.length) (foldsN lf (laneO i cs P.n))) (runW w ℓ₀ s)
+      s.target
 
 /-- The doom right after a fold challenge, before the next round polynomial. -/
 def FoldMid (s : WhirStateT) (lf : List E) (c : E) (cs : List (ℕ × ℕ × Word)) : Prop :=
   s.folds.length = pre + lf.length ∧ lf.length < ℓ ∧ P.κ + pre + ℓ = μ ∧ GluedOK μ s ∧
-    Viol P (rowsOf (ℓ - (lf.length + 1)) (foldsN (lf ++ [c]) (laneO i cs P.n)))
+    Viol P (listedO i cs P.n) (rowsOf (ℓ - (lf.length + 1)) (foldsN (lf ++ [c]) (laneO i cs P.n)))
       (fun r ↦ runW w ℓ₀ s (c :: r)) (polyEval s.quad c)
 
 variable {μ ℓ₀ w i P ℓ pre}
@@ -76,7 +77,8 @@ theorem card_foldBad_le_eFold (hw : IsMultiaffine μ w) (hℓ₀ : ℓ₀ ≤ μ
     rwa [show μ - s.folds.length = m + 1 + P.κ by omega] at this
   rw [hm1] at hviol
   rw [hq] at hσ
-  have hstep := card_foldStep_bad_le P (runW w ℓ₀ s) hma (foldsN lf (laneO i cs P.n)) s.target
+  have hstep := card_foldStep_bad_le P (runW w ℓ₀ s) hma (listedO i cs P.n)
+    (foldsN lf (laneO i cs P.n)) s.target
     c₀ c₁ c₂ hσ hviol
   refine (Finset.card_le_card fun c hc ↦ ?_).trans (hstep.trans ?_)
   · simp only [Finset.mem_filter, Finset.mem_univ, true_and, FoldMid, not_and] at hc ⊢
