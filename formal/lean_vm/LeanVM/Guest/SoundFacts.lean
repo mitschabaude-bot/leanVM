@@ -83,19 +83,65 @@ theorem semRel_exp (rd : Reader) (ws : List E) :
     SemRel glob 0 rd ws ↔ B1.ExpTables rd (ws.getD 0 0) := by
   simp [SemRel, SemRel0, tagNe, glob, globSem]
 
-/-- Every function's semantic tuples are on its argument cells `2 ..< 2 + nargs`, decided. -/
-noncomputable def sigSemArgsB : Bool :=
-  (List.range nFns).all fun j ↦ (glob.sig j).sem.all fun s ↦ s.2.all fun o ↦
+/-- The semantic tuples of the functions `a ..< a + n` are on their argument cells
+`2 ..< 2 + nargs`, decided. -/
+noncomputable def sigSemArgsB (a n : ℕ) : Bool :=
+  (List.range' a n).all fun j ↦ (glob.sig j).sem.all fun s ↦ s.2.all fun o ↦
     Nat.ble 2 o && Nat.blt o (2 + (glob.sig j).nargs)
 
-theorem sigSemArgsB_eq : sigSemArgsB = true := by decide +kernel
+/-! The functions in twelve runs of `128`, each its own kernel check and one at a time: one check
+of all `nFns` holds every function's data at once. -/
+
+set_option Elab.async false in
+theorem sigSemArgsB_0 : sigSemArgsB 0 128 = true := by decide +kernel
+
+set_option Elab.async false in
+theorem sigSemArgsB_128 : sigSemArgsB 128 128 = true := by decide +kernel
+
+set_option Elab.async false in
+theorem sigSemArgsB_256 : sigSemArgsB 256 128 = true := by decide +kernel
+
+set_option Elab.async false in
+theorem sigSemArgsB_384 : sigSemArgsB 384 128 = true := by decide +kernel
+
+set_option Elab.async false in
+theorem sigSemArgsB_512 : sigSemArgsB 512 128 = true := by decide +kernel
+
+set_option Elab.async false in
+theorem sigSemArgsB_640 : sigSemArgsB 640 128 = true := by decide +kernel
+
+set_option Elab.async false in
+theorem sigSemArgsB_768 : sigSemArgsB 768 128 = true := by decide +kernel
+
+set_option Elab.async false in
+theorem sigSemArgsB_896 : sigSemArgsB 896 128 = true := by decide +kernel
+
+set_option Elab.async false in
+theorem sigSemArgsB_1024 : sigSemArgsB 1024 128 = true := by decide +kernel
+
+set_option Elab.async false in
+theorem sigSemArgsB_1152 : sigSemArgsB 1152 128 = true := by decide +kernel
+
+set_option Elab.async false in
+theorem sigSemArgsB_1280 : sigSemArgsB 1280 128 = true := by decide +kernel
+
+set_option Elab.async false in
+theorem sigSemArgsB_1408 : sigSemArgsB 1408 128 = true := by decide +kernel
+
+theorem sigSemArgsB_eq : ∀ q < 12, sigSemArgsB (128 * q) 128 = true := by
+  intro q hq
+  interval_cases q
+  exacts [sigSemArgsB_0, sigSemArgsB_128, sigSemArgsB_256, sigSemArgsB_384, sigSemArgsB_512,
+    sigSemArgsB_640, sigSemArgsB_768, sigSemArgsB_896, sigSemArgsB_1024, sigSemArgsB_1152,
+    sigSemArgsB_1280, sigSemArgsB_1408]
 
 /-- **Every function's semantic tuples read only its argument words**: their cells are argument
 cells (and a tuple's relation, `SemRel glob t rd ws`, reads only the memory and the words). -/
 theorem sigSem_args {j : ℕ} (hj : j < nFns) :
     ∀ s ∈ (glob.sig j).sem, ∀ o ∈ s.2, 2 ≤ o ∧ o < 2 + (glob.sig j).nargs := by
   intro s hs o ho
-  have h := List.all_eq_true.mp sigSemArgsB_eq j (List.mem_range.mpr hj)
+  have hq : j / 128 < 12 := by simp only [nFns] at hj; omega
+  have h := List.all_eq_true.mp (sigSemArgsB_eq (j / 128) hq) j (by rw [List.mem_range'_1]; omega)
   have h' := List.all_eq_true.mp (List.all_eq_true.mp h s hs) o ho
   simp only [Bool.and_eq_true, Nat.ble_eq, Nat.blt_eq] at h'
   exact h'
