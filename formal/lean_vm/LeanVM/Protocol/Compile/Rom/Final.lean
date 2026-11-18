@@ -45,6 +45,7 @@ output is decoded at the move's position. Commitments read the word extracted fr
 before their root is absorbed, which is the word extracted from the whole log (`duplex_read`).
 After a nonce the squeeze is the proof of work's, decoded as the record `st h p (some (b, n))`
 whose factor is the proof of work's result `1`.
+The lemmas that follow a group read the doom only. `followWith`, `walkWith`, `CarriedWith`, `groupWith` and `moveWith` take a predicate `D` on histories. `follow`, `walk`, `Carried`, `group` and `move` are their instances at a certificate's doom, and a prover move keeps every certificate's doom (`Keeps`). `final_escape` reads the run at any doom. On an accepted run from a statement's root and a log without failure, a group of the extracted history that leaves `D` is carried by a record of term at least one, or has no squeeze and escapes with probability one (`from_boundary_with`; a group has one end, `groupEnd_eq`).
 -/
 
 namespace LeanVM.Protocol.Compile.Rom
@@ -295,18 +296,18 @@ theorem absorb_step {ℓ : Log} (hf : ¬ Fail σ ℓ) {sp : Sponge} {h₀ h₁ :
 
 section Follow
 
-variable (C : Cert P) {ℓ : Log}
+variable (D : List Ev → Prop) {ℓ : Log}
 
 /-- **Following a group with no scalar waiting.** From a state the decoder knows, the run's
 squeezes and openings up to the next prover move or the verdict are those `gv` follows. -/
-theorem follow (hf : ¬ Fail σ ℓ) :
+theorem followWith (hf : ¬ Fail σ ℓ) :
     ∀ (p : VerifierProgram Bool) (s : VerifierProgramState) (h : List Ev) {s_f :
         VerifierProgramState} {hist : List Ev},
       RootsInv (lookH ℓ) s h → P.Reachable h → P.after h = some p →
       s.sponge.pending = [] → SpInv σ P ℓ s.sponge h p →
       xrun (lookH ℓ) (lookF ℓ) p s h = some (true, s_f, hist) →
       ∃ (p_e : VerifierProgram Bool) (s_e : VerifierProgramState) (h_e : List Ev),
-        gv C.D ℓ s.sponge.state h p = esc C.D h_e p_e ∧
+        gv D ℓ s.sponge.state h p = esc D h_e p_e ∧
         xrun (lookH ℓ) (lookF ℓ) p_e s_e h_e = some (true, s_f, hist) ∧
         RootsInv (lookH ℓ) s_e h_e ∧ P.Reachable h_e ∧ P.after h_e = some p_e ∧
         SpInv σ P ℓ s_e.sponge h_e p_e ∧ Move p_e ∧ h <+: h_e ∧ NoBnd h h_e ∧
@@ -341,7 +342,7 @@ theorem follow (hf : ¬ Fail σ ℓ) :
     have hr' := VerifierProgram.Reachable.sample (challengeOf u) hr ha
     have ha' := after_sample_step ha (challengeOf u)
     obtain ⟨p_e, s_e, h_e, hg, hx', hR', hre, hae, hse, hm, hp, hnb, hst⟩ :=
-      follow hf (k (challengeOf u)) { s with sponge := ⟨u, []⟩ } _
+      followWith hf (k (challengeOf u)) { s with sponge := ⟨u, []⟩ } _
         (rootsInv_append_sample hR _ _) hr' ha' rfl
         ⟨⟨by simp, by simp⟩, _, _, _, _, hk', rfl, .refl _ _⟩ hx
     refine ⟨p_e, s_e, h_e, ?_, hx', hR', hre, hae, hse, hm,
@@ -360,7 +361,7 @@ theorem follow (hf : ¬ Fail σ ℓ) :
         have hr' := VerifierProgram.Reachable.query hr ha hans
         have ha' := after_query_step ha rows
         obtain ⟨p_e, s_e, h_e, hg, hx', hR', hre, hae, hse, hm, hp, hnb, hst⟩ :=
-          follow hf (k rows) { s with openings := rest } _ (rootsInv_append_query hR rows rest)
+          followWith hf (k rows) { s with openings := rest } _ (rootsInv_append_query hR rows rest)
             hr' ha' hpe (hsp.snoc hans) hx
         refine ⟨p_e, s_e, h_e, ?_, hx', hR', hre, hae, hse, hm,
           (List.prefix_append _ _).trans hp, ?_, hst⟩
@@ -369,6 +370,145 @@ theorem follow (hf : ¬ Fail σ ℓ) :
         · exact noBnd_trans (noBnd_append_single (not_boundary_append_query h _)) hnb hp
       · simp at hx
     · simp at hx
+
+/-- **Walking a group's openings with scalars waiting.** From a boundary `(h, p)` at which the
+waiting scalars, consumed, end, the run's openings lead either to the group's first squeeze, a
+permutation of the waiting scalars decoded as the record `sq h p`, and the rest of the group, or
+to a prover move or the verdict with no squeeze at all. -/
+theorem walkWith (hf : ¬ Fail σ ℓ) {h : List Ev} {p : VerifierProgram Bool} {h₀ : List Ev} {pos₀
+    : Pos} :
+    ∀ (p' : VerifierProgram Bool) (s : VerifierProgramState) (h' : List Ev) {s_f :
+        VerifierProgramState} {hist : List Ev},
+      Known σ P ℓ (capOf s.sponge.state) (h₀, pos₀) → ValidPending s.sponge.pending →
+      s.sponge.pending ≠ [] →
+      consume (extract (lookH ℓ)) h₀ pos₀ s.sponge.pending = .done h (.node p) →
+      QSteps h p h' p' →
+      RootsInv (lookH ℓ) s h' → P.Reachable h' → P.after h' = some p' →
+      xrun (lookH ℓ) (lookF ℓ) p' s h' = some (true, s_f, hist) →
+      ∃ (p_e : VerifierProgram Bool) (s_e : VerifierProgramState) (h_e : List Ev),
+        xrun (lookH ℓ) (lookF ℓ) p_e s_e h_e = some (true, s_f, hist) ∧
+        RootsInv (lookH ℓ) s_e h_e ∧ P.Reachable h_e ∧ P.after h_e = some p_e ∧
+        SpInv σ P ℓ s_e.sponge h_e p_e ∧ Move p_e ∧ h' <+: h_e ∧ NoBnd h' h_e ∧
+        s_e.stream = s.stream ∧
+        ((∃ κ ∈ (decode σ P ℓ).kinds, ind (D h) * esc D h_e p_e ≤ term D ℓ κ) ∨
+          esc D h p = esc D h_e p_e)
+  | .sample k, s, h', s_f, hist, hk, hv, hne, hc, hq, hR, hr, ha, hx => by
+    simp only [xrun, Option.bind_eq_some_iff] at hx
+    obtain ⟨r, hr0, hx⟩ := hx
+    obtain ⟨u, hu, rfl⟩ := (squeeze_option _ _ _).mp hr0
+    rw [duplexInput_eq] at hu
+    obtain ⟨hkind, hkn⟩ := duplex_read hf hk hv hu
+    rw [hc] at hkind hkn
+    have hsq : settle h p = some (h', .sample k) := by
+      rw [settle_eq_of_qsteps hq]; rfl
+    have hdec : decodeAt (.done h (.node p)) s.sponge.pending =
+        (.sq h p, fun u ↦ some (h' ++ [Ev.sample (challengeOf u)], .node (k (challengeOf u)))) := by
+      simp [decodeAt, hsq, hne]
+    rw [hdec] at hkind hkn
+    have hk' := hkn _ rfl
+    have hr' := VerifierProgram.Reachable.sample (challengeOf u) hr ha
+    have ha' := after_sample_step ha (challengeOf u)
+    obtain ⟨p_e, s_e, h_e, hg, hx', hR', hre, hae, hse, hm, hp, hnb, hst⟩ :=
+      followWith D hf (k (challengeOf u)) { s with sponge := ⟨u, []⟩ } _
+        (rootsInv_append_sample hR _ _) hr' ha' rfl
+        ⟨⟨by simp, by simp⟩, _, _, _, _, hk', rfl, .refl _ _⟩ hx
+    refine ⟨p_e, s_e, h_e, hx', hR', hre, hae, hse, hm, (List.prefix_append _ _).trans hp,
+      noBnd_trans (noBnd_append_single (not_boundary_append_sample h' _)) hnb hp, hst,
+      Or.inl ⟨_, hkind, ?_⟩⟩
+    simp only [term, gv1_eq_of_qsteps D ℓ u hq]
+    rw [← hg]
+  | .query i ps k, s, h', s_f, hist, hk, hv, hne, hc, hq, hR, hr, ha, hx => by
+    simp only [xrun] at hx
+    split at hx
+    · next root ht w phase rest hroot hphase =>
+      split at hx
+      · next rows ho =>
+        have hans := answer_of_openPhase (answersInj_lookH hf) hR hroot ho
+        have hr' := VerifierProgram.Reachable.query hr ha hans
+        have ha' := after_query_step ha rows
+        obtain ⟨p_e, s_e, h_e, hx', hR', hre, hae, hse, hm, hp, hnb, hst, hres⟩ :=
+          walkWith hf (k rows) { s with openings := rest } _ hk hv hne hc (hq.snoc hans)
+            (rootsInv_append_query hR rows rest) hr' ha' hx
+        exact ⟨p_e, s_e, h_e, hx', hR', hre, hae, hse, hm, (List.prefix_append _ _).trans hp,
+          noBnd_trans (noBnd_append_single (not_boundary_append_query h' _)) hnb hp, hst, hres⟩
+      · simp at hx
+    · simp at hx
+  | .ret true, s, h', _, _, hk, hv, _, hc, hq, hR, hr, ha, hx =>
+    ⟨.ret true, s, h', hx, hR, hr, ha, ⟨hv, _, _, _, _, hk, hc, hq⟩, trivial,
+      List.prefix_refl _, noBnd_refl _, rfl, Or.inr (esc_eq_of_qsteps D hq)⟩
+  | .ret false, s, h', _, _, _, _, _, _, _, _, _, _, hx => by simp [xrun] at hx
+  | .fail, s, h', _, _, _, _, _, _, _, _, _, _, hx => by simp [xrun] at hx
+  | .read k', s, h', _, _, hk, hv, _, hc, hq, hR, hr, ha, hx =>
+    ⟨.read k', s, h', hx, hR, hr, ha, ⟨hv, _, _, _, _, hk, hc, hq⟩, trivial,
+      List.prefix_refl _, noBnd_refl _, rfl, Or.inr (esc_eq_of_qsteps D hq)⟩
+  | .grind b k', s, h', _, _, hk, hv, _, hc, hq, hR, hr, ha, hx =>
+    ⟨.grind b k', s, h', hx, hR, hr, ha, ⟨hv, _, _, _, _, hk, hc, hq⟩, trivial,
+      List.prefix_refl _, noBnd_refl _, rfl, Or.inr (esc_eq_of_qsteps D hq)⟩
+  | .commit ht w k', s, h', _, _, hk, hv, _, hc, hq, hR, hr, ha, hx =>
+    ⟨.commit ht w k', s, h', hx, hR, hr, ha, ⟨hv, _, _, _, _, hk, hc, hq⟩, trivial,
+      List.prefix_refl _, noBnd_refl _, rfl, Or.inr (esc_eq_of_qsteps D hq)⟩
+
+/-- The group at a boundary is carried: after the seed or a proof of work, with no scalar
+waiting, by the state's record; after a scalar or a commitment, with scalars waiting, at a
+history without proof of work, by the record of the group's first squeeze. -/
+def CarriedWith (D : List Ev → Prop) (ℓ : Log) (s : VerifierProgramState) (h : List Ev) (p : VerifierProgram
+    Bool) : Prop :=
+  (s.sponge.pending = [] ∧ ∃ κ ∈ (decode σ P ℓ).kinds,
+    ind (D h) * gv D ℓ s.sponge.state h p ≤ term D ℓ κ) ∨
+  (s.sponge.pending ≠ [] ∧ grindBits h = 0)
+
+/-- **A group.** From a boundary whose group is carried, the run reaches the next prover move or
+the verdict; either a record bounds `[D h]` times the escape probability there, or the group has
+no squeeze and its escape probability is the one at its start. -/
+theorem groupWith (hf : ¬ Fail σ ℓ) {p : VerifierProgram Bool} {s : VerifierProgramState} {h : List Ev}
+    {s_f : VerifierProgramState}
+    {hist : List Ev} (hR : RootsInv (lookH ℓ) s h) (hr : P.Reachable h)
+    (ha : P.after h = some p)
+    (hsp : ValidPending s.sponge.pending ∧ ∃ h₀ pos₀, Known σ P ℓ (capOf s.sponge.state) (h₀, pos₀) ∧
+      consume (extract (lookH ℓ)) h₀ pos₀ s.sponge.pending = .done h (.node p))
+    (hcar : CarriedWith (σ := σ) (P := P) D ℓ s h p) (hx : xrun (lookH ℓ) (lookF ℓ) p s h = some (true, s_f, hist)) :
+    ∃ (p_e : VerifierProgram Bool) (s_e : VerifierProgramState) (h_e : List Ev),
+      xrun (lookH ℓ) (lookF ℓ) p_e s_e h_e = some (true, s_f, hist) ∧
+      RootsInv (lookH ℓ) s_e h_e ∧ P.Reachable h_e ∧ P.after h_e = some p_e ∧
+      SpInv σ P ℓ s_e.sponge h_e p_e ∧ Move p_e ∧ h <+: h_e ∧ NoBnd h h_e ∧
+      s_e.stream = s.stream ∧
+      ((∃ κ ∈ (decode σ P ℓ).kinds, ind (D h) * esc D h_e p_e ≤ term D ℓ κ) ∨
+        (esc D h p = esc D h_e p_e ∧ grindBits h = 0)) := by
+  obtain ⟨hv, h₀, pos₀, hk, hc⟩ := hsp
+  rcases hcar with ⟨hpe, κ, hκ, hterm⟩ | ⟨hne, hg⟩
+  · obtain ⟨p_e, s_e, h_e, hgv, hx', hR', hre, hae, hse, hm, hp, hnb, hst⟩ :=
+      followWith D hf p s h hR hr ha hpe ⟨hv, h₀, pos₀, h, p, hk, hc, .refl _ _⟩ hx
+    exact ⟨p_e, s_e, h_e, hx', hR', hre, hae, hse, hm, hp, hnb, hst,
+      Or.inl ⟨κ, hκ, by rw [← hgv]; exact hterm⟩⟩
+  · obtain ⟨p_e, s_e, h_e, hx', hR', hre, hae, hse, hm, hp, hnb, hst, hres⟩ :=
+      walkWith D hf p s h hk hv hne hc (.refl _ _) hR hr ha hx
+    exact ⟨p_e, s_e, h_e, hx', hR', hre, hae, hse, hm, hp, hnb, hst,
+      hres.imp id fun he ↦ ⟨he, hg⟩⟩
+
+end Follow
+
+
+/-! ### At a certificate's doom -/
+
+section FollowCert
+
+variable (C : Cert P) {ℓ : Log}
+
+/-- **Following a group with no scalar waiting.** From a state the decoder knows, the run's
+squeezes and openings up to the next prover move or the verdict are those `gv` follows. -/
+theorem follow (hf : ¬ Fail σ ℓ) :
+    ∀ (p : VerifierProgram Bool) (s : VerifierProgramState) (h : List Ev) {s_f :
+        VerifierProgramState} {hist : List Ev},
+      RootsInv (lookH ℓ) s h → P.Reachable h → P.after h = some p →
+      s.sponge.pending = [] → SpInv σ P ℓ s.sponge h p →
+      xrun (lookH ℓ) (lookF ℓ) p s h = some (true, s_f, hist) →
+      ∃ (p_e : VerifierProgram Bool) (s_e : VerifierProgramState) (h_e : List Ev),
+        gv C.D ℓ s.sponge.state h p = esc C.D h_e p_e ∧
+        xrun (lookH ℓ) (lookF ℓ) p_e s_e h_e = some (true, s_f, hist) ∧
+        RootsInv (lookH ℓ) s_e h_e ∧ P.Reachable h_e ∧ P.after h_e = some p_e ∧
+        SpInv σ P ℓ s_e.sponge h_e p_e ∧ Move p_e ∧ h <+: h_e ∧ NoBnd h h_e ∧
+        s_e.stream = s.stream :=
+  followWith C.D hf
 
 /-- **Walking a group's openings with scalars waiting.** From a boundary `(h, p)` at which the
 waiting scalars, consumed, end, the run's openings lead either to the group's first squeeze, a
@@ -390,71 +530,15 @@ theorem walk (hf : ¬ Fail σ ℓ) {h : List Ev} {p : VerifierProgram Bool} {h�
         SpInv σ P ℓ s_e.sponge h_e p_e ∧ Move p_e ∧ h' <+: h_e ∧ NoBnd h' h_e ∧
         s_e.stream = s.stream ∧
         ((∃ κ ∈ (decode σ P ℓ).kinds, ind (C.D h) * esc C.D h_e p_e ≤ term C.D ℓ κ) ∨
-          esc C.D h p = esc C.D h_e p_e)
-  | .sample k, s, h', s_f, hist, hk, hv, hne, hc, hq, hR, hr, ha, hx => by
-    simp only [xrun, Option.bind_eq_some_iff] at hx
-    obtain ⟨r, hr0, hx⟩ := hx
-    obtain ⟨u, hu, rfl⟩ := (squeeze_option _ _ _).mp hr0
-    rw [duplexInput_eq] at hu
-    obtain ⟨hkind, hkn⟩ := duplex_read hf hk hv hu
-    rw [hc] at hkind hkn
-    have hsq : settle h p = some (h', .sample k) := by
-      rw [settle_eq_of_qsteps hq]; rfl
-    have hdec : decodeAt (.done h (.node p)) s.sponge.pending =
-        (.sq h p, fun u ↦ some (h' ++ [Ev.sample (challengeOf u)], .node (k (challengeOf u)))) := by
-      simp [decodeAt, hsq, hne]
-    rw [hdec] at hkind hkn
-    have hk' := hkn _ rfl
-    have hr' := VerifierProgram.Reachable.sample (challengeOf u) hr ha
-    have ha' := after_sample_step ha (challengeOf u)
-    obtain ⟨p_e, s_e, h_e, hg, hx', hR', hre, hae, hse, hm, hp, hnb, hst⟩ :=
-      follow C hf (k (challengeOf u)) { s with sponge := ⟨u, []⟩ } _
-        (rootsInv_append_sample hR _ _) hr' ha' rfl
-        ⟨⟨by simp, by simp⟩, _, _, _, _, hk', rfl, .refl _ _⟩ hx
-    refine ⟨p_e, s_e, h_e, hx', hR', hre, hae, hse, hm, (List.prefix_append _ _).trans hp,
-      noBnd_trans (noBnd_append_single (not_boundary_append_sample h' _)) hnb hp, hst,
-      Or.inl ⟨_, hkind, ?_⟩⟩
-    simp only [term, gv1_eq_of_qsteps C.D ℓ u hq]
-    rw [← hg]
-  | .query i ps k, s, h', s_f, hist, hk, hv, hne, hc, hq, hR, hr, ha, hx => by
-    simp only [xrun] at hx
-    split at hx
-    · next root ht w phase rest hroot hphase =>
-      split at hx
-      · next rows ho =>
-        have hans := answer_of_openPhase (answersInj_lookH hf) hR hroot ho
-        have hr' := VerifierProgram.Reachable.query hr ha hans
-        have ha' := after_query_step ha rows
-        obtain ⟨p_e, s_e, h_e, hx', hR', hre, hae, hse, hm, hp, hnb, hst, hres⟩ :=
-          walk hf (k rows) { s with openings := rest } _ hk hv hne hc (hq.snoc hans)
-            (rootsInv_append_query hR rows rest) hr' ha' hx
-        exact ⟨p_e, s_e, h_e, hx', hR', hre, hae, hse, hm, (List.prefix_append _ _).trans hp,
-          noBnd_trans (noBnd_append_single (not_boundary_append_query h' _)) hnb hp, hst, hres⟩
-      · simp at hx
-    · simp at hx
-  | .ret true, s, h', _, _, hk, hv, _, hc, hq, hR, hr, ha, hx =>
-    ⟨.ret true, s, h', hx, hR, hr, ha, ⟨hv, _, _, _, _, hk, hc, hq⟩, trivial,
-      List.prefix_refl _, noBnd_refl _, rfl, Or.inr (esc_eq_of_qsteps C.D hq)⟩
-  | .ret false, s, h', _, _, _, _, _, _, _, _, _, _, hx => by simp [xrun] at hx
-  | .fail, s, h', _, _, _, _, _, _, _, _, _, _, hx => by simp [xrun] at hx
-  | .read k', s, h', _, _, hk, hv, _, hc, hq, hR, hr, ha, hx =>
-    ⟨.read k', s, h', hx, hR, hr, ha, ⟨hv, _, _, _, _, hk, hc, hq⟩, trivial,
-      List.prefix_refl _, noBnd_refl _, rfl, Or.inr (esc_eq_of_qsteps C.D hq)⟩
-  | .grind b k', s, h', _, _, hk, hv, _, hc, hq, hR, hr, ha, hx =>
-    ⟨.grind b k', s, h', hx, hR, hr, ha, ⟨hv, _, _, _, _, hk, hc, hq⟩, trivial,
-      List.prefix_refl _, noBnd_refl _, rfl, Or.inr (esc_eq_of_qsteps C.D hq)⟩
-  | .commit ht w k', s, h', _, _, hk, hv, _, hc, hq, hR, hr, ha, hx =>
-    ⟨.commit ht w k', s, h', hx, hR, hr, ha, ⟨hv, _, _, _, _, hk, hc, hq⟩, trivial,
-      List.prefix_refl _, noBnd_refl _, rfl, Or.inr (esc_eq_of_qsteps C.D hq)⟩
+          esc C.D h p = esc C.D h_e p_e) :=
+  walkWith C.D hf
 
 /-- The group at a boundary is carried: after the seed or a proof of work, with no scalar
 waiting, by the state's record; after a scalar or a commitment, with scalars waiting, at a
 history without proof of work, by the record of the group's first squeeze. -/
 def Carried (C : Cert P) (ℓ : Log) (s : VerifierProgramState) (h : List Ev) (p : VerifierProgram
     Bool) : Prop :=
-  (s.sponge.pending = [] ∧ ∃ κ ∈ (decode σ P ℓ).kinds,
-    ind (C.D h) * gv C.D ℓ s.sponge.state h p ≤ term C.D ℓ κ) ∨
-  (s.sponge.pending ≠ [] ∧ grindBits h = 0)
+  CarriedWith (σ := σ) (P := P) C.D ℓ s h p
 
 /-- **A group.** From a boundary whose group is carried, the run reaches the next prover move or
 the verdict; either a record bounds `[D h]` times the escape probability there, or the group has
@@ -472,30 +556,25 @@ theorem group (hf : ¬ Fail σ ℓ) {p : VerifierProgram Bool} {s : VerifierProg
       SpInv σ P ℓ s_e.sponge h_e p_e ∧ Move p_e ∧ h <+: h_e ∧ NoBnd h h_e ∧
       s_e.stream = s.stream ∧
       ((∃ κ ∈ (decode σ P ℓ).kinds, ind (C.D h) * esc C.D h_e p_e ≤ term C.D ℓ κ) ∨
-        (esc C.D h p = esc C.D h_e p_e ∧ grindBits h = 0)) := by
-  obtain ⟨hv, h₀, pos₀, hk, hc⟩ := hsp
-  rcases hcar with ⟨hpe, κ, hκ, hterm⟩ | ⟨hne, hg⟩
-  · obtain ⟨p_e, s_e, h_e, hgv, hx', hR', hre, hae, hse, hm, hp, hnb, hst⟩ :=
-      follow C hf p s h hR hr ha hpe ⟨hv, h₀, pos₀, h, p, hk, hc, .refl _ _⟩ hx
-    exact ⟨p_e, s_e, h_e, hx', hR', hre, hae, hse, hm, hp, hnb, hst,
-      Or.inl ⟨κ, hκ, by rw [← hgv]; exact hterm⟩⟩
-  · obtain ⟨p_e, s_e, h_e, hx', hR', hre, hae, hse, hm, hp, hnb, hst, hres⟩ :=
-      walk C hf p s h hk hv hne hc (.refl _ _) hR hr ha hx
-    exact ⟨p_e, s_e, h_e, hx', hR', hre, hae, hse, hm, hp, hnb, hst,
-      hres.imp id fun he ↦ ⟨he, hg⟩⟩
+        (esc C.D h p = esc C.D h_e p_e ∧ grindBits h = 0)) :=
+  groupWith C.D hf hR hr ha hsp hcar hx
 
-end Follow
+end FollowCert
 
 /-! ## Prover moves -/
 
+/-- **A history keeps doom** into `h'`: every certificate's doom at `h` holds at `h'`. -/
+def Keeps (P : VerifierProgram Bool) (h h' : List Ev) : Prop := ∀ C : Cert P, C.D h → C.D h'
+
+
 section Move
 
-variable (C : Cert P) {ℓ : Log}
+variable (D : List Ev → Prop) {ℓ : Log}
 
 /-- **A prover move.** From the run at a prover move, with the sponge's invariant, the run
 reaches the next boundary, where the invariant holds with no opening pending and the group is
 carried; doom is kept. -/
-theorem move (hf : ¬ Fail σ ℓ) {p : VerifierProgram Bool} (hm : Move p) (hp : ∀ a, p ≠ .ret a) {s :
+theorem moveWith (hf : ¬ Fail σ ℓ) {p : VerifierProgram Bool} (hm : Move p) (hp : ∀ a, p ≠ .ret a) {s :
     VerifierProgramState}
     {h : List Ev} {s_f : VerifierProgramState} {hist : List Ev} (hR : RootsInv (lookH ℓ) s h)
     (hr : P.Reachable h) (ha : P.after h = some p) (hsp : SpInv σ P ℓ s.sponge h p)
@@ -505,9 +584,9 @@ theorem move (hf : ¬ Fail σ ℓ) {p : VerifierProgram Bool} (hm : Move p) (hp 
       Boundary h' ∧ P.after h' = some p' ∧
       (ValidPending s'.sponge.pending ∧ ∃ h₀ pos₀, Known σ P ℓ (capOf s'.sponge.state) (h₀, pos₀) ∧
         consume (extract (lookH ℓ)) h₀ pos₀ s'.sponge.pending = .done h' (.node p')) ∧
-      Carried (σ := σ) C ℓ s' h' p' ∧
+      CarriedWith (σ := σ) (P := P) D ℓ s' h' p' ∧
       xrun (lookH ℓ) (lookF ℓ) p' s' h' = some (true, s_f, hist) ∧
-      (C.D h → C.D h') ∧ h <+: h' ∧ h'.length = h.length + 1 := by
+      Keeps P h h' ∧ h <+: h' ∧ h'.length = h.length + 1 := by
   obtain ⟨hv, h₀, pos₀, h₁, p₁, hk, hc, hq⟩ := hsp
   have hset : settle h₁ p₁ = some (h, p) := by
     rw [settle_eq_of_qsteps hq, settle_self (not_query_of_move hm)]
@@ -529,7 +608,7 @@ theorem move (hf : ¬ Fail σ ℓ) {p : VerifierProgram Bool} (hm : Move p) (hp 
       have ha' := after_read_step ha x
       refine ⟨_, h ++ [Ev.read x], k x, by simp [hs], rootsInv_append_read hR x sp' xs, hr',
         boundary_append_read h x, ha', ⟨hv', h₀', pos₀', hk', ?_⟩,
-        Or.inr ⟨hne', grindBits_append_read h x⟩, hx, fun hD ↦ C.read x hr ha hD,
+        Or.inr ⟨hne', grindBits_append_read h x⟩, hx, fun C hD ↦ C.read x hr ha hD,
         List.prefix_append _ _, by simp⟩
       rw [hc']
       simp [consume, hset]
@@ -557,7 +636,7 @@ theorem move (hf : ¬ Fail σ ℓ) {p : VerifierProgram Bool} (hm : Move p) (hp 
         have ha' := after_grind_step ha
         refine ⟨_, h ++ [Ev.grind b], k, by simp [hs], rootsInv_append_grind hR b _ xs, hr',
           boundary_append_grind h b, ha', ⟨⟨by simp, by simp⟩, _, _, hku, rfl⟩,
-          Or.inl ⟨rfl, _, hkind, ?_⟩, hx, fun hD ↦ C.grind hr ha hD,
+          Or.inl ⟨rfl, _, hkind, ?_⟩, hx, fun C hD ↦ C.grind hr ha hD,
           List.prefix_append _ _, by simp⟩
         simp only [term, powF, ind_of hpow, one_mul, le_refl]
       · simp at hx
@@ -583,7 +662,7 @@ theorem move (hf : ¬ Fail σ ℓ) {p : VerifierProgram Bool} (hm : Move p) (hp 
         refine ⟨_, _, k, by simp [hs], rootsInv_append_commit hR root ht w sp1 xs, hr',
           boundary_append_commit _ _ _ _, ha', ⟨hv1, h₀'', pos₀'', hk1, ?_⟩,
           Or.inr ⟨hne1, grindBits_append_commit _ _ _ _⟩, hx,
-          fun hD ↦ C.commit _ hr ha (partShaped_extract _ _ _ _) hD,
+          fun C hD ↦ C.commit _ hr ha (partShaped_extract _ _ _ _) hD,
           List.prefix_append _ _, by simp⟩
         rw [hc1]
         simp [consume, hroot]
@@ -591,6 +670,34 @@ theorem move (hf : ¬ Fail σ ℓ) {p : VerifierProgram Bool} (hm : Move p) (hp 
     · simp at hx
 
 end Move
+
+
+/-! ### At a certificate's doom, a move -/
+
+section MoveCert
+
+variable (C : Cert P) {ℓ : Log}
+
+/-- **A prover move.** From the run at a prover move, with the sponge's invariant, the run
+reaches the next boundary, where the invariant holds with no opening pending and the group is
+carried; doom is kept. -/
+theorem move (hf : ¬ Fail σ ℓ) {p : VerifierProgram Bool} (hm : Move p) (hp : ∀ a, p ≠ .ret a) {s :
+    VerifierProgramState}
+    {h : List Ev} {s_f : VerifierProgramState} {hist : List Ev} (hR : RootsInv (lookH ℓ) s h)
+    (hr : P.Reachable h) (ha : P.after h = some p) (hsp : SpInv σ P ℓ s.sponge h p)
+    (hx : xrun (lookH ℓ) (lookF ℓ) p s h = some (true, s_f, hist)) :
+    ∃ (s' : VerifierProgramState) (h' : List Ev) (p' : VerifierProgram Bool),
+      s'.stream.length < s.stream.length ∧ RootsInv (lookH ℓ) s' h' ∧ P.Reachable h' ∧
+      Boundary h' ∧ P.after h' = some p' ∧
+      (ValidPending s'.sponge.pending ∧ ∃ h₀ pos₀, Known σ P ℓ (capOf s'.sponge.state) (h₀, pos₀) ∧
+        consume (extract (lookH ℓ)) h₀ pos₀ s'.sponge.pending = .done h' (.node p')) ∧
+      Carried (σ := σ) C ℓ s' h' p' ∧
+      xrun (lookH ℓ) (lookF ℓ) p' s' h' = some (true, s_f, hist) ∧
+      (C.D h → C.D h') ∧ h <+: h' ∧ h'.length = h.length + 1 := by
+  obtain ⟨s', h', p', h1, h2, h3, h4, h5, h6, h7, h8, hk, h9, h10⟩ := moveWith C.D hf hm hp hR hr ha hsp hx
+  exact ⟨s', h', p', h1, h2, h3, h4, h5, h6, h7, h8, hk C, h9, h10⟩
+
+end MoveCert
 
 /-! ## The final inequality -/
 
@@ -703,6 +810,167 @@ theorem final_ineq (hf : ¬ Fail σ ℓ) (hε1 : ∀ h, grindBits h = 0 → C.ε
   exact le_min le_rfl hS
 
 end Final
+
+/-! ## Escapes at any doom -/
+
+section Escape
+
+variable {ℓ : Log}
+
+/-- Following a history in two pieces. -/
+theorem after_append_eq {α : Type} :
+    ∀ (P : VerifierProgram α) (h h' : List Ev), P.after (h ++ h') = (P.after h).bind fun p ↦
+        p.after h'
+  | _, [], _ => by simp [VerifierProgram.after]
+  | P, e :: es, h' => by
+    cases P <;> cases e <;> simp only [List.cons_append, VerifierProgram.after,
+        Option.bind_none] <;>
+      first
+      | exact after_append_eq _ es h'
+      | (split <;> simp [after_append_eq _ es h'])
+
+/-- The event after a prover move or the verdict, on a history the program follows, makes a
+boundary. -/
+theorem boundary_of_move {h : List Ev} {p : VerifierProgram Bool} (ha : P.after h = some p)
+    (hm : Move p) {e : Ev} (he : (P.after (h ++ [e])).isSome) : Boundary (h ++ [e]) := by
+  rw [after_append_eq, ha, Option.bind_some] at he
+  cases p with
+  | ret a => cases a <;> simp_all [Move, VerifierProgram.after]
+  | read k =>
+    cases e <;> simp_all [VerifierProgram.after]
+    exact boundary_append_read h _
+  | grind b k =>
+    cases e <;> simp_all [VerifierProgram.after]
+    exact boundary_append_grind h _
+  | commit ht w k =>
+    cases e <;> simp_all [VerifierProgram.after]
+    exact boundary_append_commit _ _ _ _
+  | sample k => exact absurd hm id
+  | query i ps k => exact absurd hm id
+  | fail => exact absurd hm id
+
+/-- A group's end is the first point after its boundary at which the program makes a prover move
+or accepts: two ends of one group on a history the program follows are equal. -/
+theorem groupEnd_eq {hist h h_e h_e' : List Ev} {p_e p_e' : VerifierProgram Bool}
+    (hacc : (P.after hist).isSome) (hp : h_e <+: hist) (hp' : h_e' <+: hist) (hh : h <+: h_e)
+    (hh' : h <+: h_e') (hnb : NoBnd h h_e) (hnb' : NoBnd h h_e') (ha : P.after h_e = some p_e)
+    (hm : Move p_e) (ha' : P.after h_e' = some p_e') (hm' : Move p_e') : h_e = h_e' := by
+  have key : ∀ {a b : List Ev} {pa : VerifierProgram Bool}, a <+: hist → b <+: hist → h <+: a →
+      NoBnd h b → P.after a = some pa → Move pa → a.length < b.length → False := by
+    intro a b pa hpa hpb hha hnbb haa hma hlt
+    have hab : a <+: b := List.prefix_of_prefix_length_le hpa hpb hlt.le
+    obtain ⟨t, rfl⟩ := hab
+    rcases t with _ | ⟨e, t⟩
+    · simp at hlt
+    · have hsome : (P.after (a ++ [e])).isSome := by
+        obtain ⟨r, hr⟩ := hpb
+        have hh2 : hist = (a ++ [e]) ++ (t ++ r) := by rw [← hr]; simp
+        rw [hh2, after_append_eq] at hacc
+        rcases hq : P.after (a ++ [e]) with _ | q
+        · rw [hq] at hacc; simp at hacc
+        · rfl
+      have hb := boundary_of_move haa hma hsome
+      have hn := hnbb (a.length + 1) (by have := hha.length_le; omega) (by simp)
+      apply hn
+      rw [show (a ++ e :: t).take (a.length + 1) = a ++ [e] by rw [List.take_length_add_append]; simp]
+      exact hb
+  rcases lt_trichotomy h_e.length h_e'.length with hl | hl | hl
+  · exact (key hp hp' hh hnb' ha hm hl).elim
+  · exact List.prefix_of_prefix_length_le hp hp' hl.le |>.eq_of_length hl
+  · exact (key hp' hp hh' hnb ha' hm' hl).elim
+
+/-- **The run from a boundary, at any doom.** From a boundary of an accepting run whose group is
+carried, a group of the extracted history at or past it that leaves the doom `D` is carried by a
+record of term at least one, or has no squeeze and escapes with probability one. -/
+theorem from_boundary_with (D : List Ev → Prop) (hf : ¬ Fail σ ℓ) {s_f : VerifierProgramState}
+    {hist : List Ev} {hb h_b : List Ev} {p_b : VerifierProgram Bool} (hacc : (P.after hist).isSome) :
+    ∀ (n : ℕ) (s : VerifierProgramState) (h : List Ev) (p : VerifierProgram Bool),
+        s.stream.length < n →
+      RootsInv (lookH ℓ) s h → P.Reachable h → P.after h = some p → Boundary h →
+      (ValidPending s.sponge.pending ∧ ∃ h₀ pos₀, Known σ P ℓ (capOf s.sponge.state) (h₀, pos₀) ∧
+        consume (extract (lookH ℓ)) h₀ pos₀ s.sponge.pending = .done h (.node p)) →
+      CarriedWith (σ := σ) (P := P) D ℓ s h p → xrun (lookH ℓ) (lookF ℓ) p s h = some (true, s_f, hist) →
+      hb <+: h_b → h_b <+: hist → h.length ≤ hb.length → Boundary hb → NoBnd hb h_b →
+      P.after h_b = some p_b → Move p_b → D hb → ¬ D h_b →
+      (∃ κ ∈ (decode σ P ℓ).kinds, 1 ≤ term D ℓ κ) ∨
+        ∃ p₀, P.Reachable hb ∧ P.after hb = some p₀ ∧ grindBits hb = 0 ∧ esc D hb p₀ = 1
+  | 0, _, _, _, hn, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _ => absurd hn (Nat.not_lt_zero _)
+  | n + 1, s, h, p, hn, hR, hr, ha, hbd, hsp, hcar, hx, hbe, hep, hlen, hbb, hnbb, hab, hmb, hD,
+      hD' => by
+    obtain ⟨p_e, s_e, h_e, hx', hR', hre, hae, hse, hm, hpre, hnb, hst, hres⟩ :=
+      groupWith D hf hR hr ha hsp hcar hx
+    have hhist : h <+: hist := xrun_prefix _ _ _ _ _ hx
+    have hehist : h_e <+: hist := xrun_prefix _ _ _ _ _ hx'
+    have hbhist : hb <+: hist := hbe.trans hep
+    rcases Nat.lt_or_eq_of_le hlen with hlt | heq
+    · -- the escaping group starts past this one
+      have hpast : h_e.length < hb.length := by
+        by_contra hle
+        rw [not_lt] at hle
+        have := hnb hb.length hlt hle
+        rw [← eq_take_of_prefix hbhist hehist hle] at this
+        exact this hbb
+      by_cases hret : p_e = .ret true
+      · subst hret
+        simp only [xrun, Option.some.injEq, Prod.mk.injEq] at hx'
+        obtain ⟨-, -, rfl⟩ := hx'
+        have := hbhist.length_le
+        omega
+      have hpm : ∀ a, p_e ≠ .ret a := by
+        intro a hpa
+        subst hpa
+        cases a
+        · exact hm
+        · exact hret rfl
+      obtain ⟨s', h', p', hlt', hR'', hr'', hb'', ha'', hsp'', hc'', hx'', -, hpre', hlen'⟩ :=
+        moveWith D hf hm hpm hR' hre hae hse hx'
+      exact from_boundary_with D hf hacc n s' h' p' (by rw [hst] at hlt'; omega) hR'' hr'' ha''
+        hb'' hsp'' hc'' hx'' hbe hep (by omega) hbb hnbb hab hmb hD hD'
+    · -- the escaping group is this one
+      have hbh : hb = h := by
+        rw [eq_take_of_prefix hbhist hhist heq.symm.le, ← heq, List.take_length]
+      subst hbh
+      have hee : h_b = h_e := groupEnd_eq hacc hep hehist hbe hpre hnbb hnb hab hmb hae hm
+      subst hee
+      rcases hres with ⟨κ, hκ, hterm⟩ | ⟨heq', hg⟩
+      · refine Or.inl ⟨κ, hκ, ?_⟩
+        calc (1 : ℝ≥0∞) = ind (D hb) * esc D h_b p_b := by
+              rw [ind_of hD, one_mul, esc_move hmb hD']
+          _ ≤ term D ℓ κ := by rw [hab] at hae; cases hae; exact hterm
+      · refine Or.inr ⟨p, hr, ha, hg, ?_⟩
+        rw [heq']
+        rw [hab] at hae
+        cases hae
+        exact esc_move hmb hD'
+
+/-- **The escape inequality, at any doom.** If the seeded verifier of the statement `x`, whose root
+is a root of the program, accepts `π` with every query answered by a log without failure, every
+group of the extracted history past the root that leaves the doom `D` is carried by a record of
+term at least one, or has no squeeze and escapes with probability one. -/
+theorem final_escape (D : List Ev → Prop) (hf : ¬ Fail σ ℓ) {x : X} {π : Proof}
+    (hroot : RootOk P (σ.root x))
+    (hv : verify (lookH ℓ) (lookF ℓ) (σ.seed x) (nodeAt P (σ.root x)) π = some true)
+    {hb h_b : List Ev} {p_b : VerifierProgram Bool}
+    (hacc : (P.after (extractedFrom (lookH ℓ) (lookF ℓ) (σ.seed x) (nodeAt P (σ.root x))
+      (σ.root x) π)).isSome)
+    (hbe : hb <+: h_b)
+    (hep : h_b <+: extractedFrom (lookH ℓ) (lookF ℓ) (σ.seed x) (nodeAt P (σ.root x)) (σ.root x) π)
+    (hlen : (σ.root x).length ≤ hb.length) (hbb : Boundary hb) (hnbb : NoBnd hb h_b)
+    (hab : P.after h_b = some p_b) (hmb : Move p_b) (hD : D hb) (hD' : ¬ D h_b) :
+    (∃ κ ∈ (decode σ P ℓ).kinds, 1 ≤ term D ℓ κ) ∨
+      ∃ p₀, P.Reachable hb ∧ P.after hb = some p₀ ∧ grindBits hb = 0 ∧ esc D hb p₀ = 1 := by
+  obtain ⟨seed, s, hseed, hx⟩ := xrun_of_verify_from (σ.root x) hv
+  obtain ⟨hkind, hknown⟩ := seed_known (P := P) hf hseed hroot
+  refine from_boundary_with D hf hacc (π.stream.length + 1)
+    ⟨⟨seed, []⟩, π.stream, π.openings, []⟩ (σ.root x) (nodeAt P (σ.root x))
+    (Nat.lt_succ_self _) ?_ hroot.1 (after_nodeAt hroot) hroot.2.1
+    ⟨⟨by simp, by simp⟩, _, _, hknown, rfl⟩ ?_ hx hbe hep hlen hbb hnbb hab hmb hD hD'
+  · show commits (σ.root x) = []
+    exact hroot.2.2.2.1
+  · refine Or.inl ⟨rfl, _, hkind, ?_⟩
+    simp only [term, powF, one_mul, le_refl]
+
+end Escape
 
 end
 end LeanVM.Protocol.Compile.Rom
