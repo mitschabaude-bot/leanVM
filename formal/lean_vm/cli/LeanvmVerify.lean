@@ -1,39 +1,43 @@
 import LeanVM.Protocol.Verifier
-import LeanVM.Wire.Encoding
+import LeanVM.Salted.Verifier
 import LeanVM.Cli.Common
 
 /-!
-# `leanvm-verify`: the deployed verifier on a proof's files
+# `leanvm-verify`: the verifier with a second public digest, under a seed, on a proof's files
 
-Two forms, on the files the Rust prover writes (`scripts/export-verifier-fixtures-rust.sh`);
-each prints the verdict, and the exit code is `0` on acceptance. `scripts/fuzz-verifier.py`
-compares them with the Rust verifier (`scripts/rust-verifier-cli`, its two forms) on mutated
-proofs.
+The forms below, on the files the Rust prover writes (`scripts/export-verifier-fixtures-rust.sh`):
+the bytecode, the seed (`seed.bin`, 32 bytes: the transcript's IV, the second public digest and
+the key of the Merkle hashes), the public input and the proof. Each prints the verdict, and the
+exit code is `0` on acceptance. `scripts/fuzz-verifier.py` compares them with the Rust verifier
+(`scripts/rust-verifier-cli`, its forms) on mutated proofs.
 
-* `lake exe leanvm-verify <bytecode> <public input> <stream> <merkle phases>`: the proof in its
-  structured form, the Rust `Proof` (`crates/verifier/src/transcript.rs:10-16`): the scalars
+* `lake exe leanvm-verify <bytecode> <seed> <public input> <stream> <merkle phases>`: the proof in
+  its structured form, the Rust `Proof` (`crates/verifier/src/transcript.rs`): the scalars
   (`stream.bin`) and the phases of unpruned Merkle paths (`merkle_phases.bin`, `readPhasesFile`);
-  runs `Verifier.verify` (`LeanVM/Facts/Verifier.lean`, the statement's verifier compiled, on the
-  program's bytecode words) on it.
-* `lake exe leanvm-verify <bytecode> <public input> <proof wire>`: the proof's one wire encoding
-  (`Proof::to_bytes`, `crates/fiat_shamir/src/wire.rs`, `proof.wire`), decoded with
-  `Proof.fromBytes` (`LeanVM/Wire/Encoding.lean`) over Keccak-f[1600], a proof that does not
-  decode rejected, as the deployed verifier does, then
-  `Verifier.verify` on the decoded proof.
-* `lake exe leanvm-verify --events <bytecode> <public input> <stream> <merkle phases>`: run the
-  verifier on an honest structured proof and print, as one JSON object, the stream offset where
-  each of its phases starts, where each commitment root and proof-of-work nonce is read, and the
-  stream's length: the positions `scripts/fuzz-verifier.py` mutates. The phases are marked by a
-  copy of `verifyExecution`'s and `verifyKeccak`'s sequencing that runs the statement's own
+  runs `Salted.keyedVerify` (`LeanVM/Salted/Verifier.lean`: `leanVmVerifierProgram₂` under the
+  keyed hash, compiled, on the program's bytecode words) on it.
+* `lake exe leanvm-verify <bytecode> <seed> <public input> <proof wire>`: the proof's one wire
+  encoding (`Proof::to_bytes`, `crates/fiat_shamir/src/wire.rs`, `proof.wire`), decoded with
+  `Proof.fromBytesWithHash` under the keyed hash, a proof that does not decode rejected, as the
+  Rust verifier does, then `Salted.keyedVerify` on the decoded proof.
+* `lake exe leanvm-verify --deferred <bytecode> <seed> <public input> <claim> <stream> <merkle
+  phases>`: the deferring verifier a node runs on a child (`Salted.keyedVerifyDeferred`,
+  `verifyDeferredWithHash₂`), the bytecode's value claimed by `claim` (`claim.bin`: the point's
+  coordinates, then the value, 24-byte elements, as `scripts/rust-verifier-cli --claim` writes it).
+* `lake exe leanvm-verify --events <bytecode> <seed> <public input> <stream> <merkle phases>`: run
+  the verifier on an honest structured proof and print, as one JSON object, the stream offset
+  where each of its phases starts, where each commitment root and proof-of-work nonce is read, and
+  the stream's length: the positions `scripts/fuzz-verifier.py` mutates. The phases are marked by
+  a copy of `verifyExecution₂`'s and `verifyKeccak`'s sequencing that runs the statement's own
   sub-programs (`tracedExecution`); the roots and nonces come from a logging copy of the compiled
-  reading (`runLog`), run both on that copy and on `leanVmVerifierProgram` itself, and the two
+  reading (`runLog`), run both on that copy and on `leanVmVerifierProgram₂` itself, and the two
   logs must agree, so a change to the verifier's sequencing that the copy does not follow is
   reported rather than silently mutating the wrong positions.
 -/
 
 open LeanVM.Parameters LeanVM.Semantics LeanVM.Protocol LeanVM.Protocol.Verifier
 open LeanVM.Protocol.Compile
-open LeanVM.Protocol.KeccakHash
+open LeanVM.Protocol.KeccakHash Recursion.Salted Recursion.SecondDigest
 
 namespace LeanvmVerify
 
@@ -43,21 +47,38 @@ def readPhasesFile (b : ByteArray) : Option (List (List Opening)) := do
   let (phases, pos) ← LeanVM.Cli.readPhases b 0
   if pos = b.size then some phases else none
 
-/-- **The verifier on the structured proof**: decode the bytecode, the public input, the scalars
-and the phases, and run `verify`; anything that does not decode is rejected. -/
-def verifyStructured (bytecode publicInput stream : List UInt8) (phases : ByteArray) : Bool :=
-  match decodeWords bytecode, decodeDigest publicInput, decodeScalars stream,
+/-- **The verifier on the structured proof**: decode the bytecode, the seed, the public input,
+the scalars and the phases, and run `keyedVerify`; anything that does not decode is rejected. -/
+def verifyStructured (bytecode seed publicInput stream : List UInt8) (phases : ByteArray) : Bool :=
+  match decodeWords bytecode, decodeDigest seed, decodeDigest publicInput, decodeScalars stream,
       readPhasesFile phases with
-  | some words, some digest, some scalars, some openings => verify words digest ⟨scalars, openings⟩
-  | _, _, _, _ => false
+  | some words, some s, some digest, some scalars, some openings =>
+    keyedVerify words s digest ⟨scalars, openings⟩
+  | _, _, _, _, _ => false
 
-/-- **The verifier on the wire**: decode the bytecode, the public input and the proof's bytes
-(`Proof.fromBytes`), and run `verify`; anything that does not decode is rejected. -/
-def verifyWire (bytecode publicInput proof : List UInt8) : Bool :=
-  match decodeWords bytecode, decodeDigest publicInput,
-      Id.run (Proof.fromBytes (m := Id) keccakF1600 proof) with
-  | some words, some digest, some π => verify words digest π
+/-- **The verifier on the wire**: decode the bytecode, the seed, the public input and the proof's
+bytes (`Proof.fromBytesWithHash` under the keyed hash), and run `keyedVerify`; anything that does
+not decode is rejected. -/
+def verifyWire (bytecode seed publicInput proof : List UInt8) : Bool :=
+  match decodeWords bytecode, decodeDigest seed, decodeDigest publicInput with
+  | some words, some s, some digest =>
+    match Id.run (Proof.fromBytesWithHash (m := Id) (keyedHash s) proof) with
+    | some π => keyedVerify words s digest π
+    | none => false
   | _, _, _ => false
+
+/-- **The deferring verifier on the structured proof**: decode the bytecode, the seed, the public
+input, the claim (its point's coordinates, then its value), the scalars and the phases, and run
+`keyedVerifyDeferred`; anything that does not decode is rejected. -/
+def verifyDeferredStructured (bytecode seed publicInput claim stream : List UInt8)
+    (phases : ByteArray) : Bool :=
+  match decodeWords bytecode, decodeDigest seed, decodeDigest publicInput, decodeScalars claim,
+      decodeScalars stream, readPhasesFile phases with
+  | some words, some s, some digest, some (c :: cs), some scalars, some openings =>
+    let elements := c :: cs
+    keyedVerifyDeferred words s digest ⟨elements.dropLast, elements.getLast (by simp)⟩
+      ⟨scalars, openings⟩
+  | _, _, _, _, _, _ => false
 
 /-! ## The mutation positions of an honest proof (`--events`) -/
 
@@ -68,9 +89,9 @@ structure Log where
   roots : Array ℕ := #[]
   nonces : Array (ℕ × ℕ) := #[]
 
-/-- The compiled reading (`runWithHash` over Keccak-256 and Keccak-f[1600]), logging the stream
+/-- The compiled reading (`runWithHash` over the hash `H` and Keccak-f[1600]), logging the stream
 offset of every root and nonce read; `total` is the whole stream's length. -/
-def runLog {α : Type} (total : ℕ) : VerifierProgram α → VerifierProgramState → Log →
+def runLog {α : Type} (H : Bytes → Digest) (total : ℕ) : VerifierProgram α → VerifierProgramState → Log →
     Option (α × VerifierProgramState) × Log
   | .ret a, s, log => (some (a, s), log)
   | .fail, _, log => (none, log)
@@ -78,17 +99,17 @@ def runLog {α : Type} (total : ℕ) : VerifierProgram α → VerifierProgramSta
     | [] => (none, log)
     | x :: xs =>
       let sp := Id.run (absorb keccakF1600 s.sponge x dsObserve)
-      runLog total (k x) { s with sponge := sp, stream := xs } log
+      runLog H total (k x) { s with sponge := sp, stream := xs } log
   | .sample k, s, log =>
     let (c, sp) := Id.run (squeeze keccakF1600 s.sponge)
-    runLog total (k c) { s with sponge := sp } log
+    runLog H total (k c) { s with sponge := sp } log
   | .grind bits k, s, log => match s.stream with
     | [] => (none, log)
     | n :: xs =>
       let log := { log with nonces := log.nonces.push (total - s.stream.length, bits) }
       let sp := Id.run (absorb keccakF1600 s.sponge n dsPowNonce)
       let (c, sp) := Id.run (squeeze keccakF1600 sp)
-      if powOk bits c then runLog total k { s with sponge := sp, stream := xs } log
+      if powOk bits c then runLog H total k { s with sponge := sp, stream := xs } log
       else (none, log)
   | .commit height width k, s, log => match s.stream with
     | x0 :: x1 :: xs =>
@@ -96,14 +117,14 @@ def runLog {α : Type} (total : ℕ) : VerifierProgram α → VerifierProgramSta
       let sp := Id.run (absorb keccakF1600 s.sponge x0 dsObserve)
       let sp := Id.run (absorb keccakF1600 sp x1 dsObserve)
       match digestFromHalves (x0, x1) with
-      | some root => runLog total k
+      | some root => runLog H total k
           { s with sponge := sp, stream := xs, roots := s.roots ++ [(root, height, width)] } log
       | none => (none, log)
     | _ => (none, log)
   | .query i ps k, s, log => match s.roots[i]?, s.openings with
     | some (root, height, width), phase :: rest =>
-      match Id.run (openPhaseWithHash (m := Id) keccak256 root height width ps phase) with
-      | some rows => runLog total (k rows) { s with openings := rest } log
+      match Id.run (openPhaseWithHash (m := Id) H root height width ps phase) with
+      | some rows => runLog H total (k rows) { s with openings := rest } log
       | none => (none, log)
     | _, _ => (none, log)
 
@@ -111,8 +132,9 @@ def runLog {α : Type} (total : ℕ) : VerifierProgram α → VerifierProgramSta
 abbrev Traced := StateT (VerifierProgramState × Log) Option
 
 /-- Run one of the verifier's sub-programs. -/
-def exec {α : Type} (total : ℕ) (program : VerifierProgram α) : Traced α := fun (s, log) ↦
-  match runLog total program s log with
+def exec {α : Type} (H : Bytes → Digest) (total : ℕ) (program : VerifierProgram α) : Traced α :=
+  fun (s, log) ↦
+  match runLog H total program s log with
   | (some (a, s), log) => some (a, (s, log))
   | (none, _) => none
 
@@ -121,56 +143,57 @@ def mark (total : ℕ) (name : String) : Traced Unit := modify fun (s, log) ↦
   (s, { log with phases := log.phases.push (name, total - s.stream.length) })
 
 /-- `verifyKeccak`'s sequencing, its layers and its two openings of `q_keccak` marked. -/
-def tracedKeccak (total logSteps : ℕ) (inst output : List E) :
+def tracedKeccak (H : Bytes → Digest) (total logSteps : ℕ) (inst output : List E) :
     Traced (List ColumnClaim × List E × List E) := do
   mark total "keccak"
   let packBits := logSteps - 4
   let rLow := inst.take 4
-  let segment ← exec total (VerifierProgram.sampleChallenges keccakSegmentBits)
-  let lanePoint ← exec total (VerifierProgram.sampleChallenges keccakLaneBits)
-  let committed ← exec total (if 1 < keccakSegments then VerifierProgram.readScalar else pure 0)
+  let segment ← exec H total (VerifierProgram.sampleChallenges keccakSegmentBits)
+  let lanePoint ← exec H total (VerifierProgram.sampleChallenges keccakLaneBits)
+  let committed ← exec H total (if 1 < keccakSegments then VerifierProgram.readScalar else pure 0)
   let first := keccakFirstClaim inst segment lanePoint output committed
   let claim ← (List.range keccakDepth).foldlM (fun claim step ↦ do
     mark total "keccak-layer"
-    exec total (verifyKeccakLayer logSteps step claim)) first
+    exec H total (verifyKeccakLayer logSteps step claim)) first
   let outputs ← if 1 < keccakSegments then do
       mark total "keccak-open"
-      let (slot, weights, value) ← exec total (keccakOpen logSteps first 1 (keccakSegments - 1)
+      let (slot, weights, value) ← exec H total (keccakOpen logSteps first 1 (keccakSegments - 1)
         committed)
-      let word ← exec total VerifierProgram.readScalar
-      exec total (VerifierProgram.require (weights.headD 0 * word = value))
+      let word ← exec H total VerifierProgram.readScalar
+      exec H total (VerifierProgram.require (weights.headD 0 * word = value))
       pure [(⟨qkeccak, rLow ++ inst.drop 4 ++ slot, word⟩ : ColumnClaim)]
     else pure []
-  let (low, value) ← exec total (sumcheck claim.value 3 (List.replicate 4 none))
+  let (low, value) ← exec H total (sumcheck claim.value 3 (List.replicate 4 none))
   mark total "keccak-open"
-  let (slot, weights, value) ← exec total (keccakOpen logSteps claim 0 keccakSegments value)
-  let slices ← exec total (VerifierProgram.readScalars kBits)
-  exec total (VerifierProgram.require (multilinearEval claim.mu low * dot weights slices = value))
+  let (slot, weights, value) ← exec H total (keccakOpen logSteps claim 0 keccakSegments value)
+  let slices ← exec H total (VerifierProgram.readScalars kBits)
+  exec H total (VerifierProgram.require (multilinearEval claim.mu low * dot weights slices = value))
   return (outputs, low ++ claim.point.take packBits ++ slot, slices)
 
-/-- `verifyExecution computedBytecodeValue`'s sequencing, each phase marked where the fuzz cuts the
+/-- `verifyExecution₂ computedBytecodeValue`'s sequencing, each phase marked where the fuzz cuts the
 stream (the table sumcheck's end is the public input's start). -/
-def tracedExecution (total : ℕ) (bytecode : List K) (publicInput : Digest) : Traced Unit := do
+def tracedExecution (H : Bytes → Digest) (total : ℕ) (bytecode : List K)
+    (publicInput second : Digest) : Traced Unit := do
   mark total "sizes"
-  let (layout, logInverseRate) ← exec total (readAnnouncedSizes bytecode)
-  exec total (commitStack layout.stackLog logInverseRate)
+  let (layout, logInverseRate) ← exec H total (readAnnouncedSizes bytecode)
+  exec H total (commitStack layout.stackLog logInverseRate)
   mark total "bus"
-  let bus ← exec total (verifyBusBalance computedBytecodeValue layout)
+  let bus ← exec H total (verifyBusBalance computedBytecodeValue layout)
   mark total "tables"
-  let evaluations ← exec total (tablePhase layout bus)
+  let evaluations ← exec H total (tablePhase layout bus)
   mark total "public"
   let claims := bus.claims ++ tableColumnClaims evaluations
-  let publicClaims ← exec total (publicInputPhase layout publicInput)
+  let publicClaims ← exec H total (publicInputPhase₂ layout publicInput second)
   let claims := claims ++ publicClaims
   let (point, values) := evaluations.getD opKeccak ([], [])
-  let (outputs, keccakPoint, keccakSlices) ← tracedKeccak total
+  let (outputs, keccakPoint, keccakSlices) ← tracedKeccak H total
     (layout.tableLogHeights.getD opKeccak 0) point
     ((List.range 25).map fun lane ↦ values.getD (keccakOut + lane) 0)
   let claims := claims ++ outputs
   mark total "ring"
-  let (ringTarget, ringWeight) ← exec total (ringSwitch keccakPoint keccakSlices)
+  let (ringTarget, ringWeight) ← exec H total (ringSwitch keccakPoint keccakSlices)
   mark total "whir"
-  exec total (verifyStackedOpening layout.stackLog logInverseRate
+  exec H total (verifyStackedOpening layout.stackLog logInverseRate
     (ringSwitchClaim layout ringTarget ringWeight :: claims.filterMap (·.onStack layout)))
 
 /-- The JSON of the log: phases as `[name, offset]`, roots as offsets, nonces as `[offset, bits]`. -/
@@ -185,23 +208,26 @@ def Log.json (log : Log) (total : ℕ) : String :=
 /-- **The mutation positions of an honest structured proof**, or an error: the traced run must
 accept with the stream and openings consumed, and log the same roots and nonces as the verifier
 program itself. -/
-def events (bytecode publicInput stream : List UInt8) (phases : ByteArray) : Except String String :=
-  match decodeWords bytecode, decodeDigest publicInput, decodeScalars stream,
+def events (bytecode seed publicInput stream : List UInt8) (phases : ByteArray) :
+    Except String String :=
+  match decodeWords bytecode, decodeDigest seed, decodeDigest publicInput, decodeScalars stream,
       readPhasesFile phases with
-  | some words, some digest, some scalars, some openings =>
+  | some words, some s, some digest, some scalars, some openings =>
     let total := scalars.length
-    let start : VerifierProgramState := ⟨⟨seed words digest, []⟩, scalars, openings, []⟩
-    let (whole, reference) := runLog total (leanVmVerifierProgram words digest) start {}
-    match tracedExecution total words digest |>.run (start, {}), whole with
-    | some ((), (s, log)), some (true, _) =>
-      if !(s.stream.isEmpty && s.openings.isEmpty) then
+    let H := keyedHash s
+    let start : VerifierProgramState := ⟨⟨transcriptSeed s digest, []⟩, scalars, openings, []⟩
+    let (whole, reference) :=
+      runLog H total (leanVmVerifierProgram₂ words digest s) start {}
+    match tracedExecution H total words digest s |>.run (start, {}), whole with
+    | some ((), (st, log)), some (true, _) =>
+      if !(st.stream.isEmpty && st.openings.isEmpty) then
         .error "the traced run leaves part of the proof unread"
       else if log.roots != reference.roots || log.nonces != reference.nonces then
         .error "the traced run's roots or nonces differ from the verifier's: \
-          tracedExecution no longer follows verifyExecution"
+          tracedExecution no longer follows verifyExecution₂"
       else .ok (log.json total)
     | _, _ => .error "the honest proof is rejected"
-  | _, _, _, _ => .error "a file does not decode"
+  | _, _, _, _, _ => .error "a file does not decode"
 
 /-- The driver. -/
 def main (args : List String) : IO UInt32 := do
@@ -214,8 +240,8 @@ def main (args : List String) : IO UInt32 := do
       IO.println "verification failed"
       return 1
   match args with
-  | ["--events", bytecode, publicInput, stream, phases] =>
-    match events (← read bytecode) (← read publicInput) (← read stream)
+  | ["--events", bytecode, seed, publicInput, stream, phases] =>
+    match events (← read bytecode) (← read seed) (← read publicInput) (← read stream)
         (← IO.FS.readBinFile phases) with
     | .ok json =>
       IO.println json
@@ -223,14 +249,18 @@ def main (args : List String) : IO UInt32 := do
     | .error message =>
       IO.eprintln s!"leanvm-verify --events: {message}"
       return 1
-  | [bytecode, publicInput, stream, phases] =>
-    verdict (verifyStructured (← read bytecode) (← read publicInput) (← read stream)
+  | ["--deferred", bytecode, seed, publicInput, claim, stream, phases] =>
+    verdict (verifyDeferredStructured (← read bytecode) (← read seed) (← read publicInput)
+      (← read claim) (← read stream) (← IO.FS.readBinFile phases))
+  | [bytecode, seed, publicInput, stream, phases] =>
+    verdict (verifyStructured (← read bytecode) (← read seed) (← read publicInput) (← read stream)
       (← IO.FS.readBinFile phases))
-  | [bytecode, publicInput, proof] =>
-    verdict (verifyWire (← read bytecode) (← read publicInput) (← read proof))
+  | [bytecode, seed, publicInput, proof] =>
+    verdict (verifyWire (← read bytecode) (← read seed) (← read publicInput) (← read proof))
   | _ =>
-    IO.eprintln "usage: leanvm-verify <bytecode> <public input> (<stream> <merkle phases> | \
-      <proof wire>) | --events <bytecode> <public input> <stream> <merkle phases>"
+    IO.eprintln "usage: leanvm-verify <bytecode> <seed> <public input> (<stream> <merkle phases> | \
+      <proof wire>) | --deferred <bytecode> <seed> <public input> <claim> <stream> \
+      <merkle phases> | --events <bytecode> <seed> <public input> <stream> <merkle phases>"
     return 2
 
 end LeanvmVerify

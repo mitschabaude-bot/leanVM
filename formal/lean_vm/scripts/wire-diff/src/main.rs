@@ -3,19 +3,20 @@
 //! its results beside the Lean transcription's (`lake exe wire-diff`, cli/WireDiff.lean) on the
 //! same bytes.
 //!
-//!     leanvm-rust-wire decode <wire> <plain out>
-//!     leanvm-rust-wire encode <plain> <wire out>
-//!     leanvm-rust-wire vector <wire out>
+//!     leanvm-rust-wire decode <seed> <wire> <plain out>
+//!     leanvm-rust-wire encode <seed> <plain> <wire out>
+//!     leanvm-rust-wire vector <seed out> <wire out>
 //!     leanvm-rust-wire --batch < lines of tab-separated commands
 //!
-//! `decode` runs `Proof::from_bytes` and prints `none`, or `some`, writing the proof it gives in the
-//! plain rendering below, followed by `reencode-ok` when `Proof::to_bytes` of it gives back the
-//! input and `reencode-differs` otherwise. `encode` reads a proof in the plain rendering and writes
-//! `Proof::to_bytes` of it, printing `encoded`, followed by `roundtrip-ok` when `Proof::from_bytes`
-//! gives back the proof (`roundtrip-differs` otherwise); `malformed` for a file that is no plain
-//! rendering. `vector` writes the bytes of the proof of wire.rs's test
-//! `proof_round_trips_through_its_one_encoding`, after checking the test's assertions on them, and
-//! prints `vector <length>`. A panic is printed as `panic <message>`. In `--batch` mode every line
+//! The seed is a file of 32 bytes, the key of the Merkle hashes (`fiat_shamir::merkle::Key`) that
+//! unpruning recomputes. `decode` runs `Proof::from_bytes` under it and prints `none`, or `some`,
+//! writing the proof it gives in the plain rendering below, followed by `reencode-ok` when
+//! `Proof::to_bytes` of it gives back the input and `reencode-differs` otherwise. `encode` reads a
+//! proof in the plain rendering and writes `Proof::to_bytes` of it, printing `encoded`, followed by
+//! `roundtrip-ok` when `Proof::from_bytes` under the seed gives back the proof (`roundtrip-differs`
+//! otherwise); `malformed` for a file that is no plain rendering. `vector` writes the seed and the
+//! bytes of the proof of wire.rs's test `proof_round_trips_through_its_one_encoding`, after checking
+//! the test's assertions on them, and prints `vector <length>`. A panic is printed as `panic <message>`. In `--batch` mode every line
 //! of standard input is one command, its words separated by tabs, and one result line is printed
 //! for it, in order.
 //!
@@ -27,7 +28,7 @@
 use std::io::{BufRead, Write};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
-use fiat_shamir::merkle::{MerklePath, hash_pair, hash_words, open};
+use fiat_shamir::merkle::{Key, MerklePath, hash_pair, hash_words, open};
 use fiat_shamir::transcript::Proof;
 use primitives::field::{F64, F192};
 
@@ -79,14 +80,18 @@ fn from_plain(bytes: &[u8]) -> Option<Proof> {
     input.0.is_empty().then_some(Proof { stream, merkle })
 }
 
+/// The seed of wire.rs's test `proof_round_trips_through_its_one_encoding`.
+const VECTOR_SEED: [u8; 32] = [7; 32];
+
 /// The proof of wire.rs's test `proof_round_trips_through_its_one_encoding`, its encoding, with the
 /// test's assertions checked.
 fn vector() -> Vec<u8> {
+    let key = Key::new(&VECTOR_SEED);
     let rows = [[0, 0, 1], [0, 2, 3], [0, 0, 4], [0, 5, 0]].map(|row| row.map(F64));
-    let leaf = |q: usize| hash_words(&rows[q]);
+    let leaf = |q: usize| hash_words(&key, &rows[q]);
     let node = |level: usize, i: usize| match level {
         0 => leaf(i),
-        _ => hash_pair(&leaf(2 * i), &leaf(2 * i + 1)),
+        _ => hash_pair(&key, &leaf(2 * i), &leaf(2 * i + 1)),
     };
     let proof = Proof {
         stream: vec![F192::new(1, 2, 3)],
@@ -94,14 +99,22 @@ fn vector() -> Vec<u8> {
     };
     let bytes = proof.to_bytes();
     assert_eq!(bytes.len(), (4 + 24) + 4 + (4 + 3 * 4) + 3 * 4 + 2 * 2 * 8 + 2 * 32);
-    assert_eq!(Proof::from_bytes(&bytes), Some(proof));
-    assert_eq!(Proof::from_bytes(&[&bytes[..], &[0]].concat()), None);
+    assert_eq!(Proof::from_bytes(&bytes, &key), Some(proof));
+    assert_eq!(Proof::from_bytes(&[&bytes[..], &[0]].concat(), &key), None);
     bytes
 }
 
-fn decode(input: &str, output: &str) -> Result<String, String> {
+/// The key of the seed file `path`: 32 bytes.
+fn key(path: &str) -> Result<Key, String> {
+    let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
+    let seed: [u8; 32] = bytes[..].try_into().map_err(|_| format!("{path}: {} bytes, not 32", bytes.len()))?;
+    Ok(Key::new(&seed))
+}
+
+fn decode(seed: &str, input: &str, output: &str) -> Result<String, String> {
+    let key = key(seed)?;
     let bytes = std::fs::read(input).map_err(|e| format!("{input}: {e}"))?;
-    Ok(match Proof::from_bytes(&bytes) {
+    Ok(match Proof::from_bytes(&bytes, &key) {
         None => "none".into(),
         Some(proof) => {
             std::fs::write(output, plain(&proof)).map_err(|e| format!("{output}: {e}"))?;
@@ -115,14 +128,15 @@ fn decode(input: &str, output: &str) -> Result<String, String> {
     })
 }
 
-fn encode(input: &str, output: &str) -> Result<String, String> {
+fn encode(seed: &str, input: &str, output: &str) -> Result<String, String> {
+    let key = key(seed)?;
     let bytes = std::fs::read(input).map_err(|e| format!("{input}: {e}"))?;
     let Some(proof) = from_plain(&bytes) else {
         return Ok("malformed".into());
     };
     let wire = proof.to_bytes();
     std::fs::write(output, &wire).map_err(|e| format!("{output}: {e}"))?;
-    Ok(if Proof::from_bytes(&wire).as_ref() == Some(&proof) {
+    Ok(if Proof::from_bytes(&wire, &key).as_ref() == Some(&proof) {
         "encoded roundtrip-ok".into()
     } else {
         "encoded roundtrip-differs".into()
@@ -131,11 +145,12 @@ fn encode(input: &str, output: &str) -> Result<String, String> {
 
 fn run(words: &[&str]) -> String {
     let result = catch_unwind(AssertUnwindSafe(|| match words {
-        ["decode", input, output] => decode(input, output),
-        ["encode", input, output] => encode(input, output),
-        ["vector", output] => {
+        ["decode", seed, input, output] => decode(seed, input, output),
+        ["encode", seed, input, output] => encode(seed, input, output),
+        ["vector", seed, output] => {
             let bytes = vector();
-            std::fs::write(output, &bytes)
+            std::fs::write(seed, VECTOR_SEED)
+                .and_then(|()| std::fs::write(output, &bytes))
                 .map(|()| format!("vector {}", bytes.len()))
                 .map_err(|e| format!("{output}: {e}"))
         }
@@ -176,8 +191,8 @@ fn main() {
             }
         }
         [] => {
-            eprintln!("usage: leanvm-rust-wire decode <wire> <plain out> | encode <plain> <wire out>");
-            eprintln!("       leanvm-rust-wire vector <wire out> | --batch < lines of tab-separated commands");
+            eprintln!("usage: leanvm-rust-wire decode <seed> <wire> <plain out> | encode <seed> <plain> <wire out>");
+            eprintln!("       leanvm-rust-wire vector <seed out> <wire out> | --batch < lines of tab-separated commands");
             std::process::exit(2);
         }
         words => {

@@ -1,24 +1,29 @@
-"""Differential fuzzing of the Lean verifier against the deployed Rust verifier on real proofs.
+"""Differential fuzzing of the Lean verifier with a second public digest against the Rust verifier on real proofs.
 
 The fixtures under tests/fixtures/verifier/ are proofs of the leanVM Rust prover
-(scripts/export-verifier-fixtures-rust.sh), each in two forms: the scalar stream with the
+(scripts/export-verifier-fixtures-rust.sh), each under a seed (`seed.bin`, the transcript's IV, the second public
+digest in memory words 2 and 3 and the key of the Merkle hashes), each in two forms: the scalar stream with the
 Merkle openings phase by phase (`stream.bin`, `merkle_phases.bin`: the `verifier` crate's
 `Proof { stream, merkle_openings: Vec<Vec<MerklePath>> }`), and the wire encoding (`proof.wire`,
 `Proof::to_bytes`). This driver
 mutates every fixture and runs, on the honest proof and on every mutation,
 
-  * the Lean verifier, `lake exe leanvm-verify` (cli/LeanvmVerify.lean): the statement's verifier
-    compiled, on the structured files, or `Proof.fromBytes` then that verifier on a wire proof;
+  * the Lean verifier, `lake exe leanvm-verify` (cli/LeanvmVerify.lean): the verifier program with a
+    second public digest (`leanVmVerifierProgram₂`) under the keyed hash, compiled, on the structured
+    files, or the keyed `Proof.fromBytes` then that verifier on a wire proof;
   * the Rust verifier, scripts/rust-verifier-cli (`verifier::verify_execution` of leanVM's
-    `crates/verifier`, the deployed one, after `Proof::from_bytes` on a wire proof), in one
+    `crates/verifier`, after `Proof::from_bytes` under the seed's key on a wire proof), in one
     `--batch` process.
 
 It fails if the Lean and the Rust verdicts ever differ, and prints a table of verdicts by
-mutation class. A Rust panic or a Lean crash counts as a rejection but is reported.
+mutation class. On every fixture it also runs the Lean deferring verifier a node runs on a child
+(`leanvm-verify --deferred`, `verifyDeferredWithHash₂` under the keyed hash) with the claim the
+Rust verifier gives (`claim.bin`, the bytecode's point and value), and requires it to accept that
+claim and to reject it with the value's or the point's low bit flipped. A Rust panic or a Lean crash counts as a rejection but is reported.
 
 The stream's mutation positions come from the Lean verifier's traced run of the honest proof
 (`leanvm-verify --events`, cli/LeanvmVerify.lean): the stream offset where every phase of
-`verifyExecution` starts, every commitment root's two halves and every proof-of-work nonce; the
+`verifyExecution₂` starts, every commitment root's two halves and every proof-of-work nonce; the
 openings' from the phases file itself. Each structured case changes one thing:
 
   phase       one bit of the first, middle or last scalar of a phase (low bit of limb 0, top bit
@@ -33,6 +38,7 @@ openings' from the phases file itself. Each structured case changes one thing:
               one path shorter or longer, the last phase dropped or repeated, a count set to
               2^32 - 1 (the shape check, `Transcript::merkle`, and the reader's bounds);
   public      one bit of a public input byte (0, 15, 16, 31);
+  seed        one bit of a seed byte (0, 15, 16, 31);
   rows        a table's announced row count one fewer, one more, zero, its full height and above
               the cap, which moves its padding rows (or its height);
   bytecode    one bit of the first, the first nonzero, a middle and the last bytecode byte;
@@ -119,8 +125,8 @@ def instrument(exe: Path, directory: Path) -> dict:
 # proof; any other reads the bytecode, the public input, the stream and the phases.
 
 S, M, W = "stream.bin", "merkle_phases.bin", "proof.wire"
-STRUCTURED = ("bytecode.bin", "public_input.bin", S, M)
-WIRE = ("bytecode.bin", "public_input.bin", W)
+STRUCTURED = ("bytecode.bin", "seed.bin", "public_input.bin", S, M)
+WIRE = ("bytecode.bin", "seed.bin", "public_input.bin", W)
 FILES = STRUCTURED + (W,)
 
 
@@ -256,6 +262,7 @@ def structured_cases(events: dict, sizes: dict, data: dict, rng: random.Random) 
         cases.append(("nonce", f"nonce at scalar {position} ({bits} bits) limb 1 bit 0", [flip(S, at + 8)]))
     for at in (0, 15, 16, 31):
         cases.append(("public", f"public input byte {at}", [flip("public_input.bin", at)]))
+        cases.append(("seed", f"seed byte {at}", [flip("seed.bin", at)]))
     stream = data[S]
     for table in range(6):  # the announced row counts, scalars 1..6: the padding rows move
         at = 24 * (1 + table)
@@ -284,6 +291,8 @@ def structured_cases(events: dict, sizes: dict, data: dict, rng: random.Random) 
         (M, "append", bytes(32), "digest appended to the phases"),
         ("public_input.bin", "truncate", 1, "public input cut by one byte"),
         ("public_input.bin", "append", bytes(1), "byte appended to the public input"),
+        ("seed.bin", "truncate", 1, "seed cut by one byte"),
+        ("seed.bin", "append", bytes(1), "byte appended to the seed"),
         ("bytecode.bin", "truncate", 8, "last bytecode word dropped"),
         ("bytecode.bin", "truncate", 3, "bytecode cut mid-word"),
         ("bytecode.bin", "append", bytes(8), "zero bytecode word appended"),
@@ -303,7 +312,7 @@ def random_case(events: dict, sizes: dict, data: dict, rng: random.Random):
         at, bit = rng.randrange(sizes[file]), rng.randrange(8)
         return ("random-flip", f"{file} byte {at} bit {bit}", [flip(file, at, bit)])
     if kind == "bytes":
-        file = rng.choices(STRUCTURED[1:], [1, 3, 3])[0]
+        file = rng.choices(STRUCTURED[1:], [1, 1, 3, 3])[0]
         count = rng.randrange(2, 9)
         edits = [("set", file, rng.randrange(sizes[file]), bytes([rng.randrange(256)])) for _ in range(count)]
         return ("random-bytes", f"{file} {count} random bytes at {sorted(e[2] for e in edits)}", edits)
@@ -484,6 +493,30 @@ def main() -> None:
                 future.result()
         lean_time = time.monotonic() - start
 
+        # The deferring verifier on each fixture's claim (`claim.bin`, the Rust's): the honest claim
+        # accepted, the claim with its value's low bit or its point's first coordinate's low bit
+        # flipped rejected.
+        deferred = []
+        for name in names:
+            directory = fixtures / name
+            claim = (directory / "claim.bin").read_bytes()
+            for label, edit, expected in (("the Rust's claim", None, "accept"),
+                                          ("the value's low bit flipped", len(claim) - 24, "reject"),
+                                          ("the point's first coordinate's low bit flipped", 0, "reject")):
+                path = directory / "claim.bin"
+                if edit is not None:
+                    changed = bytearray(claim)
+                    changed[edit] ^= 1
+                    path = scratch / name / f"claim-{edit}.bin"
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(bytes(changed))
+                files = ["--deferred", directory / "bytecode.bin", directory / "seed.bin",
+                         directory / "public_input.bin", path, directory / S, directory / M]
+                verdict, message, _ = run_lean(arguments.lean_exe, files, arguments.memory_gb, arguments.timeout)
+                deferred.append((name, label, expected, verdict, message))
+                print(f"{name}: deferred, {label}: Lean {verdict}, expected {expected}", file=sys.stderr)
+        deferred_wrong = [d for d in deferred if d[3] != d[2]]
+
         # Verdicts: a Rust panic or a Lean crash is a rejection, but counted on its own.
         def accepted(verdict):
             return verdict == "accept"
@@ -543,7 +576,10 @@ def main() -> None:
             print(f"DIFFER {case['fixture']} #{case['index']} {case['label']}: Lean {case['lean']}, "
                   f"Rust {case['rust']} {case['rust_reason']} (kept in {keep / case['fixture'] / str(case['index'])})")
         print(f"\n{len(differ)} Lean/Rust verdict difference(s) in {len(cases)} cases")
-        sys.exit(1 if differ else 0)
+        for name, label, expected, verdict, message in deferred_wrong:
+            print(f"DEFERRED {name}: {label}: Lean {verdict} ({message}), expected {expected}")
+        print(f"{len(deferred) - len(deferred_wrong)} of {len(deferred)} deferring-verifier cases as expected")
+        sys.exit(1 if differ or deferred_wrong else 0)
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
         if keep != arguments.keep and not any(keep.iterdir()):

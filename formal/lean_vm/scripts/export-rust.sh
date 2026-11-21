@@ -9,6 +9,8 @@
 # Per case directory, in both modes:
 #
 #   bytecode.bin          the bytecode table, little-endian 64-bit words;
+#   seed.bin              the seed the proof is under (`Program::seed` of the fixtures' salt): the
+#                         transcript's IV, the second public digest and the Merkle hashes' key;
 #   public_input.bin      the public input's two halves, 16 bytes each (c0, c1 little-endian);
 #   stream.bin            the scalar stream, 24-byte little-endian E elements;
 #   merkle_phases.bin     the Merkle openings in the `verifier` crate's structure
@@ -16,7 +18,9 @@
 #                         little-endian: the phase count (u32); per phase its path count (u32);
 #                         per path its leaf_index (u64), its leaf's length (u32) and words (u64),
 #                         its sibling count (u32) and siblings (32 bytes each);
-#   proof.wire            the proof's one wire encoding, `Proof::to_bytes` (pruned phases).
+#   proof.wire            the proof's one wire encoding, `Proof::to_bytes` (pruned phases);
+#   claim.bin             (in `fixtures` mode) what an aggregate defers of the proof, written by
+#                         `scripts/rust-verifier-cli --claim`: the bytecode's point, then its value.
 #
 # and in `traces` mode, for the Lean prover's differential test (`lake exe leanvm-prove`,
 # `scripts/prover-diff.py`), the execution by the Rust interpreter (`Program::execute`):
@@ -26,11 +30,12 @@
 #   rust.txt              the Rust prover's wall time in seconds.
 #
 # The proof is the honest proof of the Rust `prove`, its Merkle paths unpruned
-# (`leanvm_core::cpu::scalar_proof`). The guests (`fixed`) are the program of
+# (`leanvm_core::cpu::scalar_proof`), under the seed. The guests (`fixed`) are the program of
 # crates/leanvm_core/tests/verifiers/fixture.rs at 4, 300 and 1000 loop steps,
 # crates/lean_compiler/tests/programs/fibonacci.py, and eight more programs of that suite, three
 # at each of the four rates, read from the source tree. Every proof is verified by the Rust
-# `cpu::verify` before it is written, and `Proof::from_bytes` must give it back from `proof.wire`.
+# `cpu::verify` before it is written, and `Proof::from_bytes` under the seed's key must give it back
+# from `proof.wire`.
 # In `fixtures` mode `scripts/rust-verifier-cli` must also accept it from the written files before
 # the script returns; the fixtures are consumed by scripts/fuzz-verifier.py, which runs the Lean
 # and the Rust verifier on them and on mutations of them. In `traces` mode a program the Rust
@@ -78,7 +83,8 @@ lto = "thin"
 codegen-units = 1
 EOF
 
-# The chain program and the suite's header readers, from the tests that define them.
+# The chain program and its salt, and the suite's header readers, from the tests that define them
+# (`py_source` reaches the suite's helpers as `crate::common`).
 cat > "$work/src/main.rs" <<EOF
 #[allow(dead_code)]
 #[path = "$checkout/crates/leanvm_core/tests/verifiers/fixture.rs"]
@@ -86,12 +92,15 @@ mod fixture;
 #[allow(dead_code, unused_imports)]
 #[path = "$checkout/crates/lean_compiler/tests/suite/py_source.rs"]
 mod py_source;
+#[allow(dead_code, unused_imports)]
+#[path = "$checkout/crates/lean_compiler/tests/suite/common/mod.rs"]
+mod common;
 EOF
 
 cat >> "$work/src/main.rs" <<'EOF'
-use fixture::chain;
+use fixture::{SALT, chain};
 use lean_compiler::{compile, parse};
-use leanvm_core::cpu::{Program, prove, public_input_bytes, scalar_proof, verify};
+use leanvm_core::cpu::{Program, prove, public_input_bytes, public_words, scalar_proof, verify};
 use primitives::field::F192;
 use std::path::Path;
 
@@ -173,8 +182,9 @@ fn main() {
     for (name, (program, public_input), log_inv_rate) in fixtures {
         let directory = out.join(&name);
         std::fs::create_dir_all(&directory).expect("create case directory");
+        let seed = program.seed(&SALT);
         let exec = if traces {
-            match program.execute(public_input) {
+            match program.execute(public_words(&seed, &public_input)) {
                 Ok(exec) => Some(exec),
                 Err(_) => {
                     println!("{name}: no execution, skipped");
@@ -185,7 +195,7 @@ fn main() {
             None
         };
         let start = std::time::Instant::now();
-        let (proof, stats) = match prove(&program, public_input, log_inv_rate) {
+        let (proof, stats) = match prove(&program, &seed, public_input, log_inv_rate) {
             Ok(r) => r,
             Err(_) if traces => {
                 println!("{name}: the Rust prover refuses it, skipped");
@@ -194,15 +204,17 @@ fn main() {
             Err(e) => panic!("prove: {e:?}"),
         };
         let seconds = start.elapsed().as_secs_f64();
-        verify(&program, &public_input, &proof).expect("honest proof verifies");
+        verify(&program, &seed, &public_input, &proof).expect("honest proof verifies");
         let wire = proof.to_bytes();
-        assert!(fiat_shamir::transcript::Proof::from_bytes(&wire) == Some(proof.clone()), "the wire round trip");
+        let key = fiat_shamir::merkle::Key::new(&seed);
+        assert!(fiat_shamir::transcript::Proof::from_bytes(&wire, &key) == Some(proof.clone()), "the wire round trip");
         let scalar = scalar_proof(&proof);
         let table: Vec<u8> = leanvm_core::cpu::layout::bytecode_table(program.prog())
             .iter()
             .flat_map(|w| w.0.to_le_bytes())
             .collect();
         std::fs::write(directory.join("bytecode.bin"), &table).expect("write bytecode");
+        std::fs::write(directory.join("seed.bin"), seed).expect("write seed");
         std::fs::write(directory.join("public_input.bin"), public_input_bytes(&public_input))
             .expect("write public input");
         // The stream as 24-byte little-endian elements, three limbs each.
@@ -263,11 +275,11 @@ cargo run --quiet --release --manifest-path "$work/Cargo.toml" --target-dir "$ch
   -- "$checkout" "$mode" "$out" ${3:+"$3"}
 
 [ "$mode" = fixtures ] || exit 0
-# Every fixture as the fuzz's Rust side reads it, from its files.
+# Every fixture as the fuzz's Rust side reads it, from its files, and its deferred claim.
 cargo build --quiet --release --manifest-path "$checkout/formal/lean_vm/scripts/rust-verifier-cli/Cargo.toml"
 for directory in "$out"/*/; do
   printf '%s: ' "$(basename "$directory")"
-  "$checkout/formal/lean_vm/scripts/rust-verifier-cli/target/release/leanvm-rust-verify" \
-    "$directory/bytecode.bin" "$directory/public_input.bin" "$directory/stream.bin" \
-    "$directory/merkle_phases.bin"
+  "$checkout/formal/lean_vm/scripts/rust-verifier-cli/target/release/leanvm-rust-verify" --claim \
+    "$directory/bytecode.bin" "$directory/seed.bin" "$directory/public_input.bin" \
+    "$directory/stream.bin" "$directory/merkle_phases.bin" "$directory/claim.bin"
 done

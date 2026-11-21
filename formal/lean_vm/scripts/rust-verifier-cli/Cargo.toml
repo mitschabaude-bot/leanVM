@@ -1,4 +1,4 @@
-# The deployed Rust verifier (leanVM `crates/verifier`) on a proof's structured files or its wire
+# The Rust verifier (leanVM `crates/verifier`) on a proof's structured files or its wire
 # encoding (`crates/fiat_shamir/src/wire.rs`, `Proof::from_bytes`). The crates are this
 # repository's.
 [package]

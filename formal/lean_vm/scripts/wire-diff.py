@@ -2,12 +2,12 @@
 
 leanVM's proof travels as one byte string, `Proof::to_bytes` (`crates/fiat_shamir/src/wire.rs`), which
 prunes every Merkle phase, and is decoded by `Proof::from_bytes`, which unprunes it, hashing the
-nodes the paths share, and refuses anything but the one encoding of a proof within its bounds (the
-pruning is scaraven's idea, https://github.com/scaraven). lean_vm transcribes both (`Proof.fromBytes`, `Proof.toBytes`,
-lean_vm/LeanVM/Wire/Encoding.lean). This driver runs, on the same bytes,
+nodes the paths share with the keyed hash under the proof's seed, and refuses anything but the one encoding of a proof
+within its bounds (the pruning is scaraven's idea, https://github.com/scaraven). lean_vm transcribes both
+(`Proof.fromBytesWithHash`, lean_vm/LeanVM/Salted/Verifier.lean, with `keyedHash`; `Proof.toBytes`,
+lean_vm/LeanVM/Wire/Encoding.lean). This driver runs, on the same bytes and the same seed,
 
-  * the Lean transcription, `lake exe wire-diff` (cli/WireDiff.lean), compiled, Keccak-f[1600] in
-    `Id` for the permutation;
+  * the Lean transcription, `lake exe wire-diff` (cli/WireDiff.lean), compiled, the keyed hash in `Id`;
   * the Rust, scripts/wire-diff (`leanvm-rust-wire`, leanVM's `fiat_shamir` crate), in one
     `--batch` process;
 
@@ -50,16 +50,16 @@ with `--all-phases`), and on every phase of the vector.
 
 The round trip, on every fixture: its proof as the Rust prover made it, unpruned (`stream.bin` and
 `merkle_phases.bin`, the paths of every phase in the plain rendering below), encoded by the Lean
-(`Proof.toBytes`), is the Rust's wire proof byte for byte, and decodes (`Proof.fromBytes`) back to
+(`Proof.toBytes`), is the Rust's wire proof byte for byte, and decodes (`Proof.fromBytesWithHash`) back to
 that proof; and the Rust's decoding of the wire proof is that proof. On the vector the proof is
 the Rust's decoding of it.
 
 The Rust test's vector (wire.rs, `proof_round_trips_through_its_one_encoding`) is a fixed case:
-both sides build it (`vector`), and their bytes must equal tests/fixtures/wire/round-trip-vector.bin;
+both sides build it under its seed (`vector`), and their bytes must equal tests/fixtures/wire/round-trip-vector.bin;
 it then gets every mutation above, with the honest proofs.
 
 The honest wire proofs are the files `proof.wire` in the fixture directories given, the Rust
-prover's proofs as `Proof::to_bytes` writes them (scripts/export-verifier-fixtures-rust.sh). The
+prover's proofs as `Proof::to_bytes` writes them (scripts/export-verifier-fixtures-rust.sh), each under its `seed.bin`. The
 plain rendering of a proof prunes and hashes nothing: every count a little-endian u32, every word
 and position a little-endian u64; the stream's length and its elements, each three words; the
 number of phases, and for each its number of paths, and for each path its position, its leaf's
@@ -321,25 +321,30 @@ def main() -> None:
 
     # The Rust test's vector: both sides build it, and it is the committed one.
     rust_vector, lean_vector = work / "vector.rust.bin", work / "vector.lean.bin"
-    rust_line = batch(RUST_EXE, [("vector", rust_vector)], arguments.memory_gb)[0]
-    lean_line = batch(LEAN_EXE, [("vector", lean_vector)], arguments.memory_gb)[0]
+    rust_seed, lean_seed = work / "vector.rust.seed", work / "vector.lean.seed"
+    rust_line = batch(RUST_EXE, [("vector", rust_seed, rust_vector)], arguments.memory_gb)[0]
+    lean_line = batch(LEAN_EXE, [("vector", lean_seed, lean_vector)], arguments.memory_gb)[0]
     expected = f"vector {VECTOR_LENGTH}"
     if rust_line != expected or lean_line != expected:
         failures.append(f"vector: Rust `{rust_line}`, Lean `{lean_line}`, expected `{expected}`")
     elif rust_vector.read_bytes() != lean_vector.read_bytes() or rust_vector.read_bytes() != VECTOR.read_bytes():
         failures.append(f"vector: the Rust's, the Lean's and {VECTOR.name} differ")
+    elif not rust_seed.exists() or rust_seed.read_bytes() != lean_seed.read_bytes():
+        failures.append("vector: the Rust's and the Lean's seeds differ")
     print(f"vector: Rust `{rust_line}`, Lean `{lean_line}`, equal to {VECTOR.relative_to(ROOT)}")
 
     proofs = [("vector", VECTOR.read_bytes(), None)]
+    seeds = {"vector": rust_seed}
     directories = sorted(d for d in arguments.fixtures.iterdir() if d.is_dir())
     if arguments.names:
         directories = [d for d in directories if d.name in arguments.names]
     for directory in directories:
-        paths = [directory / name for name in ("proof.wire", "stream.bin", "merkle_phases.bin")]
+        paths = [directory / name for name in ("proof.wire", "stream.bin", "merkle_phases.bin", "seed.bin")]
         for path in paths:
             if not path.exists():
                 sys.exit(f"{path} is missing: the fixtures' files (scripts/export-verifier-fixtures-rust.sh)")
-        wire, stream, phases = (path.read_bytes() for path in paths)
+        wire, stream, phases = (path.read_bytes() for path in paths[:3])
+        seeds[directory.name] = paths[3]
         if len(stream) % 24:
             sys.exit(f"{paths[1]} is not a whole number of scalars")
         proofs.append((directory.name, wire, u32(len(stream) // 24) + stream + phases))
@@ -355,7 +360,7 @@ def main() -> None:
         (work / f"{index}.bin").write_bytes(value)
 
     def commands(side):
-        return [("decode", work / f"{i}.bin", work / f"{i}.{side}.plain") for i in range(len(cases))]
+        return [("decode", seeds[cases[i][0]], work / f"{i}.bin", work / f"{i}.{side}.plain") for i in range(len(cases))]
 
     rust_lines = batch(RUST_EXE, commands("rust"), arguments.memory_gb)
     lean_lines = batch_parallel(LEAN_EXE, commands("lean"), arguments.jobs, arguments.memory_gb)
@@ -367,7 +372,8 @@ def main() -> None:
         if plain is None and rust_plain.exists():
             plain = rust_plain.read_bytes()
         (work / f"{i}.prover.plain").write_bytes(plain or b"")
-    trips = batch_parallel(LEAN_EXE, [("encode", work / f"{i}.prover.plain", work / f"{i}.lean.wire") for i in honest],
+    trips = batch_parallel(LEAN_EXE, [("encode", seeds[cases[i][0]], work / f"{i}.prover.plain", work / f"{i}.lean.wire")
+                                      for i in honest],
                            arguments.jobs, arguments.memory_gb)
 
     if arguments.log:
