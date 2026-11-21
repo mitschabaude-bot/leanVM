@@ -120,7 +120,13 @@ const KEEP_CODEWORD_MAX_BYTES: usize = 1 << 30;
 /// The encoded row is padded to a whole AVX-512 vector of lanes with zero lanes
 /// in front, so the NTT has no masked tail. The padding is the image's zeros and
 /// never rides the proof.
-pub fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_inv_rate: usize) -> (Commitment, ProverData) {
+pub fn commit(
+    key: &merkle::Key,
+    message: &[F64],
+    log_n: usize,
+    log_batch_size: usize,
+    log_inv_rate: usize,
+) -> (Commitment, ProverData) {
     assert!(log_inv_rate >= 1, "log_inv_rate must be >= 1 for a non-trivial RS code");
     assert!(log_n > log_batch_size, "witness must be wider than the interleaving");
     let log_rows = log_n - log_batch_size;
@@ -135,7 +141,7 @@ pub fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_inv_rate
     let row_words = n_lanes.next_multiple_of(8).min(1usize << log_batch_size);
 
     // Leaves are hashed as the encode finishes each block of rows.
-    let tree = merkle::MerkleBuilder::new(n_positions, row_words, 1usize << log_batch_size);
+    let tree = merkle::MerkleBuilder::new(key, n_positions, row_words, 1usize << log_batch_size);
     let ntt = AdditiveNttF64::standard(k_code);
     let codeword =
         tracing::info_span!("NTT", kind = "base encode", log_domain = k_code, lanes = row_words).in_scope(|| {
@@ -208,8 +214,9 @@ impl LigeroWitness {
 /// Commit an extension-field polynomial at one recursive WHIR level.
 ///
 /// - Each lane of the row-major message is RS-encoded with base-field twiddles.
-/// - The codeword is then Merkle-committed, one leaf per row.
+/// - The codeword is then Merkle-committed under `key`, one leaf per row.
 pub(crate) fn ligero_commit_ext(
+    key: &merkle::Key,
     poly: &[F192],
     log_msg_cols: usize,
     log_num_interleaved: usize,
@@ -224,7 +231,7 @@ pub(crate) fn ligero_commit_ext(
 
     // One leaf per row, its F192s as K words: hashed as the encode finishes each block.
     let row_words = 3 * num_interleaved;
-    let builder = merkle::MerkleBuilder::new(block_len, row_words, row_words);
+    let builder = merkle::MerkleBuilder::new(key, block_len, row_words, row_words);
     let codeword = tracing::info_span!(
         "NTT",
         kind = "extension encode",
@@ -1082,7 +1089,13 @@ pub(crate) fn recursive_prover_with_prepared_basis(
     let log_msg_cols_1 = n1 - log_num_interleaved_1;
     let log_inv_rate_1 = config.log_inv_rates[1];
     let span = tracing::info_span!("Commit", level = 1).entered();
-    let wtns_1 = ligero_commit_ext(sc_prover.f_ext(), log_msg_cols_1, log_num_interleaved_1, log_inv_rate_1);
+    let wtns_1 = ligero_commit_ext(
+        ps.key(),
+        sc_prover.f_ext(),
+        log_msg_cols_1,
+        log_num_interleaved_1,
+        log_inv_rate_1,
+    );
     drop(span);
     ps.add_root(&wtns_1.root());
 
@@ -1205,6 +1218,7 @@ pub(crate) fn recursive_prover_with_prepared_basis(
         let log_inv_rate_next = config.log_inv_rates[i + 2];
         let span = tracing::info_span!("Commit", level = i + 2).entered();
         let wtns_next = ligero_commit_ext(
+            ps.key(),
             sc_prover.f_ext(),
             log_msg_cols_next,
             log_num_interleaved_next,
@@ -1314,8 +1328,8 @@ mod tests {
                 };
 
                 let prove = |msg: &[F64]| {
-                    let (cm, pd) = commit(msg, log_n, pc.initial_k, pc.log_inv_rates[0]);
                     let mut ps = fiat_shamir::transcript::ProverState::from_label(b"whir-test");
+                    let (cm, pd) = commit(ps.key(), msg, log_n, pc.initial_k, pc.log_inv_rates[0]);
                     open_batch_mixed_whir_stacked(&mut ps, log_n, msg.to_vec(), pd, &pc, &claims, &ring);
                     (cm.root, ps.into_proof())
                 };

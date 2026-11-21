@@ -43,7 +43,7 @@ pub fn run(n: usize, depth: usize, log_inv_rate: usize, plan: Plan) -> Report {
 
         let mut ps = batch_transcript(LABEL, shape, log_inv_rate);
         let t = Instant::now();
-        let (commitment, prover_data) = commit(&committed, mu, INITIAL_FOLDING_FACTOR, log_inv_rate);
+        let (commitment, prover_data) = commit(ps.key(), &committed, mu, INITIAL_FOLDING_FACTOR, log_inv_rate);
         ps.add_root(&commitment.root);
         let commit_s = t.elapsed().as_secs_f64();
 
@@ -161,9 +161,8 @@ impl Report {
 /// The transcript of a batch proved alone, as `verifier::verify_keccak_batch` reads it: under
 /// `label`'s hash as its seed and, as its public input, the shape and the PCS rate.
 pub(crate) fn batch_transcript(label: &[u8], shape: Shape, log_inv_rate: usize) -> ProverState {
-    let seed = fiat_shamir::digest_words(&primitives::hash::hash(label));
     let statement = [shape.n_log(), shape.depth(), log_inv_rate, 0].map(|w| F64(w as u64));
-    ProverState::new(seed, statement)
+    ProverState::new(&primitives::hash::hash(label), statement)
 }
 
 /// Discharge the reduction's openings against the commitment to `stack`, which holds the

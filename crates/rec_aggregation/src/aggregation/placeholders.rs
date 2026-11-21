@@ -16,7 +16,7 @@ use leanvm_core::constraints::xi_offsets;
 use leanvm_core::cpu::{KeccakLane, PUBLIC_WORDS, keccak_value};
 use leanvm_core::leaf::{Block, Coord};
 use leanvm_core::tables::N_TABLES;
-use leanvm_core::transcript::{FiatShamirState, RATE_SCALARS};
+use leanvm_core::transcript::RATE_SCALARS;
 use pcs::whir::{MAX_LOG_INV_RATE, MIN_LOG_INV_RATE};
 use primitives::field::{F64, F192, g_pow};
 use signatures::{lean_sphincs, lean_xmss};
@@ -835,7 +835,7 @@ fn opening_placeholders(kbc: usize, ps: &mut impl FnMut(&str, String)) {
     ps("LIG_MIN_SHIFT_INV", dsl_u128(F192::from(g_pow(minm).inv())).to_string());
 }
 
-/// The stacked bytecode's claim, the batch's seed, and the statement's layout.
+/// The stacked bytecode's claim, the batch's label, and the statement's layout.
 fn bytecode_placeholders(kbc: usize, nbcv: usize, ps: &mut impl FnMut(&str, String)) {
     ps("BYTECODE_LOG", kbc.to_string());
     // The stacked bytecode: nbcv/2 encoding columns per side, aligned with the bus
@@ -847,9 +847,10 @@ fn bytecode_placeholders(kbc: usize, nbcv: usize, ps: &mut impl FnMut(&str, Stri
     ps("LOG2_BYTECODE_COLS", log2_bc_cols.to_string());
     ps("DEFER_SIZE", (kbc + log2_bc_cols + 1).to_string());
     ps("BYTECODE_VARS", (kbc + log2_bc_cols).to_string());
-    let agg_seed = FiatShamirState::from_label(RECURSION_AGG_LABEL).capacity_cells();
-    for (c, cell) in agg_seed.iter().enumerate() {
-        ps(&format!("AGG_SEED_{c}"), dsl_u128(*cell).to_string());
+    // The batching's seed call absorbs the seed and the digest of its label.
+    let agg_label = hash_to_scalars(&primitives::hash::hash(RECURSION_AGG_LABEL));
+    for (c, cell) in agg_label.iter().enumerate() {
+        ps(&format!("AGG_LABEL_{c}"), dsl_u128(*cell).to_string());
     }
     // A child's words: its statement's two, its fresh claim, and its carried claim's cells.
     let child_words = 2 + (kbc + log2_bc_cols + 1) + (kbc + log2_bc_cols + 1);
@@ -865,13 +866,10 @@ fn bytecode_placeholders(kbc: usize, nbcv: usize, ps: &mut impl FnMut(&str, Stri
 
 /// LeanDA (`doc/leanvm` §sec:leanda).
 fn da_placeholders(ps: &mut impl FnMut(&str, String)) {
-    let pad_blob = hash_to_scalars(&lean_da::padding_root());
     ps("DA_LOG_K", DA_LOG_K.to_string());
     ps("DA_LOG_CELL", DA_LOG_CELL.to_string());
     ps("DA_MAX_ROWS", DA_MAX_ROWS.to_string());
     ps("DA_LOG_MAX_ROWS", DA_MAX_ROWS.ilog2().to_string());
-    ps("DA_PAD_BLOB_0", f192_literal(pad_blob[0]));
-    ps("DA_PAD_BLOB_1", f192_literal(pad_blob[1]));
     // `Vhat_j` at each parent node `n` of a product tree over bits `top, top - 1, ...`, in heap
     // order: `j` the bit `n` splits, the point its path's bits make.
     let vhat = lean_da::subspace_above();

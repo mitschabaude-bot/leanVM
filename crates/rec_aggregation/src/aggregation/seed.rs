@@ -22,4 +22,9 @@ impl Seed {
     pub fn to_bytes(self) -> [u8; 32] {
         self.0
     }
+
+    /// The key of its keyed hash.
+    pub(super) fn key(self) -> fiat_shamir::merkle::Key {
+        fiat_shamir::merkle::Key::new(&self.0)
+    }
 }

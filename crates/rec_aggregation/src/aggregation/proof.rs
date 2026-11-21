@@ -25,7 +25,7 @@ use primitives::field::F192;
 pub struct EthereumClaims {
     pub xmss: Vec<LeanXmssClaim>,
     pub lean_sphincs: Vec<LeanSphincsClaim>,
-    /// `None` makes no blob claim. The statement carries its [`verifier::da::digest`].
+    /// `None` makes no blob claim. The statement carries its [`verifier::da::digest`] under the tree's seed.
     pub da_commitment: Option<[u8; 32]>,
 }
 
@@ -99,7 +99,7 @@ impl EthereumClaims {
 impl EthereumProof {
     /// The VM's public input for this aggregate under `seed`: the digest of its claims and its deferred claim.
     pub(super) fn vm_public_input(&self, seed: &Seed) -> [F192; 2] {
-        let da = verifier::da::digest(self.claims.da_commitment);
+        let da = verifier::da::digest(&seed.to_bytes(), self.claims.da_commitment);
         statement_digest(seed, &self.claims.xmss, &self.claims.lean_sphincs, da, &self.defer)
     }
 
@@ -115,18 +115,19 @@ impl EthereumProof {
         encode(&self.defer.bytecode_point, &self.proof.to_bytes())
     }
 
-    /// The aggregate `bytes` encode, as a proof of `claims`: what the receiver expects it to attest.
-    /// Claims other than the aggregated ones fail [`Self::verify`].
+    /// The aggregate `bytes` encode under the tree's `seed`, as a proof of `claims`: what the
+    /// receiver expects it to attest. Claims other than the aggregated ones fail [`Self::verify`].
     ///
     /// WARNING: Parsing does NOT verify: the proof is untouched, only shapes are checked.
     /// Call [`Self::verify`] before believing any of it.
-    pub fn from_proof_bytes(bytes: &[u8], claims: EthereumClaims) -> Result<Self, AggregateVerifyError> {
+    pub fn from_proof_bytes(seed: &Seed, bytes: &[u8], claims: EthereumClaims) -> Result<Self, AggregateVerifyError> {
         let (bytecode_point, proof) = decode(bytes).ok_or(AggregateVerifyError::MalformedEncoding)?;
         // Cheap rejections first. `recompute_scalar` below is a pass over the whole stacked
         // bytecode, on a point a peer chose, so anything decidable without it has to be
         // decided before it.
         check_signer_set(&claims)?;
-        let proof = leanvm_core::cpu::Proof::from_bytes(proof).ok_or(AggregateVerifyError::MalformedEncoding)?;
+        let proof =
+            leanvm_core::cpu::Proof::from_bytes(proof, &seed.key()).ok_or(AggregateVerifyError::MalformedEncoding)?;
         Ok(Self {
             claims,
             // The wire carries no value, only the point to derive it from.

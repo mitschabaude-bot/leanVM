@@ -90,7 +90,7 @@ pub fn aggregate_with_stats(
         None
     } else {
         let _span = tracing::info_span!("LeanDA commit").entered();
-        Some(lean_da::commit(blobs)?)
+        Some(lean_da::commit(&seed.to_bytes(), blobs)?)
     };
     let direct_root = direct.as_ref().map(|&(commitment, _)| commitment);
     if direct_root.is_some() && declared_root.is_some_and(|declared| declared != direct_root) {
@@ -141,7 +141,7 @@ pub fn aggregate_with_stats(
     let mut public_inputs = Vec::with_capacity(children.len());
     let child_da: Vec<[u8; 32]> = children
         .iter()
-        .map(|child| verifier::da::digest(child.claims.da_commitment))
+        .map(|child| verifier::da::digest(&seed.to_bytes(), child.claims.da_commitment))
         .collect();
     for child in children {
         check_signer_set(&child.claims).map_err(AggregationError::InvalidChild)?;
@@ -296,7 +296,7 @@ pub fn aggregate_with_stats(
     } else {
         let _span = tracing::info_span!("Batch deferred claims").entered();
         let (agg_hints, reduced) =
-            aggregate_deferred_claims(&subs, &carried, sums).map_err(AggregationError::InvalidChild)?;
+            aggregate_deferred_claims(seed, &subs, &carried, sums).map_err(AggregationError::InvalidChild)?;
         for (name, entry) in agg_hints {
             hints.push(name, entry);
         }
@@ -306,10 +306,13 @@ pub fn aggregate_with_stats(
     let mut da = child_da.get(da_pick).copied().unwrap_or_default();
     if let Some((commitment, witness)) = direct {
         let n_rows = blobs.len() / BLOB_SYMBOLS;
-        da = verifier::da::digest(Some(commitment));
+        da = verifier::da::digest(&seed.to_bytes(), Some(commitment));
         hints.push(
             "da_challenge",
-            vec![from_scalar(verifier::da::membership_challenge(&commitment))],
+            vec![from_scalar(verifier::da::membership_challenge(
+                &seed.to_bytes(),
+                &commitment,
+            ))],
         );
         hints.push(
             "da_shape",

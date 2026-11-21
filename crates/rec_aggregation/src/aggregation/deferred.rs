@@ -4,6 +4,7 @@ use super::cells::count;
 use super::error::AggregateVerifyError;
 use super::guest::unified_guest;
 use super::hints::SubHints;
+use super::seed::Seed;
 use leanvm_core::cpu::{from_scalar, to_scalar};
 use leanvm_core::transcript::{FiatShamirState, RATE_SCALARS};
 use primitives::field::{F64, F64x8, F192, F192x8, Prod8, dot_base};
@@ -237,13 +238,14 @@ fn absorb_round(
     challenge
 }
 
-/// Mirror the guest's `aggregate_claims` transcript and prove the batching
+/// Mirror the guest's `aggregate_claims` transcript under `seed` and prove the batching
 /// sumcheck over the stacked bytecode.
 ///
 /// Each child brings two claims, the fresh one its verification raised and the one it deferred; `sums` holds their
 /// [`bytecode_sums`] in that order. Returns the guest hints and the single claim they reduce to, or
 /// [`AggregateVerifyError::MalformedClaim`] when a child carried a value that is not the bytecode's evaluation.
 pub(super) fn aggregate_deferred_claims(
+    seed: &Seed,
     subproofs: &[DeferredSubproof],
     carried_claims: &[&DeferredClaim],
     mut sums: Vec<Vec<F192>>,
@@ -252,9 +254,14 @@ pub(super) fn aggregate_deferred_claims(
     assert_eq!(child_count, carried_claims.len(), "one carried claim per child");
     let kbcv = bytecode_vars();
 
-    // The count and each child's words are padded with zeros to whole rates, so the
-    // guest's loop over the children finds every child starting the same way.
-    let mut transcript = FiatShamirState::from_label(RECURSION_AGG_LABEL);
+    // The transcript starts at the permutation of the seed and the label's digest. The count and
+    // each child's words are padded with zeros to whole rates, so the guest's loop over the
+    // children finds every child starting the same way.
+    let mut transcript = FiatShamirState::new(
+        fiat_shamir::digest_words(&seed.to_bytes()),
+        fiat_shamir::digest_words(&primitives::hash::hash(RECURSION_AGG_LABEL)),
+        [F64::ZERO; 4],
+    );
     let pad = |transcript: &mut FiatShamirState, n: usize| {
         for _ in 0..n.next_multiple_of(RATE_SCALARS) - n {
             transcript.observe(F192::ZERO);

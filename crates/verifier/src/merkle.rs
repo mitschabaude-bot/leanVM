@@ -1,17 +1,17 @@
-//! Merkle openings: one full path per query.
+//! Merkle openings: one full path per query, hashed under the proof's key.
 
 use crate::field::K;
-use crate::hash::{Digest, keccak_hash};
+use crate::hash::{Digest, Key};
 
-pub fn hash_pair(left: &[u8], right: &[u8]) -> Digest {
+pub fn hash_pair(key: &Key, left: &[u8], right: &[u8]) -> Digest {
     let mut pair = [0u8; 64];
     pair[..32].copy_from_slice(left);
     pair[32..].copy_from_slice(right);
-    keccak_hash(&pair)
+    key.hash(&pair)
 }
 
-fn hash_leaf(image: &[K]) -> Digest {
-    keccak_hash(&image.iter().flat_map(|word| word.to_bytes()).collect::<Vec<u8>>())
+fn hash_leaf(key: &Key, image: &[K]) -> Digest {
+    key.hash(&image.iter().flat_map(|word| word.to_bytes()).collect::<Vec<u8>>())
 }
 
 /// One query's own opening, the form the Rust and Lean verifiers read.
@@ -25,13 +25,13 @@ pub struct MerklePath {
 }
 
 impl MerklePath {
-    pub(crate) fn root(&self) -> Digest {
-        let mut node = hash_leaf(&self.leaf);
+    pub(crate) fn root(&self, key: &Key) -> Digest {
+        let mut node = hash_leaf(key, &self.leaf);
         for (level, sibling) in self.siblings.iter().enumerate() {
             node = if self.leaf_index >> level & 1 == 0 {
-                hash_pair(&node.0, sibling)
+                hash_pair(key, &node.0, sibling)
             } else {
-                hash_pair(sibling, &node.0)
+                hash_pair(key, sibling, &node.0)
             };
         }
         node

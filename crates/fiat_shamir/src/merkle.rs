@@ -2,6 +2,7 @@
 //! Digest encoding and Merkle openings carried by proofs.
 
 use primitives::field::{F64, F192};
+use primitives::hash::STATE_LANES;
 
 use crate::digest_words;
 
@@ -17,24 +18,50 @@ pub fn hash_to_scalars(hash: &Hash) -> [F192; 2] {
     [F192::new(w0.0, w1.0, 0), F192::new(w2.0, w3.0, 0)]
 }
 
-/// Hash one leaf ([`primitives::hash::hash`]).
-#[inline]
-pub fn hash_leaf(data: &[u8]) -> Hash {
-    primitives::hash::hash(data)
+/// The key of a proof's Merkle trees: the keyed hash `H_s(x) = Keccak-256(s ‖ 0^240 ‖ x)` under
+/// the seed `s`, as the sponge state after its two prefix blocks ([`primitives::hash::key_state`]),
+/// which every leaf and node hash continues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Key([u64; STATE_LANES]);
+
+impl Key {
+    /// The key of `seed`.
+    pub fn new(seed: &[u8; 32]) -> Self {
+        Self(primitives::hash::key_state(seed))
+    }
+
+    /// The state the keyed hash continues from.
+    pub fn state(&self) -> &[u64; STATE_LANES] {
+        &self.0
+    }
+
+    /// The keyed hash of `data`.
+    pub fn hash(&self, data: &[u8]) -> Hash {
+        primitives::hash::hash_from_state(data, &self.0)
+    }
 }
 
-/// Hash one leaf given as its words, little-endian on any host.
-pub fn hash_words(words: &[F64]) -> Hash {
-    hash_leaf(&words.iter().flat_map(|word| word.0.to_le_bytes()).collect::<Vec<u8>>())
+/// Hash one leaf under `key`.
+#[inline]
+pub fn hash_leaf(key: &Key, data: &[u8]) -> Hash {
+    key.hash(data)
 }
 
-/// Hash two children into their parent.
+/// Hash one leaf given as its words, little-endian on any host, under `key`.
+pub fn hash_words(key: &Key, words: &[F64]) -> Hash {
+    hash_leaf(
+        key,
+        &words.iter().flat_map(|word| word.0.to_le_bytes()).collect::<Vec<u8>>(),
+    )
+}
+
+/// Hash two children into their parent under `key`.
 #[inline]
-pub fn hash_pair(left: &Hash, right: &Hash) -> Hash {
+pub fn hash_pair(key: &Key, left: &Hash, right: &Hash) -> Hash {
     let mut buf = [0u8; 64];
     buf[..32].copy_from_slice(left);
     buf[32..].copy_from_slice(right);
-    primitives::hash::hash(&buf)
+    key.hash(&buf)
 }
 
 /// One query's Merkle opening: its position, the whole leaf image it hashes, and its siblings, bottom level first.

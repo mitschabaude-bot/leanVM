@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::merkle::{Hash, MerklePath, hash_pair, hash_words, padded};
+use crate::merkle::{Hash, Key, MerklePath, hash_pair, hash_words, padded};
 use crate::transcript::Proof;
 use primitives::field::{F64, F192};
 
@@ -42,8 +42,9 @@ impl Proof {
         out
     }
 
-    /// The proof `bytes` encode, or `None` unless they are exactly one proof's encoding. Nothing is verified.
-    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+    /// The proof `bytes` encode, its Merkle trees hashed under `key`, or `None` unless they are exactly one proof's
+    /// encoding. Nothing is verified.
+    pub fn from_bytes(bytes: &[u8], key: &Key) -> Option<Self> {
         let mut input = Reader(bytes);
         let length = input.u32()? as usize;
         let words = input.words(length.checked_mul(3)?)?;
@@ -54,7 +55,9 @@ impl Proof {
             .map(|[c0, c1, c2]| F192::new(c0.0, c1.0, c2.0))
             .collect();
         let phases = input.u32().filter(|&phases| phases as usize <= MAX_PHASES)?;
-        let merkle = (0..phases).map(|_| read_phase(&mut input)).collect::<Option<_>>()?;
+        let merkle = (0..phases)
+            .map(|_| read_phase(&mut input, key))
+            .collect::<Option<_>>()?;
         input.0.is_empty().then_some(Self { stream, merkle })
     }
 }
@@ -98,9 +101,9 @@ fn write_phase(out: &mut Vec<u8>, paths: &[MerklePath]) {
     }
 }
 
-/// Unprune a phase's octopus back into its paths, hashing the nodes they share. Nothing is authenticated here, the
-/// verifier checks every path; what is refused is anything but the one encoding of a phase within the bounds.
-fn read_phase(input: &mut Reader) -> Option<Vec<MerklePath>> {
+/// Unprune a phase's octopus back into its paths, hashing the nodes they share under `key`. Nothing is authenticated
+/// here, the verifier checks every path; what is refused is anything but the one encoding of a phase within the bounds.
+fn read_phase(input: &mut Reader, key: &Key) -> Option<Vec<MerklePath>> {
     let count = input.u32().filter(|&count| count as usize <= MAX_QUERIES)?;
     let queries: Vec<u64> = (0..count).map(|_| input.u32().map(u64::from)).collect::<Option<_>>()?;
     let (height, leaf_words, row_words) = (input.u32()? as usize, input.u32()? as usize, input.u32()? as usize);
@@ -131,7 +134,7 @@ fn read_phase(input: &mut Reader) -> Option<Vec<MerklePath>> {
     // Level by level, the nodes the paths climb through.
     let mut nodes: BTreeMap<u64, Hash> = distinct
         .iter()
-        .map(|path| (path.leaf_index, hash_words(&path.leaf)))
+        .map(|path| (path.leaf_index, hash_words(key, &path.leaf)))
         .collect();
     for level in 0..height {
         let mut siblings = BTreeMap::new();
@@ -143,7 +146,7 @@ fn read_phase(input: &mut Reader) -> Option<Vec<MerklePath>> {
             };
             siblings.insert(p, sibling);
             let (left, right) = if p & 1 == 0 { (node, &sibling) } else { (&sibling, node) };
-            parents.entry(p >> 1).or_insert_with(|| hash_pair(left, right));
+            parents.entry(p >> 1).or_insert_with(|| hash_pair(key, left, right));
         }
         for path in &mut distinct {
             path.siblings.push(siblings[&(path.leaf_index >> level)]);
@@ -198,11 +201,12 @@ mod tests {
     /// and nothing else decodes to it.
     #[test]
     fn proof_round_trips_through_its_one_encoding() {
+        let key = Key::new(&[7; 32]);
         let rows = [[0, 0, 1], [0, 2, 3], [0, 0, 4], [0, 5, 0]].map(|row| row.map(F64));
-        let leaf = |q: usize| hash_words(&rows[q]);
+        let leaf = |q: usize| hash_words(&key, &rows[q]);
         let node = |level: usize, i: usize| match level {
             0 => leaf(i),
-            _ => hash_pair(&leaf(2 * i), &leaf(2 * i + 1)),
+            _ => hash_pair(&key, &leaf(2 * i), &leaf(2 * i + 1)),
         };
         let proof = Proof {
             stream: vec![F192::new(1, 2, 3)],
@@ -211,7 +215,7 @@ mod tests {
         let bytes = proof.to_bytes();
         // The stream, then the phase: its queries, three sizes, two rows of two words, and two siblings.
         assert_eq!(bytes.len(), (4 + 24) + 4 + (4 + 3 * 4) + 3 * 4 + 2 * 2 * 8 + 2 * 32);
-        assert_eq!(Proof::from_bytes(&bytes), Some(proof));
-        assert_eq!(Proof::from_bytes(&[&bytes[..], &[0]].concat()), None);
+        assert_eq!(Proof::from_bytes(&bytes, &key), Some(proof));
+        assert_eq!(Proof::from_bytes(&[&bytes[..], &[0]].concat(), &key), None);
     }
 }

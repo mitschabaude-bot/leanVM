@@ -349,13 +349,11 @@ BYTECODE_VARS = BYTECODE_VARS_PLACEHOLDER  # = BYTECODE_LOG + LOG2_BYTECODE_COLS
 FRESH_BC_VALUE = BYTECODE_VARS
 DEFER_STMT_CELLS = BYTECODE_VARS + 1
 DEFER_STMT_BC_VALUE = BYTECODE_VARS
-# The aggregation transcript's seeded capacity, and the zeros padding a child's words
-# to whole rates (so every child starts with a full rate waiting).
-AGG_SEED_0 = AGG_SEED_0_PLACEHOLDER
-AGG_SEED_1 = AGG_SEED_1_PLACEHOLDER
-AGG_SEED_2 = AGG_SEED_2_PLACEHOLDER
-AGG_SEED_3 = AGG_SEED_3_PLACEHOLDER
-AGG_SEED_4 = AGG_SEED_4_PLACEHOLDER
+# The digest of the aggregation transcript's label, which its seed call absorbs after the
+# seed, and the zeros padding a child's words to whole rates (so every child starts with a
+# full rate waiting).
+AGG_LABEL_0 = AGG_LABEL_0_PLACEHOLDER
+AGG_LABEL_1 = AGG_LABEL_1_PLACEHOLDER
 AGG_CHILD_PAD = AGG_CHILD_PAD_PLACEHOLDER
 AGG_CHILD_WORDS = 2 + DEFER_SIZE + DEFER_STMT_CELLS
 # The statement digest's preimage: the STMT_HEADER header values as the 16-byte
@@ -519,8 +517,6 @@ DA_LOG_K = DA_LOG_K_PLACEHOLDER
 DA_LOG_CELL = DA_LOG_CELL_PLACEHOLDER
 DA_MAX_ROWS = DA_MAX_ROWS_PLACEHOLDER
 DA_LOG_MAX_ROWS = DA_LOG_MAX_ROWS_PLACEHOLDER
-DA_PAD_BLOB_0 = DA_PAD_BLOB_0_PLACEHOLDER
-DA_PAD_BLOB_1 = DA_PAD_BLOB_1_PLACEHOLDER
 # Vhat_j at the points the membership vector's product tree needs (da_factors): each
 # parent node of the tree over a cell index, then of the tree inside a cell, at the bit
 # j it splits; and Vhat_j(beta_(DA_LOG_CELL + b)) at DA_LOG_CELL * b + j, for each factor
@@ -547,6 +543,54 @@ DA_REGION = DA_SUM + DA_CELLS + 1               # cells of one blob's tree and r
 def pack64x2(a, b):
     assert_in_k(a, b)
     return a + Y_TOWER * b
+
+
+@inline
+def keyed_state(seed_0, seed_1, out):
+    # The keyed hash's state under the seed: the seed's two cells, then fifteen zero
+    # cells, two blocks absorbed without padding, so a keyed hash continues from it with
+    # its message's blocks where Keccak-256 of the message has them.
+    keccak_cells([seed_0, seed_1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], out, final=0)
+    return
+
+
+@inline
+def load_key(key, out):
+    # The keyed hash's state at `key` into a frame run, which every keyed hash of a
+    # frame reads in place.
+    for k in unroll(0, KECCAK_STATE):
+        out[k] = key[GEN ** k]
+    return
+
+
+@inline
+def node_key(key, kr):
+    # The keyed hash's state at `key` as the keyed hash of 64 bytes reads it, one block in
+    # overwrite mode (`keyed_node`): cells 0 to 3, into which the message cells are XORed,
+    # then cells 4 to 7 with the padding's first byte in cell 4 (`tail`) and cells 8 to 12
+    # with its last bit in cell 8 (`cap`).
+    for k in unroll(0, KECCAK_STATE):
+        if const(k == 4):
+            kr[k] = key[GEN ** k] + 1
+        else:
+            if const(k == 8):
+                kr[k] = key[GEN ** k] + 2 ** 63
+            else:
+                kr[k] = key[GEN ** k]
+    return
+
+
+@inline
+def keyed_node(a0, a1, b0, b1, kr, out):
+    # The keyed hash of the 64 bytes in the cells a0, a1, b0, b1, under the key whose
+    # `node_key` runs `kr` holds: the message XORed into the state's first four cells,
+    # the rest of the padded block's state taken whole, one KECCAK.
+    x0 = kr[0] + a0
+    x1 = kr[1] + a1
+    x2 = kr[2] + b0
+    x3 = kr[3] + b1
+    keccak([x0, x1], [x2, x3], out, tail=kr[4:8], cap=kr[8:13])
+    return
 
 
 def assert_canonical(word):
@@ -1166,8 +1210,10 @@ def verify_merkle_cap(cap, flags, depth: Const):
     # node is hashed; an inactive one pins its children's flags to zero, so every
     # active node's parent is active too, up to the root, which is always hashed.
     # The queries flag the parents of the cap leaves they reach. The run is sized
-    # per depth, the cap depths a configuration reaches.
+    # per depth, the cap depths a configuration reaches. Every node is hashed under the key.
     if depth != 0:
+        kr = StackBuf(KECCAK_STATE)
+        node_key(cap * GEN ** (4 * 2 ** depth), kr)
         n_leaves = 2 ** depth
         if const(depth == 4):
             runs = StackBuf(4 * 16 - 2)
@@ -1187,11 +1233,16 @@ def verify_merkle_cap(cap, flags, depth: Const):
             left = 2 * (2 * node - 1)
             right = left + 2
             at = 2 * (node - 1)
+            # `keyed_node`, its digest landing on the hinted one.
+            x0 = kr[0] + runs[left]
+            x1 = kr[1] + runs[left + 1]
+            x2 = kr[2] + runs[right]
+            x3 = kr[3] + runs[right + 1]
             if const(node == 1):
-                keccak(runs[left:left + 2], runs[right:right + 2], runs[at:at + 2])
+                keccak([x0, x1], [x2, x3], runs[at:at + 2], tail=kr[4:8], cap=kr[8:13])
             else:
                 if flags[GEN ** node] != 0:
-                    keccak(runs[left:left + 2], runs[right:right + 2], runs[at:at + 2])
+                    keccak([x0, x1], [x2, x3], runs[at:at + 2], tail=kr[4:8], cap=kr[8:13])
                 else:
                     if const(2 * node // n_leaves == 0):  # node has flagged children
                         flags[GEN ** (2 * node)] = 0
@@ -1284,16 +1335,16 @@ def opening_row_weights(point, out, folds: Const, reverse: Const):
 
 
 @inline
-def walk_window(n0, n1, path, lvl0: Const, width: Const, k: Const):
+def walk_window(n0, n1, path, kr, lvl0: Const, width: Const, k: Const):
     # Levels lvl0..lvl0+width of a Merkle path, whose order bits are k's: each hashes the running
-    # node with the sibling on the other side of its hinted pair, which binds the link.
+    # node with the sibling on the other side of its hinted pair under the key, which binds the link.
     for r in unroll(0, width):
         lvl = lvl0 + r
         nxt = StackBuf(2)
         if const((k // 2 ** r) % 2 == 0):
-            keccak([n0, n1], path[4 * lvl + 2:4 * lvl + 4], nxt)
+            keyed_node(n0, n1, path[4 * lvl + 2], path[4 * lvl + 3], kr, nxt)
         else:
-            keccak(path[4 * lvl:4 * lvl + 2], [n0, n1], nxt)
+            keyed_node(path[4 * lvl], path[4 * lvl + 1], n0, n1, kr, nxt)
         n0 = nxt[0]
         n1 = nxt[1]
     return n0, n1
@@ -1302,6 +1353,8 @@ def walk_window(n0, n1, path, lvl0: Const, width: Const, k: Const):
 def walk_path(n0, n1, wins, cap, flags, path_depth: Const, cap_depth: Const):
     # The path, a window of QW levels a dispatch (`decode_query_windows`): each arm knows its
     # levels' order bits, so it hashes the running node against the sibling its hinted pair holds.
+    kr = StackBuf(KECCAK_STATE)
+    node_key(cap * GEN ** (4 * 2 ** cap_depth), kr)
     path = StackBuf(LIG_PATH_CAP)
     hint_witness(path[0:4 * path_depth], "merkle_children")
     for i in unroll(0, (path_depth + QW - 1) // QW):
@@ -1311,17 +1364,17 @@ def walk_path(n0, n1, wins, cap, flags, path_depth: Const, cap_depth: Const):
             width = QW
         w = wins[GEN ** i]
         if const(width == 6):
-            n0, n1 = match(log(w), range(0, 64), lambda k: walk_window(n0, n1, path, QW * i, 6, k))
+            n0, n1 = match(log(w), range(0, 64), lambda k: walk_window(n0, n1, path, kr, QW * i, 6, k))
         elif const(width == 5):
-            n0, n1 = match(log(w), range(0, 32), lambda k: walk_window(n0, n1, path, QW * i, 5, k))
+            n0, n1 = match(log(w), range(0, 32), lambda k: walk_window(n0, n1, path, kr, QW * i, 5, k))
         elif const(width == 4):
-            n0, n1 = match(log(w), range(0, 16), lambda k: walk_window(n0, n1, path, QW * i, 4, k))
+            n0, n1 = match(log(w), range(0, 16), lambda k: walk_window(n0, n1, path, kr, QW * i, 4, k))
         elif const(width == 3):
-            n0, n1 = match(log(w), range(0, 8), lambda k: walk_window(n0, n1, path, QW * i, 3, k))
+            n0, n1 = match(log(w), range(0, 8), lambda k: walk_window(n0, n1, path, kr, QW * i, 3, k))
         elif const(width == 2):
-            n0, n1 = match(log(w), range(0, 4), lambda k: walk_window(n0, n1, path, QW * i, 2, k))
+            n0, n1 = match(log(w), range(0, 4), lambda k: walk_window(n0, n1, path, kr, QW * i, 2, k))
         else:
-            n0, n1 = match(log(w), range(0, 2), lambda k: walk_window(n0, n1, path, QW * i, 1, k))
+            n0, n1 = match(log(w), range(0, 2), lambda k: walk_window(n0, n1, path, kr, QW * i, 1, k))
     # The reached cap leaf is node 2*parent + bit at cells 2*node, 2*node + 1, where
     # parent = 2^(cap_depth-1) + q: the child bit and q are the last two windows, g^bit
     # and g^q, the constant parts folded into the address immediates. Every cap is at
@@ -1338,9 +1391,9 @@ def walk_path(n0, n1, wins, cap, flags, path_depth: Const, cap_depth: Const):
 
 
 @inline
-def opening_query(cap, flags, row_eq_weights, wins, base: Const, interleave: Const, leaf_cells: Const, depth: Const, cap_depth: Const):
-    # One query: hash the hinted row up its Merkle path into the shared cap, and
-    # return its dot product with the row's eq weights.
+def opening_query(cap, flags, ks, row_eq_weights, wins, base: Const, interleave: Const, leaf_cells: Const, depth: Const, cap_depth: Const):
+    # One query: hash the hinted row up its Merkle path into the shared cap under the key
+    # (`ks` its state in the frame), and return its dot product with the row's eq weights.
     if base == 1:
         row_len = interleave
     else:
@@ -1379,7 +1432,7 @@ def opening_query(cap, flags, row_eq_weights, wins, base: Const, interleave: Con
         row_dot += row_eq_weights[GEN ** (lo_len + h)] * part
     # Hash the packed row.
     leaf_hash_state = StackBuf(2)
-    keccak_cells(packed_row[0:leaf_cells], leaf_hash_state)
+    keccak_cells(packed_row[0:leaf_cells], leaf_hash_state, state=ks)
     walk_path(leaf_hash_state[0], leaf_hash_state[1], wins, cap, flags, depth - cap_depth, cap_depth)
     return row_dot
 
@@ -1392,19 +1445,21 @@ def opening_queries(cap, flags, lam, lam_n, query_win_ptrs, row_eq_weights, n_it
     # Query k is weighted lam^k: the chain runs h <- (h + dot_k) / lam, ending at
     # sum_k lam^(k - n) dot_k, and one product by lam_n = lam^n restores it.
     mu = 1 / lam
+    ks = StackBuf(KECCAK_STATE)
+    load_key(cap * GEN ** (4 * 2 ** cap_depth), ks)
     chain = HeapBuf(n_iters_g * GEN)
     if odd == 1:
-        chain[GEN ** 0] = opening_query(cap, flags, row_eq_weights, query_win_ptrs[GEN ** 0], base, interleave, leaf_cells, depth, cap_depth) * mu
+        chain[GEN ** 0] = opening_query(cap, flags, ks, row_eq_weights, query_win_ptrs[GEN ** 0], base, interleave, leaf_cells, depth, cap_depth) * mu
     else:
         chain[GEN ** 0] = 0
     for xi in mul_range(1, n_iters_g):
         if base == 1:
             bit_ptrs = query_win_ptrs * xi * xi
-            d0 = opening_query(cap, flags, row_eq_weights, bit_ptrs[GEN ** odd], base, interleave, leaf_cells, depth, cap_depth)
-            d1 = opening_query(cap, flags, row_eq_weights, bit_ptrs[GEN ** (odd + 1)], base, interleave, leaf_cells, depth, cap_depth)
+            d0 = opening_query(cap, flags, ks, row_eq_weights, bit_ptrs[GEN ** odd], base, interleave, leaf_cells, depth, cap_depth)
+            d1 = opening_query(cap, flags, ks, row_eq_weights, bit_ptrs[GEN ** (odd + 1)], base, interleave, leaf_cells, depth, cap_depth)
             chain[xi * GEN] = ((chain[xi] + d0) * mu + d1) * mu
         else:
-            d = opening_query(cap, flags, row_eq_weights, query_win_ptrs[xi], base, interleave, leaf_cells, depth, cap_depth)
+            d = opening_query(cap, flags, ks, row_eq_weights, query_win_ptrs[xi], base, interleave, leaf_cells, depth, cap_depth)
             chain[xi * GEN] = (chain[xi] + d) * mu
     return chain[n_iters_g] * lam_n
 
@@ -1470,9 +1525,16 @@ def level_positions(fs0, fs1, fs2, fs3, fs4, positions, win_ptrs, win_tabs, sque
 
 def level_queries(lam, win_ptrs, row_eq_weights, n_queries: Const, base: Const, interleave: Const, leaf_cells: Const, depth: Const, cap_depth: Const):
     # A level's Merkle cap, hinted and checked up to its root, and the level's query batch
-    # walked into it. Returns the root, the batch's sum, and lam^n_queries.
-    cap = HeapBuf(GEN ** (4 * 2 ** cap_depth))
+    # walked into it, every hash under the seed's key, which follows the cap's nodes in its
+    # buffer, computed from memory words 2 and 3. Returns the root, the batch's sum, and
+    # lam^n_queries.
+    cap = HeapBuf(GEN ** (4 * 2 ** cap_depth + KECCAK_STATE))
     hint_witness(cap[0:4 * 2 ** cap_depth], "merkle_caps")
+    pub = GEN ** 0
+    seed_0 = pub[GEN ** 2]
+    seed_1 = pub[GEN ** 3]
+    key = cap * GEN ** (4 * 2 ** cap_depth)
+    keccak_cells([seed_0, seed_1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], key[0:KECCAK_STATE], final=0)
     flags = HeapBuf(GEN ** (2 ** cap_depth))
     hint_witness(flags[0:2 ** cap_depth], "merkle_cap_active")
     root_0, root_1 = verify_merkle_cap(cap, flags, cap_depth)
@@ -4113,17 +4175,18 @@ def statement_digest(seed_0, seed_1, xd_0, xd_1, sd_0, sd_1, da_0, da_1, defer):
     return st[0], st[1]
 
 
-# A declared claim list is hashed CLAIM_GROUP claims a loop frame: a claim is 64 bytes,
-# four cells, so a group is 68 cells, four block pairs, and the sponge state is carried
-# between frames through a heap chain of KECCAK_STATE cells a step, from the zero state.
+# A declared claim list is hashed with the keyed hash, CLAIM_GROUP claims a loop frame: a
+# claim is 64 bytes, four cells, so a group is 68 cells, four block pairs, and the sponge
+# state is carried between frames through a heap chain of KECCAK_STATE cells a step, from
+# the key's state.
 # Only the claims after the last whole group depend on the length: a `match` on their
 # count.
 
 
 @inline
-def zero_state(chain):
+def key_chain(chain, key):
     for k in unroll(0, KECCAK_STATE):
-        chain[GEN ** k] = 0
+        chain[GEN ** k] = key[GEN ** k]
     return
 
 
@@ -4145,17 +4208,17 @@ def list_split(n_g):
     return bigs, groups, rest
 
 
-def claim_list_digest(entries_ptr, n_g):
-    # The hash of one scheme's declared claims: 64 bytes a claim, the claimed pubkey
+def claim_list_digest(key, entries_ptr, n_g):
+    # The keyed hash of one scheme's declared claims: 64 bytes a claim, the claimed pubkey
     # then the message it signed. An empty list hashes the empty string, and the
     # padding binds the length.
     digest = StackBuf(2)
     if n_g == 1:
-        keccak([0, 0], [0, 0], digest, len=0)
+        keccak_cells([0], digest, state=key[0:KECCAK_STATE], len=0)
     else:
         bigs, groups, rest = list_split(n_g)
         chain = HeapBuf((bigs * groups * GEN) ** KECCAK_STATE)
-        zero_state(chain)
+        key_chain(chain, key)
         for xq in mul_range(1, bigs):
             st = chain * xq ** KECCAK_STATE
             nxt = st * GEN ** KECCAK_STATE
@@ -4207,7 +4270,7 @@ def child_claims(entries_ptr, region, marks, last_g, blk, n: Const):
     return
 
 
-def child_claim_list_digest(entries_ptr, region, base, limit_g, n_g):
+def child_claim_list_digest(key, entries_ptr, region, base, limit_g, n_g):
     # The hash of one of a child's declared claim lists, over the same 64n bytes the
     # child hashed (`claim_list_digest`), so the digest it rebuilds is the one the
     # child's statement carries. The coverage marks lie in [base, base + n): the claims'
@@ -4216,25 +4279,25 @@ def child_claim_list_digest(entries_ptr, region, base, limit_g, n_g):
     # cheaper walk; either walk is sound on its own, so the choice is the prover's.
     digest = StackBuf(2)
     if n_g == 1:
-        keccak([0, 0], [0, 0], digest, len=0)
+        keccak_cells([0], digest, state=key[0:KECCAK_STATE], len=0)
     else:
         bigs, groups, rest = list_split(n_g)
         mono = hint_witness("child_mono")
         if mono == GEN:
-            d0, d1 = child_claim_list_mono(entries_ptr, region, base, limit_g, bigs, groups, rest)
+            d0, d1 = child_claim_list_mono(key, entries_ptr, region, base, limit_g, bigs, groups, rest)
             digest[0] = d0
             digest[1] = d1
         else:
-            d0, d1 = child_claim_list_any(entries_ptr, region, base, limit_g, bigs, groups, rest)
+            d0, d1 = child_claim_list_any(key, entries_ptr, region, base, limit_g, bigs, groups, rest)
             digest[0] = d0
             digest[1] = d1
     return digest[0], digest[1]
 
 
-def child_claim_list_any(entries_ptr, region, base, limit_g, bigs, groups, rest):
+def child_claim_list_any(key, entries_ptr, region, base, limit_g, bigs, groups, rest):
     last_g = limit_g / GEN
     chain = HeapBuf((bigs * groups * GEN) ** KECCAK_STATE)
-    zero_state(chain)
+    key_chain(chain, key)
     for xq in mul_range(1, bigs):
         st = chain * xq ** KECCAK_STATE
         nxt = st * GEN ** KECCAK_STATE
@@ -4276,7 +4339,7 @@ def child_claims_mono(cov, ent, mark, blk, out, n: Const):
     return
 
 
-def child_claim_list_mono(entries_ptr, region, base, limit_g, bigs, groups, rest):
+def child_claim_list_mono(key, entries_ptr, region, base, limit_g, bigs, groups, rest):
     # The walk of a list at strictly increasing offsets o_j = e_0 + ... + e_j + j, every
     # e_j in [0, 2^h): its first offset is at least zero, and the count of claims, a
     # memory address (`assert_gpow`, below 2^30), keeps the sum below 2^60, short
@@ -4284,7 +4347,7 @@ def child_claim_list_mono(entries_ptr, region, base, limit_g, bigs, groups, rest
     # (child_claim_list_mono_last) bounds them all. A record carries the sponge state,
     # then the walk's coverage slot and table entry.
     chain = HeapBuf((bigs * groups * GEN) ** MONO_REC)
-    zero_state(chain)
+    key_chain(chain, key)
     chain[GEN ** KECCAK_STATE] = region
     chain[GEN ** (KECCAK_STATE + 1)] = entries_ptr
     for xq in mul_range(1, bigs):
@@ -4345,10 +4408,11 @@ def child_claim_list_last(state, entries_ptr, region, marks, last_g, k: Const):
 # recursion preserves both.
 
 
-def da_verify(g_squares):
+def da_verify(g_squares, key):
     # Returns the commitment root and the membership challenge, two canonical cells each.
-    # Only the tree over the blob roots walks the padded count; a padding blob's root
-    # is a constant, which the gap loop writes without hashing anything.
+    # Every cell and node is hashed under the key. Only the tree over the blob roots walks
+    # the padded count; a padding blob's root, that of the zero row, is hashed once here
+    # and the gap loop writes it.
     shape = StackBuf(2)
     hint_witness(shape, "da_shape")  # n_blob, then log2 of the padded count
     n_blob_g = shape[0]
@@ -4370,22 +4434,39 @@ def da_verify(g_squares):
         base[GEN ** DA_SUM] = 0
 
     for xb in mul_range(1, GEN ** DA_CELLS):
-        da_verify_column(xb, n_blob_g, rowbase, zs, top_leaves, cell_factors, offsets)
+        da_verify_column(xb, n_blob_g, rowbase, zs, top_leaves, cell_factors, offsets, key)
 
     roots = HeapBuf(n_pad_g ** 4)
     for xi in mul_range(1, n_blob_g):
         base = rowbase[xi]
         assert base[GEN ** (DA_SUM + DA_CELLS)] == 0
-        b0, b1 = da_levels(base, DA_CELLS, DA_BLOCK_BITS)
+        b0, b1 = da_levels(base, key, DA_CELLS, DA_BLOCK_BITS)
         slot = roots * (xi ** 2)
         slot[1] = b0
         slot[GEN] = b1
+    pad_0, pad_1 = da_padding_root(key)
     for xd in mul_range(1, gap_g):
         pad = roots * (n_blob_g ** 2) * (xd ** 2)
-        pad[1] = DA_PAD_BLOB_0
-        pad[GEN] = DA_PAD_BLOB_1
-    r0, r1 = match(log(g_log_pad), range(0, DA_TREE_ARMS), lambda k: da_levels(roots, 2 ** k, k))
+        pad[1] = pad_0
+        pad[GEN] = pad_1
+    r0, r1 = match(log(g_log_pad), range(0, DA_TREE_ARMS), lambda k: da_levels(roots, key, 2 ** k, k))
     return r0, r1, z_cells[0], z_cells[1]
+
+
+def da_padding_root(key):
+    # The root of the zero row's tree under the key: its cells are all the zero cell, so
+    # each level hashes one node with itself.
+    ks = StackBuf(KECCAK_STATE)
+    load_key(key, ks)
+    kr = StackBuf(KECCAK_STATE)
+    node_key(key, kr)
+    node = StackBuf(2)
+    keccak_cells([0 for k in unroll(0, DA_PACKED)], node, state=ks)
+    for lvl in unroll(0, DA_BLOCK_BITS):
+        nxt = StackBuf(2)
+        keyed_node(node[0], node[1], node[0], node[1], kr, nxt)
+        node = nxt
+    return node[0], node[1]
 
 
 def da_row_shape(n_blob_g, g_log_pad, g_squares):
@@ -4400,14 +4481,14 @@ def da_row_shape(n_blob_g, g_log_pad, g_squares):
     return n_pad_g, gap_g
 
 
-def da_verify_column(xb, n_blob_g, rowbase, zs, top_leaves, cell_factors, offsets):
+def da_verify_column(xb, n_blob_g, rowbase, zs, top_leaves, cell_factors, offsets, key):
     # Column log(xb) of every blob: its weights expand the tree inside a cell from the
     # column's leaf of the tree above; a cell's digest is leaf log(xb) of its blob's tree,
     # and its inner product with the weights joins its blob's running sum.
     lvals = da_expand(top_leaves[xb], cell_factors, zs, offsets * xb ** DA_LOG_CELL, DA_LOG_CELL - 1, DA_LOG_CELL)
     xb2 = xb * xb
     for xi in mul_range(1, n_blob_g):
-        d0, d1, s = da_verify_cell(lvals)
+        d0, d1, s = da_verify_cell(lvals, key)
         base = rowbase[xi]
         chain = base * xb
         chain[GEN ** (DA_SUM + 1)] = chain[GEN ** DA_SUM] + s
@@ -4417,8 +4498,9 @@ def da_verify_column(xb, n_blob_g, rowbase, zs, top_leaves, cell_factors, offset
     return
 
 
-def da_verify_cell(lvals):
-    # Packing checks that each symbol used by both the hash and dot product is in K.
+def da_verify_cell(lvals, key):
+    # Packing checks that each symbol used by both the hash and dot product is in K; the
+    # cell is hashed under the key.
     sym = StackBuf(DA_CELL)
     hint_witness(sym, "da_symbols")
     packed = StackBuf(DA_PACKED)
@@ -4427,19 +4509,26 @@ def da_verify_cell(lvals):
         packed[e] = pack64x2(sym[2 * e], sym[2 * e + 1])
         s = s + lvals[GEN ** (2 * e)] * sym[2 * e]
         s = s + lvals[GEN ** (2 * e + 1)] * sym[2 * e + 1]
+    ks = StackBuf(KECCAK_STATE)
+    load_key(key, ks)
     st = StackBuf(2)
-    keccak_cells(packed, st)
+    keccak_cells(packed, st, state=ks)
     return st[0], st[1], s
 
 
-def da_levels(tree, n: Const, log_n: Const):
-    # The internal levels of a Merkle tree whose leaves already sit at level 0 of
-    # `tree` (2 cells a node, level lvl at 4n - 4n//2**lvl). Returns the root pair.
+def da_levels(tree, key, n: Const, log_n: Const):
+    # The internal levels of a Merkle tree under the key whose leaves already sit at level 0
+    # of `tree` (2 cells a node, level lvl at 4n - 4n//2**lvl). Returns the root pair.
+    kr = StackBuf(KECCAK_STATE)
+    node_key(key, kr)
     for lvl in unroll(0, log_n):
         for xp in mul_range(1, GEN ** (n // 2 ** (lvl + 1))):
             a = tree * (GEN ** (4 * n - 4 * n // 2 ** lvl)) * (xp ** 4)
             b = tree * (GEN ** (4 * n - 4 * n // 2 ** (lvl + 1))) * (xp * xp)
-            keccak(a[0:2], a[2:4], b[0:2])
+            node = StackBuf(2)
+            keyed_node(a[GEN ** 0], a[GEN ** 1], a[GEN ** 2], a[GEN ** 3], kr, node)
+            b[GEN ** 0] = node[0]
+            b[GEN ** 1] = node[1]
     return tree[GEN ** (4 * n - 4)], tree[GEN ** (4 * n - 3)]
 
 
@@ -4565,6 +4654,11 @@ def main():
     pub_ptr = GEN ** 0
     seed_0 = pub_ptr[GEN ** 2]
     seed_1 = pub_ptr[GEN ** 3]
+    # The keyed hash's state under the seed, computed here from the seed's cells: the claim
+    # lists, the DA matrix and the DA claim are hashed under it.
+    key_run = StackBuf(KECCAK_STATE)
+    keyed_state(seed_0, seed_1, key_run)
+    key = addr(key_run)
 
     # ---- the claim lists ----
     g_squares = exponent_tables()
@@ -4573,12 +4667,12 @@ def main():
     # verifier, which holds it) followed by its own duplicate slots. The coverage
     # indices below run over one space: leanXMSS, then leanSPHINCS.
     #
-    # Each list's digest is a plain hash of its claims, 64 bytes a claim, its padding
+    # Each list's digest is the keyed hash of its claims, 64 bytes a claim, its padding
     # binding its length; the statement carries the two digests side by side.
     lx_table = HeapBuf(lx_slots_g ** 4)
     lean_sphincs_table = HeapBuf(lean_sphincs_slots_g ** 4)
-    xd_0, xd_1 = claim_list_digest(lx_table, n_lx_g)
-    sd_0, sd_1 = claim_list_digest(lean_sphincs_table, n_lean_sphincs_g)
+    xd_0, xd_1 = claim_list_digest(key, lx_table, n_lx_g)
+    sd_0, sd_1 = claim_list_digest(key, lean_sphincs_table, n_lean_sphincs_g)
     # The duplicate slots ride the same tables but outside the hashed prefixes.
     for xd in mul_range(1, n_xdup_g):
         dup = lx_table * ((n_lx_g * xd) ** 4)
@@ -4622,13 +4716,13 @@ def main():
         verify_sig_lean_sphincs(lean_sphincs_table * (off_hint ** 4), byte_bits)
 
     # ---- data availability ----
-    # One DA digest per child, read off its statement below, then the node's own:
-    # H(root, challenge) of its blob matrix, or zeros without blobs.
+    # One DA digest per child, read off its statement below, then the node's own: the
+    # keyed hash of its blob matrix's root and challenge, or zeros without blobs.
     da_digests = HeapBuf((n_children_g * GEN) ** 2)
     own_da = da_digests * n_children_g ** 2
     if n_direct_da_g == GEN:
-        root_0, root_1, z_0, z_1 = da_verify(g_squares)
-        keccak([root_0, root_1], [z_0, z_1], own_da[0:2])
+        root_0, root_1, z_0, z_1 = da_verify(g_squares, key)
+        keccak_cells([root_0, root_1, z_0, z_1], own_da[0:2], state=key_run)
     else:
         own_da[1] = 0
         own_da[GEN] = 0
@@ -4652,8 +4746,8 @@ def main():
         assert_gpow(nsub_x_g)
         assert_gpow(nsub_s_g)
         nsub_g = nsub_x_g * nsub_s_g
-        cx_0, cx_1 = child_claim_list_digest(lx_table, cover, base, lx_slots_g, nsub_x_g)
-        cs_0, cs_1 = child_claim_list_digest(lean_sphincs_table, sp_cover, base * nsub_x_g, lean_sphincs_slots_g, nsub_s_g)
+        cx_0, cx_1 = child_claim_list_digest(key, lx_table, cover, base, lx_slots_g, nsub_x_g)
+        cs_0, cs_1 = child_claim_list_digest(key, lean_sphincs_table, sp_cover, base * nsub_x_g, lean_sphincs_slots_g, nsub_s_g)
         carried = child_carried * xc ** DEFER_STMT_CELLS
         hint_witness(carried[0:DEFER_STMT_CELLS], "child_defer")
         child_da = da_digests * xc ** 2
@@ -4684,7 +4778,7 @@ def main():
             defer_stmt[GEN ** k] = 0
         defer_stmt[GEN ** DEFER_STMT_BC_VALUE] = leaf_value
     else:
-        aggregate_claims(n_children_g, child_pi, child_fresh, child_carried, defer_stmt)
+        aggregate_claims(seed_0, seed_1, n_children_g, child_pi, child_fresh, child_carried, defer_stmt)
 
     own_0, own_1 = statement_digest(seed_0, seed_1, xd_0, xd_1, sd_0, sd_1, da[1], da[GEN], defer_stmt)
     assert pub_ptr[1] == own_0
@@ -4692,7 +4786,7 @@ def main():
     return
 
 
-def aggregate_claims(n_children_g, child_pi, child_fresh, child_carried, defer_stmt):
+def aggregate_claims(seed_0, seed_1, n_children_g, child_pi, child_fresh, child_carried, defer_stmt):
     # Every child contributes two claims on the stacked bytecode: the one IT
     # deferred (carried in its statement) and the fresh one raised by verifying its
     # proof. A fresh transcript binds all of them, samples the batching
@@ -4703,12 +4797,15 @@ def aggregate_claims(n_children_g, child_pi, child_fresh, child_carried, defer_s
     bytecode_star = hint_witness("bc_star_hint")
 
     # ---- one transcript over every child's statement and both its claim sets ----
-    # The count, padded to a full rate, then each child's words, padded likewise: a
-    # child starts by permuting the full rate the previous one left waiting, which
-    # every record carries (PEND_SLOTS) beside its capacity.
+    # It starts at the permutation of the seed and the batching label's digest. The count,
+    # padded to a full rate, then each child's words, padded likewise: a child starts by
+    # permuting the full rate the previous one left waiting, which every record carries
+    # (PEND_SLOTS) beside its capacity.
     fresh_row = HeapBuf(n_children_g)
     carried_row = HeapBuf(n_children_g)
-    seed = [AGG_SEED_0, AGG_SEED_1, AGG_SEED_2, AGG_SEED_3, AGG_SEED_4]
+    seeded = StackBuf(KECCAK_STATE)
+    keccak_cells([seed_0, seed_1, AGG_LABEL_0, AGG_LABEL_1], seeded, final=0)
+    seed = [seeded[8], seeded[9], seeded[10], seeded[11], seeded[12]]
     rate = StackBuf(8)
     fs_pack(rate, 0, n_children_g, DS_OBSERVE)
     for j in unroll(1, 4):

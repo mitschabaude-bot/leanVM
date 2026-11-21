@@ -77,7 +77,30 @@ fn xor_block(state: &mut [u64; STATE_LANES], block: &[u8; RATE]) {
 /// Keccak-256 of `data`: 136-byte blocks, the last holding the remaining 0 to 135 bytes and the padding
 /// `0x01 ‖ 0^* ‖ 0x80`.
 pub fn keccak_hash(data: &[u8]) -> Digest {
-    let mut state = [0u64; STATE_LANES];
+    keccak_hash_from([0; STATE_LANES], data)
+}
+
+/// The keyed hash under a seed `s`, `H_s(x) = Keccak-256(s ‖ 0^240 ‖ x)`: the key and the zeros fill two blocks, so
+/// the state after them is computed once and every hash continues from it.
+#[derive(Clone, Copy, Debug)]
+pub struct Key([u64; STATE_LANES]);
+
+impl Key {
+    pub fn new(seed: &Digest) -> Self {
+        let mut state = [0u64; STATE_LANES];
+        state[..4].copy_from_slice(&seed.words());
+        keccak_f(&mut state);
+        keccak_f(&mut state);
+        Self(state)
+    }
+
+    pub fn hash(&self, data: &[u8]) -> Digest {
+        keccak_hash_from(self.0, data)
+    }
+}
+
+/// Keccak-256 continued from `state`, which has absorbed whole blocks: `data` is the rest of the message.
+fn keccak_hash_from(mut state: [u64; STATE_LANES], data: &[u8]) -> Digest {
     let (blocks, tail) = data.as_chunks::<RATE>();
     for block in blocks {
         xor_block(&mut state, block);
@@ -146,6 +169,17 @@ mod tests {
         (272, "fdf2ec49e749960d3c8521a0219af8d03e30e2b3bf19bd16150ee0eaf133d66e"),
         (512, "f55ba327291604f0e5be6651752398b7be2331aad65f5763ce067df95cc13be1"),
     ];
+
+    /// The keyed hash is Keccak-256 of the key, 240 zeros and the message.
+    #[test]
+    fn keyed_hash_is_the_hash_of_the_prefixed_message() {
+        let seed = Digest(std::array::from_fn(|i| (i * 7 + 3) as u8));
+        for len in [0usize, 64, 135, 136, 2048] {
+            let message: Vec<u8> = (0..len).map(|i| (i * 13) as u8).collect();
+            let whole = [&seed.0[..], &[0; 240], &message].concat();
+            assert_eq!(Key::new(&seed).hash(&message), keccak_hash(&whole), "{len} bytes");
+        }
+    }
 
     #[test]
     fn matches_reference_vectors() {

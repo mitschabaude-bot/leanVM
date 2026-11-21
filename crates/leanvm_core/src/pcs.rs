@@ -105,7 +105,7 @@ pub fn commit(
         shape.committed_len(),
         "witness must be the committed lanes"
     );
-    let (commitment, prover_data) = whir_commit(witness, mu, LOG_BATCH, log_inv_rate);
+    let (commitment, prover_data) = whir_commit(ps.key(), witness, mu, LOG_BATCH, log_inv_rate);
     ps.add_root(&commitment.root);
     Committed {
         prover_data,

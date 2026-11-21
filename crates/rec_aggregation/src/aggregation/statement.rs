@@ -29,11 +29,12 @@ pub(super) fn list_split(n: usize) -> Vec<F192> {
     ]
 }
 
-/// One scheme's declared claims, hashed plainly: 64 bytes a claim, its pubkey then
-/// the message it signed, and an empty list hashes the empty string. The guest
-/// computes this same digest [`CLAIM_GROUP`] claims at a time (`claim_list_digest`).
-pub(super) fn claim_list_digest(claims: impl IntoIterator<Item = [F192; 4]>) -> [F192; 2] {
-    hash_to_scalars(&primitives::hash::hash(&cell_bytes(claims.into_iter().flatten())))
+/// One scheme's declared claims, hashed with the keyed hash under `seed`: 64 bytes a
+/// claim, its pubkey then the message it signed, and an empty list hashes the empty
+/// string. The guest computes this same digest [`CLAIM_GROUP`] claims at a time
+/// (`claim_list_digest`).
+pub(super) fn claim_list_digest(seed: &Seed, claims: impl IntoIterator<Item = [F192; 4]>) -> [F192; 2] {
+    hash_to_scalars(&seed.key().hash(&cell_bytes(claims.into_iter().flatten())))
 }
 
 /// A claim as the four cells the guest hashes and its verifier reads: the pubkey's
@@ -88,13 +89,13 @@ pub(super) fn statement_digest(
     da_digest: [u8; 32],
     defer: &DeferredClaim,
 ) -> [F192; 2] {
-    let seed = hash_to_scalars(&seed.to_bytes());
-    let xmss_digest = claim_list_digest(xmss_signers.iter().map(lean_xmss_claim_cells));
-    let lean_sphincs_digest = claim_list_digest(lean_sphincs_signers.iter().map(lean_sphincs_claim_cells));
+    let seed_cells = hash_to_scalars(&seed.to_bytes());
+    let xmss_digest = claim_list_digest(seed, xmss_signers.iter().map(lean_xmss_claim_cells));
+    let lean_sphincs_digest = claim_list_digest(seed, lean_sphincs_signers.iter().map(lean_sphincs_claim_cells));
     let da_digest = hash_to_scalars(&da_digest);
     let header: [F192; STATEMENT_HEADER] = [
-        seed[0],
-        seed[1],
+        seed_cells[0],
+        seed_cells[1],
         xmss_digest[0],
         xmss_digest[1],
         lean_sphincs_digest[0],

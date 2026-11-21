@@ -191,6 +191,7 @@ pub(super) fn gen_verify(
     // Share the upper Merkle tree across a level's queries, one cap entry a level. Unknown,
     // unused subtrees stay opaque; the guest authenticates every cap leaf a query reaches.
     let mut query_hints = Vec::new();
+    let key = seed.key();
     let levels = stack.config.queries.iter().zip(&stack.depth);
     for ((&queries, &depth), phase) in levels.zip(&proof.merkle) {
         let cap_depth = merkle_cap_depth(queries, depth);
@@ -204,7 +205,7 @@ pub(super) fn gen_verify(
                 opening.leaf.iter().map(|&x| F192::from(x)).collect(),
             ));
             let mut path_children = Vec::with_capacity(4 * path_depth);
-            let mut node = fiat_shamir::merkle::hash_words(&opening.leaf);
+            let mut node = fiat_shamir::merkle::hash_words(&key, &opening.leaf);
             let mut index = (1 << depth) + opening.leaf_index as usize;
             for (height, sibling) in opening.siblings.iter().enumerate() {
                 if height >= path_depth {
@@ -221,7 +222,7 @@ pub(super) fn gen_verify(
                     path_children.extend(hash_to_scalars(left));
                     path_children.extend(hash_to_scalars(right));
                 }
-                node = pcs::merkle::hash_pair(left, right);
+                node = pcs::merkle::hash_pair(&key, left, right);
                 index >>= 1;
             }
             nodes[1] = node;

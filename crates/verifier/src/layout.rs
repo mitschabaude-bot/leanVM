@@ -61,9 +61,9 @@ pub struct BusBlock {
     pub owner: usize,           // whose block it is, by opcode
 }
 
-/// The proof system's version, leading the Fiat-Shamir IV's preimage so that no two versions share a
-/// transcript. Its length is fixed and Keccak's padding binds the preimage's, so the bytecode that
-/// follows needs no length field of its own. Nothing derives it from the constants below: any change
+/// The proof system's version, in a seed's preimage after the salt ([`crate::seed_of_salt`]) so that no
+/// two versions share a transcript. Its length is fixed and Keccak's padding binds the preimage's, so the
+/// bytecode that follows needs no length field of its own. Nothing derives it from the constants below: any change
 /// to the constraint system bumps it by hand. Mirrored in `formal/Statement/LeanVmVerifier.lean`.
 pub const TAG: &[u8] = b"leanvm-v1";
 

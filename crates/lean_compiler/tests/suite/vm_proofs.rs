@@ -41,7 +41,8 @@ fn hashing_proof() -> (leanvm_core::cpu::Program, [F192; 2], Proof) {
 #[test]
 fn a_proof_roundtrips_through_bytes() {
     let (program, pi, proof) = hashing_proof();
-    let decoded = Proof::from_bytes(&proof.to_bytes()).expect("proof deserializes");
+    let key = leanvm_core::transcript::Key::new(&SEED);
+    let decoded = Proof::from_bytes(&proof.to_bytes(), &key).expect("proof deserializes");
     assert_eq!(decoded, proof);
     verify(&program, &SEED, &pi, &decoded).expect("a deserialized proof verifies");
 }

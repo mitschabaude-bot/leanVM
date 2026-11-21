@@ -395,7 +395,10 @@ fn a_salted_tree_proves_and_verifies() {
     root.verify(seed()).expect("the root verifies under its salt");
     assert_eq!(root.claims.xmss.len(), 3 * SMALL_LEAF_SIZE);
     assert_eq!(root.claims.lean_sphincs.len(), 2);
-    assert_eq!(root.claims.da_commitment, Some(lean_da::commit(&rows).unwrap().0));
+    assert_eq!(
+        root.claims.da_commitment,
+        Some(lean_da::commit(&seed().to_bytes(), &rows).unwrap().0)
+    );
     let other = Seed::of_salt(&[0xa5; 32]);
     assert!(matches!(root.verify(&other), Err(AggregateVerifyError::Snark(_))));
 }
@@ -452,7 +455,7 @@ fn aggregate_with_a_da_payload() {
     node.verify(seed()).expect("node verifies");
     assert_eq!(node.claims.num_signature_claims(), 0);
 
-    let (commitment, _) = lean_da::commit(&rows).unwrap();
+    let (commitment, _) = lean_da::commit(&seed().to_bytes(), &rows).unwrap();
     assert_eq!(
         node.claims.da_commitment,
         Some(commitment),
@@ -464,7 +467,7 @@ fn aggregate_with_a_da_payload() {
         da_commitment: Some(commitment),
         ..EthereumClaims::default()
     };
-    EthereumProof::from_proof_bytes(&bytes, expected.clone())
+    EthereumProof::from_proof_bytes(seed(), &bytes, expected.clone())
         .unwrap()
         .verify(seed())
         .unwrap();
@@ -472,7 +475,7 @@ fn aggregate_with_a_da_payload() {
         da_commitment: Some([0; 32]),
         ..EthereumClaims::default()
     };
-    let wrong = EthereumProof::from_proof_bytes(&bytes, other).unwrap();
+    let wrong = EthereumProof::from_proof_bytes(seed(), &bytes, other).unwrap();
     assert!(matches!(wrong.verify(seed()), Err(AggregateVerifyError::Snark(_))));
     let claim = (
         LeanXmssPublicKey::from_bytes(&[0; lean_xmss::PUB_KEY_SIZE]),
@@ -482,9 +485,9 @@ fn aggregate_with_a_da_payload() {
         xmss: vec![claim, claim],
         ..expected.clone()
     };
-    let malformed = EthereumProof::from_proof_bytes(&bytes, unsorted);
+    let malformed = EthereumProof::from_proof_bytes(seed(), &bytes, unsorted);
     assert!(matches!(malformed, Err(AggregateVerifyError::MalformedSignerSet)));
-    let trailing = EthereumProof::from_proof_bytes(&[&bytes[..], &[0]].concat(), expected);
+    let trailing = EthereumProof::from_proof_bytes(seed(), &[&bytes[..], &[0]].concat(), expected);
     assert!(matches!(trailing, Err(AggregateVerifyError::MalformedEncoding)));
 }
 
@@ -550,7 +553,10 @@ fn a_node_passes_on_one_childs_da_root() {
     assert_eq!(pass_on(Some(Some(second)), &[]), Some(second));
     assert_eq!(pass_on(Some(None), &[]), None);
     let rows = da_rows(1, 511);
-    assert_eq!(pass_on(None, &rows), Some(lean_da::commit(&rows).unwrap().0));
+    assert_eq!(
+        pass_on(None, &rows),
+        Some(lean_da::commit(&seed().to_bytes(), &rows).unwrap().0)
+    );
 
     // Passed on again, one level up.
     let middle = aggregate(seed(), &children[1..], vec![], vec![], &[], None, LOG_INV_RATE).unwrap();
@@ -671,13 +677,13 @@ fn da_guest_checks_codeword_membership() {
     let source = include_str!("../../guests/lean_ethereum.py");
     let (helpers, _) = source.split_once("\ndef main():").unwrap();
     let source = format!(
-        "{helpers}\ndef main():\n    squares = exponent_tables()\n    a, b, v0, v1 = da_verify(squares)\n    digest = StackBuf(2)\n    keccak([a, b], [v0, v1], digest)\n    public = GEN ** 0\n    assert public[1] == digest[0]\n    assert public[GEN] == digest[1]\n    return\n"
+        "{helpers}\ndef main():\n    public = GEN ** 0\n    key_run = StackBuf(KECCAK_STATE)\n    keyed_state(public[GEN ** 2], public[GEN ** 3], key_run)\n    squares = exponent_tables()\n    a, b, v0, v1 = da_verify(squares, addr(key_run))\n    digest = StackBuf(2)\n    keccak_cells([a, b, v0, v1], digest, state=key_run)\n    assert public[1] == digest[0]\n    assert public[GEN] == digest[1]\n    return\n"
     );
     let guest = compile(&parse_with_replacements(&source, &placeholder_map(20)).unwrap());
     let n_rows = 3usize;
     let codewords = lean_da::encode_rows(&da_rows(3, 101));
     let run = |matrix: &[u64]| {
-        let (commitment, _) = lean_da::commit_codewords(matrix.to_vec());
+        let (commitment, _) = lean_da::commit_codewords(&seed().to_bytes(), matrix.to_vec());
         let mut hints = Hints::default();
         hints.push(
             "da_shape",
@@ -697,11 +703,15 @@ fn da_guest_checks_codeword_membership() {
         }
         hints.push(
             "da_challenge",
-            vec![from_scalar(verifier::da::membership_challenge(&commitment))],
+            vec![from_scalar(verifier::da::membership_challenge(
+                &seed().to_bytes(),
+                &commitment,
+            ))],
         );
         let mut program = guest.clone();
         hints.install(&mut program);
-        program.execute(words(hash_to_scalars(&verifier::da::digest(Some(commitment)))))
+        let digest = verifier::da::digest(&seed().to_bytes(), Some(commitment));
+        program.execute(words(hash_to_scalars(&digest)))
     };
     assert!(run(&codewords).unwrap().unconstrained_reads.is_empty());
     for position in [0, BLOB_SYMBOLS + 5] {
@@ -735,7 +745,7 @@ fn da_row_count_is_a_run_time_parameter() {
         let node =
             aggregate(seed(), &[], signing(&signers, 0), vec![], &rows, None, LOG_INV_RATE).expect("node aggregates");
         node.verify(seed()).expect("node verifies");
-        let (commitment, _) = lean_da::commit(&rows).unwrap();
+        let (commitment, _) = lean_da::commit(&seed().to_bytes(), &rows).unwrap();
         assert_eq!(node.claims.da_commitment, Some(commitment), "{n_rows} rows");
     }
 }
@@ -915,7 +925,10 @@ def main():
     table = HeapBuf(GEN ** 8)
     hint_witness(table[0:8], "claims")
     cover = HeapBuf(GEN ** 2)
-    d0, d1 = child_claim_list_digest(table, cover, GEN ** 3, GEN ** 2, n_c)
+    public = GEN ** 0
+    key_run = StackBuf(KECCAK_STATE)
+    keyed_state(public[GEN ** 2], public[GEN ** 3], key_run)
+    d0, d1 = child_claim_list_digest(addr(key_run), table, cover, GEN ** 3, GEN ** 2, n_c)
     public = GEN ** 0
     assert public[1] == d0
     assert public[GEN] == d1
@@ -936,7 +949,7 @@ def main():
         }
         let mut program = guest.clone();
         hints.install(&mut program);
-        program.execute(words(claim_list_digest(child.iter().copied())))
+        program.execute(words(claim_list_digest(seed(), child.iter().copied())))
     };
     assert!(run(&[claim(0), claim(1)], &[count(0), count(0)]).is_ok());
     let back = F192::from(g_pow(1).inv());
@@ -1018,7 +1031,8 @@ fn aggregate_round_trips_through_the_wire() {
     .expect("node");
     node.verify(seed()).expect("the honest node verifies");
 
-    let received = EthereumProof::from_proof_bytes(&node.proof_bytes(), node.claims.clone()).expect("round trip");
+    let received =
+        EthereumProof::from_proof_bytes(seed(), &node.proof_bytes(), node.claims.clone()).expect("round trip");
     assert_eq!(
         received.proof_bytes(),
         node.proof_bytes(),

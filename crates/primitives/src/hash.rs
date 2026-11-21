@@ -326,23 +326,34 @@ pub fn hash(data: &[u8]) -> [u8; OUT_LEN] {
     hash_from_state(data, &[0; STATE_LANES])
 }
 
-/// The state after absorbing `n_blocks` all-zero blocks.
+/// The state after absorbing `n_blocks` all-zero blocks from `start`.
 ///
 /// A leaf image that starts with whole zero blocks (the PCS's absent interleaving lanes) shares
 /// that prefix with every other leaf, so the committer computes this once and starts each
 /// leaf's sponge here. Nothing about the digest changes: a prefix's permutations depend on
 /// nothing after them, so the result is still the hash of the whole image.
-pub fn zero_prefix_state(n_blocks: usize) -> [u64; STATE_LANES] {
-    let mut state = [0; STATE_LANES];
+pub fn zero_prefix_state(start: &[u64; STATE_LANES], n_blocks: usize) -> [u64; STATE_LANES] {
+    let mut state = *start;
     for _ in 0..n_blocks {
         keccak_f(&mut state);
     }
     state
 }
 
+/// The state after the keyed hash's prefix under `key`: the key's 32 bytes and 240 zero bytes,
+/// two whole blocks, so every keyed hash `Keccak-256(key ‖ 0^240 ‖ x)` continues from it
+/// ([`hash_from_state`]) with the blocks of `x` where Keccak-256 of `x` has them.
+pub fn key_state(key: &[u8; OUT_LEN]) -> [u64; STATE_LANES] {
+    let mut state = [0; STATE_LANES];
+    for (lane, word) in state.iter_mut().zip(key.as_chunks::<8>().0) {
+        *lane = u64::from_le_bytes(*word);
+    }
+    zero_prefix_state(&state, 2)
+}
+
 /// [`hash`] continued from a sponge state that has absorbed whole blocks (see
-/// [`zero_prefix_state`]): `data` is the rest of the message.
-fn hash_from_state(data: &[u8], state: &[u64; STATE_LANES]) -> [u8; OUT_LEN] {
+/// [`zero_prefix_state`] and [`key_state`]): `data` is the rest of the message.
+pub fn hash_from_state(data: &[u8], state: &[u64; STATE_LANES]) -> [u8; OUT_LEN] {
     let mut state = *state;
     let (blocks, tail) = data.as_chunks::<RATE>();
     for block in blocks {
@@ -834,7 +845,7 @@ mod tests {
         for zero_blocks in [0usize, 1, 3] {
             for rest in [0usize, 8, 64, 135, 136, 200, 408] {
                 let zlen = zero_blocks * RATE;
-                let state = zero_prefix_state(zero_blocks);
+                let state = zero_prefix_state(&[0; STATE_LANES], zero_blocks);
                 for n in [1usize, 4, 17] {
                     let data: Vec<u8> = (0..n * rest).map(|i| (i * 31 + zero_blocks) as u8).collect();
                     let mut got = vec![0u8; n * OUT_LEN];
@@ -855,6 +866,17 @@ mod tests {
         }
     }
 
+    /// The keyed hash continued from the key's state is Keccak-256 of the key, 240 zeros and the message.
+    #[test]
+    fn keyed_hash_is_the_hash_of_the_prefixed_message() {
+        let key: [u8; OUT_LEN] = std::array::from_fn(|i| (i * 7 + 3) as u8);
+        for len in [0usize, 64, 135, 136, 2048] {
+            let message: Vec<u8> = (0..len).map(|i| (i * 13) as u8).collect();
+            let whole = [&key[..], &[0; 240], &message].concat();
+            assert_eq!(hash_from_state(&message, &key_state(&key)), hash(&whole), "{len} bytes");
+        }
+    }
+
     /// Batched hashing agrees with the one-shot hash for tails of every shape, over whole groups.
     #[test]
     fn batched_matches_one_shot_across_lengths() {
@@ -866,7 +888,7 @@ mod tests {
             let mut got = vec![0u8; n * OUT_LEN];
             hash_many(&data, len, &mut got);
             let mut from_state = vec![0u8; n * OUT_LEN];
-            hash_many_from_state(&data, len, &zero_prefix_state(1), &mut from_state);
+            hash_many_from_state(&data, len, &zero_prefix_state(&[0; STATE_LANES], 1), &mut from_state);
             for i in 0..n {
                 let input = &data[i * len..(i + 1) * len];
                 assert_eq!(

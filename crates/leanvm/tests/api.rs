@@ -32,7 +32,7 @@ fn public_api_end_to_end() {
 
     // 3. Two leaves, then a root over both. Both leaves hold claims on the second message; the root's claims are the union.
     let blobs: Vec<_> = (0..lean_da::BLOB_SYMBOLS).map(|i| i as u64).collect();
-    let (commitment, _) = lean_da::commit(&blobs).unwrap();
+    let (commitment, _) = lean_da::commit(&seed.to_bytes(), &blobs).unwrap();
     let left = aggregate(
         &seed,
         &[],
@@ -43,11 +43,11 @@ fn public_api_end_to_end() {
         2,
     )
     .unwrap();
-    let left = EthereumProof::from_proof_bytes(&left.proof_bytes(), left.claims().clone()).unwrap();
+    let left = EthereumProof::from_proof_bytes(&seed, &left.proof_bytes(), left.claims().clone()).unwrap();
     left.verify(&seed).unwrap();
     assert_eq!(left.claims().da_commitment, Some(commitment));
     let other_blobs: Vec<_> = blobs.iter().map(|x| x ^ 42).collect();
-    let (other_commitment, _) = lean_da::commit(&other_blobs).unwrap();
+    let (other_commitment, _) = lean_da::commit(&seed.to_bytes(), &other_blobs).unwrap();
     let right = aggregate(
         &seed,
         &[],
@@ -76,14 +76,14 @@ fn public_api_end_to_end() {
     // 4. Onto the wire, which carries no claims: the receiver supplies the claims it expects, and
     //    verifying says exactly these pubkeys signed exactly these messages.
     let bytes = root.proof_bytes();
-    let received = EthereumProof::from_proof_bytes(&bytes, root.claims().clone()).unwrap();
+    let received = EthereumProof::from_proof_bytes(&seed, &bytes, root.claims().clone()).unwrap();
     received.verify(&seed).unwrap();
     let on = |message| received.claims().xmss.iter().filter(|(_, m)| *m == message).count();
     assert_eq!((on(MSG_0), on(MSG_1), on(MSG_2)), (3, 4, 1));
     // Claims the proof does not prove fail, here one signature claim short.
     let mut fewer = root.claims().clone();
     fewer.xmss.pop();
-    let wrong = EthereumProof::from_proof_bytes(&bytes, fewer).unwrap();
+    let wrong = EthereumProof::from_proof_bytes(&seed, &bytes, fewer).unwrap();
     assert!(matches!(wrong.verify(&seed), Err(AggregateVerifyError::Snark(_))));
     // Under another salt the same proof proves nothing.
     assert!(matches!(

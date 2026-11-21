@@ -1,7 +1,7 @@
 //! Proof transport and Fiat-Shamir.
 
 use crate::field::{E, K, ZERO};
-use crate::hash::{Digest, STATE_LANES, keccak_f};
+use crate::hash::{Digest, Key, STATE_LANES, keccak_f};
 use crate::merkle::MerklePath;
 use crate::multilinear::{log2_strict, poly_eval};
 use crate::{VerifierError, require};
@@ -78,17 +78,20 @@ impl Sponge {
 pub struct Transcript<'a> {
     proof: &'a Proof,
     sponge: Sponge,
+    key: Key,              // the Merkle trees' key, the seed's
     stream_offset: usize,  // in E field elements
     opening_offset: usize, // in phases
     checked: bool,         // false for a replay, which walks the proof and checks none of it
 }
 
 impl<'a> Transcript<'a> {
-    /// A proof's transcript under `seed`, for `public_input`: the seed is the IV and the second public digest.
+    /// A proof's transcript under `seed`, for `public_input`: the seed is the IV and the second public digest, and
+    /// keys the Merkle trees.
     pub fn new(proof: &'a Proof, seed: Digest, public_input: Digest, checked: bool) -> Self {
         Self {
             proof,
             sponge: Sponge::new(seed, public_input, seed),
+            key: Key::new(&seed),
             stream_offset: 0,
             opening_offset: 0,
             checked,
@@ -150,7 +153,7 @@ impl<'a> Transcript<'a> {
         Ok(())
     }
 
-    /// The leaf images at `queries`, authenticated against `root`.
+    /// The leaf images at `queries`, authenticated against `root` under the transcript's key.
     ///
     /// The paths' positions and sizes must be the protocol's, which is reading the proof, as the stream's length is,
     /// so a replay refuses paths that differ too.
@@ -179,7 +182,7 @@ impl<'a> Transcript<'a> {
             VerifierError::MerkleOpeningPosition,
         )?;
         require(
-            !self.checked || paths.iter().all(|path| path.root() == root),
+            !self.checked || paths.iter().all(|path| path.root(&self.key) == root),
             VerifierError::MerkleRootMismatch,
         )?;
         Ok(paths.iter().map(|path| &path.leaf[..]).collect())

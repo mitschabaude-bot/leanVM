@@ -16,7 +16,7 @@ mod commit;
 mod encode;
 mod membership;
 
-pub use commit::{DaWitness, commit, commit_codewords, padding_root};
+pub use commit::{DaWitness, commit, commit_codewords};
 pub use encode::encode_rows;
 pub use membership::subspace_above;
 

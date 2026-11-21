@@ -92,7 +92,7 @@ No rayon. Every parallel site is "N independent items, each writing its own disj
 
 ## Three verifiers, one protocol
 
-The verification algorithm is written out three times, and any change to the protocol lands in all three. `verifier::TAG`, the version string the Fiat-Shamir IV hashes (nothing derives it), and every Fiat-Shamir label stay at `v1` until leanVM ships on Ethereum.
+The verification algorithm is written out three times, and any change to the protocol lands in all three. `verifier::TAG`, the version string a salt's seed hashes after the salt (nothing derives it), and every Fiat-Shamir label stay at `v1` until leanVM ships on Ethereum.
 
 1. **Rust**, `crates/verifier`: the one native verifier, what `EthereumProof::verify` and `cpu::verify` run. It must stay portable by construction: no dependencies, no `unsafe`, no `core::arch`, no `cfg(target_arch)`, no threads. Pinned by `leanvm_core/tests/verifiers/portable_verifier.rs` and every test that verifies.
 2. **Lean**, `formal/Statement/LeanVmVerifier.lean`: the reference for reading, and the trusted statement the knowledge-soundness proof in `formal/` is about. Pinned against the Rust by `formal/`'s differential tests (`formal/check-all.sh vectors`: the verifier fuzz, the wire encoding, the prover), which CI runs on every change to `crates/`.
@@ -106,6 +106,8 @@ The guest is self-referential: it verifies proofs of itself, so `unified_guest` 
 
 ## Soundness
 
+Every proof is made under a seed, Keccak-256 of a published salt, `verifier::TAG` and the stacked bytecode (`verifier::seed_of_salt`, `rec_aggregation::Seed::of_salt`). Memory words 2 and 3 hold it beside the public input in words 0 and 1, the public-input phase binds all four, the transcript starts from it, and it keys every hash on data a prover chooses: Merkle leaves and nodes of a proof, LeanDA cells and nodes, the claim lists and the DA claim, `Keccak-256(seed ‖ 0^240 ‖ x)` (`fiat_shamir::merkle::Key`, `verifier`'s `hash::Key`). The batching transcript and LeanDA's membership challenge start from it too. Signature verification stays unkeyed.
+
 In the recursion program, the prover sends the verifier advice, called hints. Hints are untrusted witness data: every hinted value must be pinned by a constraint, so a malicious prover cannot prove an invalid witness.
 
 ## Conventions that bite
@@ -118,7 +120,7 @@ In the recursion program, the prover sends the verifier advice, called hints. Hi
 - **On Zen 4, 512-bit cross-lane moves are half-rate**: prefer kernels where both qwords of every 128-bit lane carry a product and nothing crosses lanes.
 - **On Zen 5 the carry-less multiplier is the scarce unit**: reduce modulo `x^64 + x^4 + x^3 + x + 1` with shifts and XORs (`gf2_64::reduce`), and count CLMUL instructions, not products. The exception is the scalar `F64` product (`gf2_64::x86_64::mul`), which keeps the CLMUL folds.
 - **`crates/verifier` is still auto-vectorized**: on AVX-512, LLVM turns table lookups into gathers that lose to scalar loads. Check its x86 disassembly after touching a lookup.
-- **Fiat-Shamir:** `ProverState::add_scalar` and `Transcript::next_scalar` bind into the transcript as a side effect, and the public statement seeds it at construction. Never re-observe data that rode the stream.
+- **Fiat-Shamir:** `ProverState::add_scalar` and `Transcript::next_scalar` bind into the transcript as a side effect, and the public statement seeds it at construction: the seed as the IV, the public input, the seed again. Never re-observe data that rode the stream.
 - **Prover and verifiers derive the layout identically** from announced sizes: a change to `placements_of` or the schema lands in the prover and all three verifiers (`crates/verifier`'s `layout.rs` is the native one). `col_kappas` is derived from `col_kappa_sources`; keep it that way.
 - **The opening's lane fold binds the committed witness's top variables** (`whir::commit` documents the layout), so every verifier rotates the terminal point left by `INITIAL_FOLDING_FACTOR` before evaluating the basis, while every other read of the opening's point stays in round order.
 - **A failed guest `assert` surfaces as a write-once conflict** naming the function and source line. A conflict that `had 0:0:0` can instead be an ordering bug: a cell read before it was written.

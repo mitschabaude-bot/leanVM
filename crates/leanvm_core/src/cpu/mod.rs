@@ -461,7 +461,7 @@ pub fn prove_with_words(
     let committed_size = w.committed_size();
     // The public statement (seed + input) seeds the transcript, so every challenge
     // depends on the seed, which binds the program, and on the public input.
-    let mut ps = ProverState::new(fiat_shamir::digest_words(seed), digest_words(&public_input));
+    let mut ps = ProverState::new(seed, digest_words(&public_input));
 
     // Announce the prover's sizes, then commit, before sampling any challenge.
     announce_public(&mut ps, w.log_mem, w.layout.rows, log_inv_rate);

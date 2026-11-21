@@ -181,7 +181,7 @@ pub fn run_recursion(
             out.as_ref(),
         );
     }
-    let children = leaves_from_subprocess(n);
+    let children = leaves_from_subprocess(&seed, n);
 
     if enable_tracing {
         bench::init_tracing();
@@ -340,7 +340,7 @@ const LEAVES_OUT: &str = "LEANVM_LEAVES_OUT";
 
 /// The leaves of [`run_recursion`], from this same command rerun with [`LEAVES_OUT`] set. Peak
 /// memory is the process's high-water mark, which proving them here would make a leaf's.
-fn leaves_from_subprocess(n: usize) -> Vec<EthereumProof> {
+fn leaves_from_subprocess(seed: &Seed, n: usize) -> Vec<EthereumProof> {
     let out = std::env::temp_dir().join(format!("leanvm-leaves-{}.bin", std::process::id()));
     let status = std::process::Command::new(std::env::current_exe().expect("this binary's path"))
         .args(std::env::args_os().skip(1))
@@ -356,7 +356,7 @@ fn leaves_from_subprocess(n: usize) -> Vec<EthereumProof> {
     while !file.0.is_empty() {
         let claims = file.claims();
         let len = file.count();
-        leaves.push(EthereumProof::from_proof_bytes(file.take(len), claims).expect("a leaf proof"));
+        leaves.push(EthereumProof::from_proof_bytes(seed, file.take(len), claims).expect("a leaf proof"));
     }
     assert_eq!(leaves.len(), n, "one proof per leaf");
     leaves

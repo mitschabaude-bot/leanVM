@@ -62,11 +62,12 @@ fn main() {
     plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
 
+        let mut ch = fiat_shamir::transcript::ProverState::from_label(b"pcs-throughput");
         let t = Instant::now();
-        let (cm, pd) = tracing::info_span!("Commit").in_scope(|| commit(&witness, log_n, pc.initial_k, log_inv_rate));
+        let (cm, pd) =
+            tracing::info_span!("Commit").in_scope(|| commit(ch.key(), &witness, log_n, pc.initial_k, log_inv_rate));
         commit_t.push(t.elapsed().as_secs_f64());
 
-        let mut ch = fiat_shamir::transcript::ProverState::from_label(b"pcs-throughput");
         let stack = witness.clone();
         let t = Instant::now();
         tracing::info_span!("PCS open").in_scope(|| {

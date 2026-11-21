@@ -1,7 +1,7 @@
 //! Fiat-Shamir proof transport, prover side. `add_scalar` transmits and binds together, which is the only way anything enters the state: a transmitted value needs no separate absorb, a value derived from transmitted ones needs none either, and the statement rides the seed the state starts from. So there is no absorb-only method at all. Merkle hints are authenticated by their trees and are not absorbed separately. The reading side is the `verifier` crate's transcript.
 
 use crate::FiatShamirState;
-use crate::merkle::{Hash, MerklePath, hash_to_scalars};
+use crate::merkle::{Hash, Key, MerklePath, hash_to_scalars};
 use primitives::field::{F64, F192};
 
 /// A scalar stream and its Merkle opening phases, each query's path in the order the verifier samples them.
@@ -11,28 +11,32 @@ pub struct Proof {
     pub merkle: Vec<Vec<MerklePath>>,
 }
 
-/// Writes scalars into the stream and opening phases to the side.
+/// Writes scalars into the stream and opening phases to the side, and keys the Merkle trees the
+/// openings are against.
 pub struct ProverState {
     fs: FiatShamirState,
+    key: Key,
     stream: Vec<F192>,
     merkle: Vec<Vec<MerklePath>>,
 }
 
 impl ProverState {
     /// A proof's transcript under `seed`, for `public_input`: the seed is the IV and the second
-    /// digest of the Fiat-Shamir state (see [`FiatShamirState::new`]).
-    pub fn new(seed: [F64; 4], public_input: [F64; 4]) -> Self {
-        Self::from_fs(FiatShamirState::new(seed, public_input, seed))
+    /// digest of the Fiat-Shamir state (see [`FiatShamirState::new`]), and keys the Merkle trees.
+    pub fn new(seed: &[u8; 32], public_input: [F64; 4]) -> Self {
+        let words = crate::digest_words(seed);
+        Self::from_fs(FiatShamirState::new(words, public_input, words), Key::new(seed))
     }
 
-    /// A protocol with no public input of its own, seeded from `label` alone.
+    /// A protocol with no public input of its own, under `label`'s hash as its seed.
     pub fn from_label(label: &[u8]) -> Self {
-        Self::from_fs(FiatShamirState::from_label(label))
+        Self::new(&primitives::hash::hash(label), [F64::ZERO; 4])
     }
 
-    fn from_fs(fs: FiatShamirState) -> Self {
+    fn from_fs(fs: FiatShamirState, key: Key) -> Self {
         Self {
             fs,
+            key,
             stream: Vec::new(),
             merkle: Vec::new(),
         }
@@ -43,6 +47,11 @@ impl ProverState {
             stream: self.stream,
             merkle: self.merkle,
         }
+    }
+
+    /// The key of the proof's Merkle trees.
+    pub fn key(&self) -> &Key {
+        &self.key
     }
 
     pub fn sample(&mut self) -> F192 {
