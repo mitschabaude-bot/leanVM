@@ -156,9 +156,9 @@ fn main() {
     }
 
     // The leanVM checkout and commit the data is exported from, for the generated headers.
-    // The headers name the commit the formalization cites (`formal/leanvm-rev`), not this tree's
-    // HEAD, so the data stays current across commits that leave the guest alone.
-    let pin = manifest.join("../../../leanvm-rev");
+    // The headers name the commit of the salted Rust the data follows (`formal/leanvm-salted-rev`),
+    // not this tree's HEAD, so the data stays current across commits that leave the guest alone.
+    let pin = manifest.join("../../../leanvm-salted-rev");
     let rev = std::fs::read_to_string(&pin).unwrap_or_else(|e| panic!("{}: {e}", pin.display()));
     println!("cargo:rustc-env=LEANVM_REV={}", rev.trim());
     println!("cargo:rerun-if-changed={}", pin.display());

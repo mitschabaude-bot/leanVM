@@ -1,10 +1,9 @@
-//! Real aggregations for the Lean differential check of the guest (`lean_vm/cli/GuestDiff.lean`): per case,
-//! the node's statement, its seed and witness (`LeanVM.Node.NodeWitness`: every child's statement, fresh claim and
-//! raw proof, the raw signatures with their claims, the batching's hints), the streams `aggregate` installed, the public input and the
-//! run's memory size, as whitespace-separated tokens. Ported from the BLAKE2s-era `guest_diff`: Flock's claims are
-//! gone (a deferred and a fresh claim are a point and a value), and the installed streams are read through
-//! `aggregation/hints.rs`'s test-only `FORGE` hook, which hands this module the node's `Hints` before they are installed.
-//! `LEANVM_GUEST_DIFF=<dir> cargo test --release --manifest-path scripts/guest-export/Cargo.toml --lib guest_diff -- --ignored`
+//! Real salted aggregations for the Lean check of the salted node relation (`lean_vm/cli/SaltedNodeDiff.lean`): per
+//! case, the node's seed, statement and witness (`LeanVM.Node.NodeWitness`: every child's statement, fresh claim and
+//! raw proof, the raw signatures with their claims, the directly checked matrix, the batching's hints, read through
+//! `aggregation/hints.rs`'s test-only `FORGE` hook, which hands this module the node's `Hints` before they are
+//! installed) and its public input, as whitespace-separated tokens.
+//! `LEANVM_NODE_DIFF=<dir> cargo test --release --manifest-path scripts/guest-export/Cargo.toml --lib node_diff -- --ignored`
 //! writes `<dir>/<case>.txt`.
 //!
 //! The tokens: a field element is its three limbs in hex, a `K` word one hex token, a byte string one hex token, a
@@ -76,7 +75,7 @@ impl Out {
         self.e(c.bytecode_value);
     }
 
-    /// `NodeStatement`: the claims, the DA digest (`verifier::da::digest`), and the deferred claim.
+    /// `NodeStatement`: the claims, the DA digest under the seed (`verifier::da::digest`), and the deferred claim.
     fn statement(&mut self, p: &EthereumProof) {
         self.tag("xmss");
         self.n(p.claims.xmss.len());
@@ -91,7 +90,7 @@ impl Out {
             self.bytes(m);
         }
         self.tag("da");
-        self.bytes(&verifier::da::digest(p.claims.da_commitment));
+        self.bytes(&verifier::da::digest(&seed().to_bytes(), p.claims.da_commitment));
         self.deferred(&p.defer);
     }
 
@@ -154,7 +153,9 @@ fn export(
     blobs: &[u64],
 ) -> EthereumProof {
     capture_next();
+    let seed = seed();
     let node = aggregate(
+        seed,
         &children,
         raw_xmss.clone(),
         raw_sphincs.clone(),
@@ -163,18 +164,15 @@ fn export(
         LOG_INV_RATE,
     )
     .expect("node aggregates");
-    node.verify().expect("node verifies");
+    node.verify(seed).expect("node verifies");
     let streams = INSTALLED.with(|i| i.take());
     let stream = |name: &str| streams.iter().find(|(n, _)| n == name).map(|(_, e)| e.as_slice());
 
-    let mut out = Out(format!("leanvm-guest-diff 4\ncase {name}"));
+    let mut out = Out(format!("leanvm-salted-node 1\ncase {name}"));
     out.tag("seed");
-    let seed = leanvm_core::cpu::fs_seed(unified_guest());
-    out.bytes(&cell_bytes(seed));
-    out.tag("log_memory");
-    out.n(node.proof.stream[0].c0 as usize);
+    out.bytes(&seed.to_bytes());
     out.tag("public_input");
-    out.es(&node.vm_public_input());
+    out.es(&node.vm_public_input(seed));
     out.tag("statement");
     out.statement(&node);
 
@@ -184,15 +182,15 @@ fn export(
     for child in &children {
         out.tag("child");
         out.statement(child);
-        let pi = child.vm_public_input();
+        let pi = child.vm_public_input(seed);
         let scalar = scalar_proof(&child.proof);
-        let summary =
-            verifier::replay_unchecked(bytecode, &public_input_bytes(&pi), &scalar).expect("the child replays");
+        let summary = verifier::replay_unchecked(bytecode, &seed.to_bytes(), &public_input_bytes(&pi), &scalar)
+            .expect("the child replays");
         // The fresh claim's value, which the caller evaluates (`aggregate_with_stats` off its batch's sums).
         let fresh_point: Vec<F192> = summary.bytecode_point.iter().copied().map(from_scalar).collect();
         let fresh_value = mle_eval_par(stacked_bytecode(), &fresh_point);
         let (_, fresh) =
-            gen_verify(unified_guest(), pi, &child.proof, &summary, fresh_value).expect("the child fits");
+            gen_verify(unified_guest(), seed, pi, &child.proof, &summary, fresh_value).expect("the child fits");
         out.tag("fresh");
         let point: Vec<F192> = fresh.bytecode_point.clone();
         out.es(&point);
@@ -237,13 +235,14 @@ fn export(
         out.sphincs_signature(sig);
     }
     // The directly held matrix: its root, its membership challenge and its rows.
-    let direct = (!blobs.is_empty()).then(|| lean_da::commit(blobs).expect("a whole number of blob rows"));
+    let direct =
+        (!blobs.is_empty()).then(|| lean_da::commit(&seed.to_bytes(), blobs).expect("a whole number of blob rows"));
     out.tag("da_witness");
     match &direct {
         Some((root, witness)) => {
             out.0.push_str("direct ");
             out.bytes(root);
-            out.e(from_scalar(verifier::da::membership_challenge(root)));
+            out.e(from_scalar(verifier::da::membership_challenge(&seed.to_bytes(), root)));
             let rows: Vec<&[u64]> = witness.codewords.chunks(CODEWORD_SYMBOLS).collect();
             out.n(rows.len());
             for row in rows {
@@ -259,19 +258,9 @@ fn export(
     let rounds = |name: &str| stream(name).map_or(vec![], |e| e[0].clone());
     out.es(&rounds("bc_sumcheck_msgs"));
     out.es(&stream("bc_star_hint").map_or(vec![F192::ZERO], |e| e[0].clone()));
-
-    out.tag("streams");
-    out.n(streams.len());
-    for (name, entries) in &streams {
-        out.tag(&format!("stream {name}"));
-        out.n(entries.len());
-        for entry in entries {
-            out.es(entry);
-        }
-    }
     out.tag("end\n");
 
-    let dir = std::env::var_os("LEANVM_GUEST_DIFF").expect("LEANVM_GUEST_DIFF names the output directory");
+    let dir = std::env::var_os("LEANVM_NODE_DIFF").expect("LEANVM_NODE_DIFF names the output directory");
     let dir = std::path::Path::new(&dir);
     std::fs::create_dir_all(dir).unwrap();
     std::fs::write(dir.join(format!("{name}.txt")), out.0).unwrap();
@@ -292,7 +281,7 @@ fn blob(seed: u64) -> Vec<u64> {
 /// raw signature: it publishes its second child's DA digest (`da_pick` a child's slot, not the first).
 #[test]
 #[ignore]
-fn guest_diff() {
+fn node_diff() {
     leanvm_core::init_prover();
     let wide = CLAIM_GROUP + 3;
     let xmss: Vec<_> = get_signers(wide + 2)
@@ -310,7 +299,7 @@ fn guest_diff() {
 /// The smallest case: a leaf of one leanXMSS signature.
 #[test]
 #[ignore]
-fn guest_diff_leaf() {
+fn node_diff_leaf() {
     leanvm_core::init_prover();
     let xmss: Vec<_> = get_signers(1)
         .into_iter()

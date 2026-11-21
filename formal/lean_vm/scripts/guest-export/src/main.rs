@@ -1,4 +1,4 @@
-//! `guest-export <lean_vm dir> [--check]`: write the guest's Lean data under `<lean_vm dir>`
+//! `guest-export <lean_vm dir> [--check]`: write the salted guest's Lean data under `<lean_vm dir>`
 //! (paths relative to `lean_vm/`), or with `--check` fail when any file differs from what is
 //! there. Stale `Bytecode*.lean` modules are removed on write and reported on check.
 

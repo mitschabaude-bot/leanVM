@@ -1,5 +1,6 @@
-# The aggregation guest of leanVM as Lean data, for `Statement/Data/` (the bytecode) and
-# `lean_vm/LeanVM/Guest/Data/` (and the test programs, node vectors and guest-diff cases). leanVM no
+# The salted aggregation guest of leanVM as Lean data, for `lean_vm/LeanVM/SaltedGuest/Data/` (the
+# bytecode and the source tree), and the test programs, the salted node vectors and the salted node
+# cases. leanVM no
 # longer carries the `LEANVM_WRITE_*` tests that wrote these, so this crate compiles leanVM's
 # `rec_aggregation` sources as its own (an overlay: `build.rs` copies them into `OUT_DIR` and
 # appends one line declaring `aggregation::lean_export`, this crate's `src/export/`), which lets the
@@ -7,8 +8,8 @@
 # the hint streams) exactly as the in-tree tests did.
 #
 # leanVM is this repository (`../../../..`), as for `rust-verifier-cli`; `Cargo.lock` is its. The
-# data is generated from this tree; its headers name `../../../leanvm-rev`, the commit the
-# formalization's citations were checked at, not the tree's HEAD (`build.rs`).
+# data is generated from this tree; its headers name `../../../leanvm-salted-rev`, the commit of the
+# salted Rust the data follows, not the tree's HEAD (`build.rs`).
 [package]
 name = "leanvm-guest-export"
 version = "0.0.0"

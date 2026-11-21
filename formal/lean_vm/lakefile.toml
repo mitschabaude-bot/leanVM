@@ -138,6 +138,14 @@ name = "guest-diff"
 root = "GuestDiff"
 srcDir = "cli"
 
+# The salted node relation's computed parts on real salted aggregations, and the salted vectors'
+# costly checks (cli/SaltedNodeDiff.lean): on the cases the exporter's ignored test `node_diff`
+# writes; not a default target.
+[[lean_exe]]
+name = "salted-node-diff"
+root = "SaltedNodeDiff"
+srcDir = "cli"
+
 # Writes the guest's kernel-checked memory-layer facts (`LeanVM/Guest/Memory/GuestFresh*`,
 # `GuestWf*`); `--check` fails when they are stale.
 [[lean_exe]]

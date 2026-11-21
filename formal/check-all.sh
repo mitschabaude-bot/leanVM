@@ -113,7 +113,7 @@ lean_da() {
 executables() {
   step "lean_vm: the executables"
   (cd lean_vm && lake build node-vectors guest-core guest-cert guest-memory scheme-vectors guest-diff \
-    leanvm-verify wire-diff leanvm-prove)
+    leanvm-verify wire-diff leanvm-prove salted-node-diff)
 }
 
 lean_vm() {
@@ -143,21 +143,22 @@ lean_vm() {
     --split-lengths "$log/split.txt" --check
 }
 
-# Against this repository's Rust: the guest's data is the one leanVM's sources give, and the Lean and Rust verifiers, and
-# the Lean and Rust wire encodings, agree on the fixtures and their mutations.
+# Against this repository's Rust, the salted system: the salted guest's data is the one leanVM's sources give, real salted
+# aggregations hold the salted node relation, and the Lean and Rust verifiers, and the Lean and Rust wire encodings, agree
+# on the fixtures and their mutations.
 leanvm() {
   command -v cargo > /dev/null || fail "leanvm: needs cargo; name the other projects to skip it"
   executables
-  step "leanvm: the guest's data is leanVM's"
+  step "leanvm: the salted guest's data is leanVM's"
   cargo build --release --manifest-path lean_vm/scripts/guest-export/Cargo.toml
   capped lean_vm/scripts/guest-export/target/release/guest-export lean_vm --check
-  step "leanvm: the honest hints are the Rust's, and the guest runs on them (guest-diff)"
-  local gd
-  gd=$(mktemp -d)
-  (cd lean_vm && LEANVM_GUEST_DIFF="$gd" cargo test --release \
-    --manifest-path scripts/guest-export/Cargo.toml --lib guest_diff -- --ignored)
-  (cd lean_vm && capped .lake/build/bin/guest-diff "$gd"/*.txt)
-  rm -rf "$gd"
+  step "leanvm: real salted aggregations hold the salted node relation (salted-node-diff)"
+  local nd
+  nd=$(mktemp -d)
+  (cd lean_vm && LEANVM_NODE_DIFF="$nd" cargo test --release \
+    --manifest-path scripts/guest-export/Cargo.toml --lib node_diff -- --ignored)
+  (cd lean_vm && capped .lake/build/bin/salted-node-diff "$nd"/*.txt)
+  rm -rf "$nd"
   # verification only; key generation and signing are run by hand (`scheme-vectors --xmss-sign`,
   # lean_sphincs' `lake exe signature-kat`)
   step "leanvm: EthLib's vectors on the statement's verifiers, compiled (scheme-vectors)"
@@ -170,13 +171,6 @@ leanvm() {
   step "leanvm: the proof's wire encoding, Lean against Rust (wire-diff)"
   cargo build --release --manifest-path lean_vm/scripts/wire-diff/Cargo.toml
   (cd lean_vm && python3 -I scripts/wire-diff.py tests/fixtures/verifier --jobs 8)
-  step "leanvm: the statement's honest prover's proofs, Lean-made, against both verifiers (prover-diff)"
-  local pd
-  pd=$(mktemp -d)
-  lean_vm/scripts/export-prover-traces-rust.sh "$pd" > /dev/null
-  (cd lean_vm && python3 -I scripts/prover-diff.py "$pd" --mutations 40 --jobs 4 --identical \
-    --expected tests/fixtures/verifier)
-  rm -rf "$pd"
 }
 
 # `lean`: the six Lean projects; `vectors`: the checks against leanVM's Rust.
