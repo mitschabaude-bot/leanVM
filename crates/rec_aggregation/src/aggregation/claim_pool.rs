@@ -17,8 +17,10 @@ pub(super) enum ClaimSite {
     Framework { column: usize, source: (usize, usize) },
     /// A table column, a KECCAK value lane's ([`keccak_value`]) included.
     TableColumn { column: usize, table: usize },
-    /// One of the three PI memory limbs (MEM_LO, MEM_HI, MEM_TOP).
+    /// One of the three PI memory limbs (MEM_LO, MEM_HI, MEM_TOP), at the public input's point.
     MemoryLimb { column: usize },
+    /// One of the three PI memory limbs, at the seed's point.
+    SeedLimb { column: usize },
 }
 
 /// The guest's `COORD_KIND_*` code for a coordinate (`guests/lean_ethereum.py`),
@@ -112,8 +114,8 @@ pub(super) fn coord_difference(a: &[Term], b: &[Term]) -> Vec<Term> {
 
 /// Visit the claim pool in the exact order the guest indexes it: the framework
 /// bus claims (deduped by `(column, kappa)`, as `leaf.rs` pools them), then every
-/// table's committed columns, then the PI memory triple. The placeholder map's
-/// claim descriptors follow this order.
+/// table's committed columns, then the PI memory triple at the public input's point,
+/// then at the seed's. The placeholder map's claim descriptors follow this order.
 pub(super) fn walk_claims(layout: &leanvm_core::cpu::Layout, kbc: usize, mut visit: impl FnMut(ClaimSite)) {
     let sides: [&[Block]; 3] = [&layout.push, &layout.pull, &layout.count];
     // Only the framework blocks raise claims: a table's coords are settled inside
@@ -148,12 +150,16 @@ pub(super) fn walk_claims(layout: &leanvm_core::cpu::Layout, kbc: usize, mut vis
             });
         }
     }
-    for &column in &[
+    let memory = [
         leanvm_core::cpu::MEM_LO,
         leanvm_core::cpu::MEM_HI,
         leanvm_core::cpu::MEM_TOP,
-    ] {
+    ];
+    for column in memory {
         visit(ClaimSite::MemoryLimb { column });
+    }
+    for column in memory {
+        visit(ClaimSite::SeedLimb { column });
     }
 }
 

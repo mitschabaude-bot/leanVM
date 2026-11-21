@@ -61,17 +61,16 @@ pub struct FiatShamirState {
 }
 
 impl FiatShamirState {
-    /// Seed from two 256-bit digests: `iv` names everything fixed about the proving
-    /// environment (the domain, the circuit, the program), and `public_input` is the
-    /// statement. The first permutation takes both, lanes `0..4` and `4..8` from the zero
-    /// state, so the whole statement is bound before anything is sampled; there is no
-    /// mid-protocol "observe public data" step to get wrong (or forget).
-    pub fn new(iv: [F64; 4], public_input: [F64; 4]) -> Self {
+    /// Seed from three 256-bit digests: `iv` names what the transcript runs under, and `first`
+    /// and `second` are its statement. The first permutation takes all three, lanes `0..4`,
+    /// `4..8` and `8..12` from the zero state, so the whole statement is bound before anything
+    /// is sampled; there is no mid-protocol "observe public data" step to get wrong (or forget).
+    pub fn new(iv: [F64; 4], first: [F64; 4], second: [F64; 4]) -> Self {
         let mut fs = Self {
             state: [0; STATE_LANES],
             n_pending: 0,
         };
-        for (lane, word) in fs.state.iter_mut().zip(iv.into_iter().chain(public_input)) {
+        for (lane, word) in fs.state.iter_mut().zip(iv.into_iter().chain(first).chain(second)) {
             *lane = word.0;
         }
         fs.duplex();
@@ -81,7 +80,11 @@ impl FiatShamirState {
     /// Seed a protocol that has no public input of its own from `label`, whose hash
     /// is all a domain separator has to be.
     pub fn from_label(label: &[u8]) -> Self {
-        Self::new(digest_words(&primitives::hash::hash(label)), [F64::ZERO; 4])
+        Self::new(
+            digest_words(&primitives::hash::hash(label)),
+            [F64::ZERO; 4],
+            [F64::ZERO; 4],
+        )
     }
 
     /// Permute, taking the waiting scalars, and return the output's first three lanes.
@@ -213,15 +216,23 @@ mod tests {
     #[test]
     fn fs_binds_the_public_input() {
         let iv = digest_words(&primitives::hash::hash(b"t"));
-        let mut a = FiatShamirState::new(iv, pi(1));
-        let mut b = FiatShamirState::new(iv, pi(2));
+        let mut a = FiatShamirState::new(iv, pi(1), pi(3));
+        let mut b = FiatShamirState::new(iv, pi(2), pi(3));
+        assert_ne!(a.sample(), b.sample());
+    }
+
+    #[test]
+    fn fs_binds_the_second_digest() {
+        let iv = digest_words(&primitives::hash::hash(b"t"));
+        let mut a = FiatShamirState::new(iv, pi(1), pi(3));
+        let mut b = FiatShamirState::new(iv, pi(1), pi(4));
         assert_ne!(a.sample(), b.sample());
     }
 
     #[test]
     fn fs_binds_the_iv() {
-        let mut a = FiatShamirState::new(digest_words(&primitives::hash::hash(b"t")), pi(1));
-        let mut b = FiatShamirState::new(digest_words(&primitives::hash::hash(b"u")), pi(1));
+        let mut a = FiatShamirState::new(digest_words(&primitives::hash::hash(b"t")), pi(1), pi(3));
+        let mut b = FiatShamirState::new(digest_words(&primitives::hash::hash(b"u")), pi(1), pi(3));
         assert_ne!(a.sample(), b.sample());
     }
 
@@ -252,7 +263,7 @@ mod tests {
     }
     #[test]
     fn pow_predicate() {
-        let mut sp = FiatShamirState::new(digest_words(&primitives::hash::hash(b"t")), pi(1));
+        let mut sp = FiatShamirState::new(digest_words(&primitives::hash::hash(b"t")), pi(1), pi(3));
         sp.observe(f(7));
         for bits in [1, 8, 13, 17] {
             let mut clone = sp.clone();

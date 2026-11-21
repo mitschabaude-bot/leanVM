@@ -143,9 +143,9 @@ pub struct Layout {
     /// The stacked witness's shape: its announced `2^mu` size, plus how many lane
     /// blocks of it the prover actually commits (see [`witness::StackShape`]).
     pub shape: witness::StackShape,
-    /// Public input: the first two memory cells `m[0], m[1]` (each a 192-bit
-    /// word), bound to the committed memory at verification (§sec:e2e-pi).
-    pub pi: [F192; 2],
+    /// The public memory words `m[0..4]`: the public input's two halves, then the
+    /// seed's, bound to the committed memory at verification (§sec:e2e-pi).
+    pub pi: [F192; super::PUBLIC_WORDS],
     pub taus: [usize; tables::N_TABLES],
     /// Rows per table the program executed, at most `2^taus[t]`: the rest are padding
     /// rows (§sec:e2e-pad).
@@ -363,7 +363,7 @@ pub(crate) fn bytecode_columns(prog: &[Op]) -> BytecodeColumns {
 /// whole share of a bus leaf one evaluation at `(ζ, α⃗)` (§sec:e2e-bc).
 ///
 /// This is the multilinear an outermost verifier is handed in place of a
-/// structured program, and what the transcript seed binds ([`super::fs_seed`]).
+/// structured program, and what a salt's seed binds ([`super::Program::seed`]).
 pub fn bytecode_table(prog: &[Op]) -> Vec<F64> {
     stack_columns(&bytecode_columns(prog))
 }
@@ -382,11 +382,11 @@ pub(crate) fn stack_columns(columns: &BytecodeColumns) -> Vec<F64> {
 }
 
 /// Build the public [`Layout`] from the program, the memory log-size `log_mem`, the
-/// instruction tables' row counts `rows`, and the public input `pi`. The flush blocks
+/// instruction tables' row counts `rows`, and the public memory words `pi`. The flush blocks
 /// reference columns only by INDEX and the program only through its public columns, so
 /// this needs no committed witness: both prover and verifier reconstruct exactly the
 /// same structure.
-pub fn layout(prog: &[Op], log_mem: usize, rows: [usize; tables::N_TABLES], pi: [F192; 2]) -> Layout {
+pub fn layout(prog: &[Op], log_mem: usize, rows: [usize; tables::N_TABLES], pi: [F192; super::PUBLIC_WORDS]) -> Layout {
     layout_of(&bytecode_columns(prog), log_mem, rows, pi)
 }
 
@@ -395,7 +395,7 @@ pub(crate) fn layout_of(
     prog_cols: &BytecodeColumns,
     log_mem: usize,
     rows: [usize; tables::N_TABLES],
-    pi: [F192; 2],
+    pi: [F192; super::PUBLIC_WORDS],
 ) -> Layout {
     let taus = table_logs(rows);
     let bytecode_size = prog_cols[0].len();

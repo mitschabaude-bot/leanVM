@@ -262,18 +262,18 @@ impl<'a> Stream<'a> {
 impl Program {
     /// Run the program in write-once *fill* mode to produce its [`Execution`]:
     /// the final memory image and the step count, or why it has none. The public
-    /// input seeds the first two memory cells `m[0], m[1]` (§sec:e2e-pi).
+    /// words seed the first memory cells `m[0..4]` (§sec:e2e-pi, [`super::PUBLIC_WORDS`]).
     /// Compilation yields the `Program`; executing it (here) and proving it are
     /// separate later phases.
-    pub fn execute(&self, public_input: [F192; 2]) -> Result<Execution, ExecError> {
-        self.execute_with(public_input, &mut |_| {})
+    pub fn execute(&self, public_words: [F192; super::PUBLIC_WORDS]) -> Result<Execution, ExecError> {
+        self.execute_with(public_words, &mut |_| {})
     }
 
     /// [`Self::execute`], handing `keccak_step` the lanes each `KECCAK` row reads, in row order
     /// and as the row runs.
     pub(crate) fn execute_with(
         &self,
-        public_input: [F192; 2],
+        public_words: [F192; super::PUBLIC_WORDS],
         keccak_step: &mut dyn FnMut(&[u64; primitives::hash::STATE_LANES]),
     ) -> Result<Execution, ExecError> {
         use super::hints::{BitsDest, GPow, RHint};
@@ -288,7 +288,7 @@ impl Program {
         let mut g = GPow::new((self.prog.len() + 2).max(self.main_frame as usize));
 
         // The write-once data memory, each cell's access count and write state with its word.
-        let n0 = self.main_frame.max(2) as usize;
+        let n0 = (self.main_frame as usize).max(super::PUBLIC_WORDS);
         let mut m = Mem {
             pages: Vec::new(),
             used: 0,
@@ -300,14 +300,15 @@ impl Program {
             dbg_hint: None,
         };
         m.ensure(n0 - 1);
-        // Seed the public input into m[0], m[1] (addresses g^0, g^1, §sec:e2e-pi).
-        m.put(0, public_input[0])?;
-        m.put(1, public_input[1])?;
+        // Seed the public words into m[0..4] (addresses g^0 to g^3, §sec:e2e-pi).
+        for (cell, &word) in public_words.iter().enumerate() {
+            m.put(cell as u32, word)?;
+        }
 
         // Per-pc bytecode execution count, as an exponent of `g`.
         let mut bytecode_count: Vec<u32> = vec![0; self.prog.len()];
 
-        let mut next_free = self.main_frame;
+        let mut next_free = self.main_frame.max(super::PUBLIC_WORDS as u32);
         let (mut pc, mut fp) = (0u32, 0u32);
         let mut steps = 0usize;
         // Witness streams, resolved by name once so a pop indexes one.

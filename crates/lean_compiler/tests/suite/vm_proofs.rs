@@ -1,5 +1,6 @@
 //! Proof-level properties of the VM: that its channels carry everything, and that a malformed input is an error rather than a panic.
 
+use crate::common::SEED;
 use lean_compiler::{compile, parse};
 use leanvm_core::cpu::{Proof, ProveError, prove, verify};
 use leanvm_core::vmhash::compress;
@@ -30,8 +31,8 @@ fn hashing_pi() -> [F192; 2] {
 fn hashing_proof() -> (leanvm_core::cpu::Program, [F192; 2], Proof) {
     let program = compile(&parse(HASHING).expect("parse"));
     let pi = hashing_pi();
-    let (proof, _) = prove(&program, pi, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-    verify(&program, &pi, &proof).expect("honest proof verifies");
+    let (proof, _) = prove(&program, &SEED, pi, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    verify(&program, &SEED, &pi, &proof).expect("honest proof verifies");
     (program, pi, proof)
 }
 
@@ -42,7 +43,7 @@ fn a_proof_roundtrips_through_bytes() {
     let (program, pi, proof) = hashing_proof();
     let decoded = Proof::from_bytes(&proof.to_bytes()).expect("proof deserializes");
     assert_eq!(decoded, proof);
-    verify(&program, &pi, &decoded).expect("a deserialized proof verifies");
+    verify(&program, &SEED, &pi, &decoded).expect("a deserialized proof verifies");
 }
 
 /// An unsupported rate is an error, not a panic.
@@ -51,7 +52,7 @@ fn an_unsupported_rate_is_an_error() {
     let program = compile(&parse(HASHING).expect("parse"));
     let rate = leanvm_core::pcs::MAX_LOG_INV_RATE + 1;
     assert_eq!(
-        prove(&program, hashing_pi(), rate).err(),
+        prove(&program, &SEED, hashing_pi(), rate).err(),
         Some(ProveError::InvalidRate { log_inv_rate: rate })
     );
 }
@@ -63,7 +64,7 @@ fn a_public_input_with_a_third_limb_is_an_error() {
     let mut pi = hashing_pi();
     pi[1].c2 = 1;
     assert_eq!(
-        prove(&program, pi, leanvm_core::pcs::TEST_LOG_INV_RATE).err(),
+        prove(&program, &SEED, pi, leanvm_core::pcs::TEST_LOG_INV_RATE).err(),
         Some(ProveError::PublicInputNotDigest)
     );
 }
@@ -84,9 +85,9 @@ fn any_number_of_steps_proves() {
         }
         let pi = [F192::new(h[0].0, h[1].0, 0), F192::new(h[2].0, h[3].0, 0)];
         let program = compile(&parse(&source).expect("parse"));
-        let (proof, stats) = prove(&program, pi, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+        let (proof, stats) = prove(&program, &SEED, pi, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
         assert_eq!(stats.rows[5], n, "{n} steps");
-        verify(&program, &pi, &proof).unwrap_or_else(|e| panic!("{n} steps: {e:?}"));
+        verify(&program, &SEED, &pi, &proof).unwrap_or_else(|e| panic!("{n} steps: {e:?}"));
     }
 }
 
@@ -97,7 +98,7 @@ fn any_number_of_steps_proves() {
 fn a_tiny_memory_proves() {
     let program = compile(&parse("def main():\n    return\n").expect("parse"));
     let pi = [F192::ZERO; 2];
-    let (proof, stats) = prove(&program, pi, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-    assert!(stats.log_mem < 3, "memory of 2^{} cells", stats.log_mem);
-    verify(&program, &pi, &proof).expect("honest proof verifies");
+    let (proof, stats) = prove(&program, &SEED, pi, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    assert!(stats.log_mem < 4, "memory of 2^{} cells", stats.log_mem);
+    verify(&program, &SEED, &pi, &proof).expect("honest proof verifies");
 }

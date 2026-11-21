@@ -10,6 +10,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::common::SEED;
 use lean_compiler::{compile, parse, parse_with_replacements};
 use leanvm_core::cpu::{prove, verify};
 use primitives::field::g_pow;
@@ -97,8 +98,8 @@ def main():
         );
         let program = compile(&parse(&src).unwrap_or_else(|e| panic!("`{decl}`: {e}")));
         let want = [g_pow(exp).into(), g_pow(0).into()];
-        let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-        verify(&program, &want, &proof).unwrap_or_else(|e| panic!("`{decl}` is not g^{exp}: {e:?}"));
+        let (proof, _) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+        verify(&program, &SEED, &want, &proof).unwrap_or_else(|e| panic!("`{decl}` is not g^{exp}: {e:?}"));
     }
 }
 

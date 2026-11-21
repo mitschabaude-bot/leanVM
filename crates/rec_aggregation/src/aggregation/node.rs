@@ -7,9 +7,10 @@ use super::deferred::{DeferredClaim, aggregate_deferred_claims, bytecode_sums, b
 use super::error::{AggregateVerifyError, AggregationError, SnarkProveError, SnarkVerifyError};
 use super::guest::unified_guest;
 #[cfg(test)]
-use super::hints::FORGE;
+use super::hints::{FORGE, REPLAY_UNDER};
 use super::hints::{Hints, lean_sphincs_hints, lean_xmss_hints};
 use super::proof::{EthereumClaims, EthereumProof, check_signer_set};
+use super::seed::Seed;
 use super::statement::{lean_sphincs_claim_cells, lean_xmss_claim_cells, list_split, statement_digest};
 use super::{LeanSphincsClaim, LeanXmssClaim, MAX_RECURSIONS};
 use fiat_shamir::merkle::hash_to_scalars;
@@ -22,6 +23,7 @@ use signatures::{lean_sphincs, lean_xmss};
 
 /// Prove existence of signatures and valid encoding of PQ-blobs, potentially using recursive children.
 ///
+/// - `seed`: the tree's [`Seed`], from its published salt; every child was proved under it.
 /// - `children`: child proofs; at most [`MAX_RECURSIONS`].
 /// - `raw_lean_xmss`: list of `(public_key, message, signature)`, any order, each signature at
 ///   the leaf index it carries.
@@ -46,6 +48,7 @@ use signatures::{lean_sphincs, lean_xmss};
 ///   and any other invalid child fails the guest's run, [`AggregationError::ProofError`] (TODO
 ///   return the index of invalid proof).
 pub fn aggregate(
+    seed: &Seed,
     children: &[EthereumProof],
     raw_lean_xmss: Vec<(LeanXmssPublicKey, lean_xmss::Message, LeanXmssSignature)>,
     raw_lean_sphincs: Vec<(LeanSphincsPublicKey, lean_sphincs::Message, LeanSphincsSignature)>,
@@ -53,11 +56,21 @@ pub fn aggregate(
     declare: Option<&EthereumClaims>,
     log_inv_rate: usize,
 ) -> Result<EthereumProof, AggregationError> {
-    aggregate_with_stats(children, raw_lean_xmss, raw_lean_sphincs, blobs, declare, log_inv_rate).map(|(sig, _)| sig)
+    aggregate_with_stats(
+        seed,
+        children,
+        raw_lean_xmss,
+        raw_lean_sphincs,
+        blobs,
+        declare,
+        log_inv_rate,
+    )
+    .map(|(sig, _)| sig)
 }
 
 /// [`aggregate`], under the same contract, also returning the prover's statistics (what the CLI's benchmarks report).
 pub fn aggregate_with_stats(
+    seed: &Seed,
     children: &[EthereumProof],
     raw_lean_xmss: Vec<(LeanXmssPublicKey, lean_xmss::Message, LeanXmssSignature)>,
     raw_lean_sphincs: Vec<(LeanSphincsPublicKey, lean_sphincs::Message, LeanSphincsSignature)>,
@@ -121,6 +134,10 @@ pub fn aggregate_with_stats(
     // the true evaluation, refusing a false one, and the root discharges the one
     // claim they reduce to.
     let _span = tracing::info_span!("Replay children").entered();
+    #[cfg(test)]
+    let replay_seed = REPLAY_UNDER.with(|under| under.take()).unwrap_or(*seed);
+    #[cfg(not(test))]
+    let replay_seed = *seed;
     let mut public_inputs = Vec::with_capacity(children.len());
     let child_da: Vec<[u8; 32]> = children
         .iter()
@@ -128,13 +145,18 @@ pub fn aggregate_with_stats(
         .collect();
     for child in children {
         check_signer_set(&child.claims).map_err(AggregationError::InvalidChild)?;
-        public_inputs.push(child.vm_public_input());
+        public_inputs.push(child.vm_public_input(&replay_seed));
     }
     // One single-threaded replay per worker: nothing inside dispatches.
     let bytecode = scalar_bytecode();
     let summaries = parallel::map_collect(children.len(), |i| {
         let public_input = public_input_bytes(&public_inputs[i]);
-        verifier::replay_unchecked(bytecode, &public_input, &scalar_proof(&children[i].proof))
+        verifier::replay_unchecked(
+            bytecode,
+            &replay_seed.to_bytes(),
+            &public_input,
+            &scalar_proof(&children[i].proof),
+        )
     });
     let mut replayed = Vec::with_capacity(children.len());
     for (pi, summary) in public_inputs.into_iter().zip(summaries) {
@@ -167,8 +189,6 @@ pub fn aggregate_with_stats(
             count(usize::from(!blobs.is_empty())),
         ],
     );
-    let fs_seed = leanvm_core::cpu::fs_seed(guest);
-    hints.push("fs_seed", vec![fs_seed[0], fs_seed[1]]);
     // Both lists in the guest's order, leanXMSS first: each one's split, its declared
     // claims, then its duplicates.
     let lean_xmss_cells: Vec<[F192; 4]> = cover.xmss.signers.iter().map(lean_xmss_claim_cells).collect();
@@ -228,7 +248,7 @@ pub fn aggregate_with_stats(
     let verified = parallel::map_collect(children.len(), |i| {
         let (pi, summary) = &replayed[i];
         let value = bytecode_value(&sums[2 * i], &claim_points[2 * i]);
-        gen_verify(guest, *pi, &children[i].proof, summary, value)
+        gen_verify(guest, &replay_seed, *pi, &children[i].proof, summary, value)
     });
     let mut subs = Vec::with_capacity(children.len());
     let mut carried = Vec::with_capacity(children.len());
@@ -315,15 +335,15 @@ pub fn aggregate_with_stats(
         return Err(AggregationError::Empty);
     }
 
-    let public_input = statement_digest(&cover.xmss.signers, &cover.lean_sphincs.signers, da, &defer);
+    let public_input = statement_digest(seed, &cover.xmss.signers, &cover.lean_sphincs.signers, da, &defer);
     let mut program = guest.clone();
     #[cfg(test)]
     if let Some(forge) = FORGE.with(|forge| forge.borrow_mut().take()) {
         forge(&mut hints);
     }
     hints.install(&mut program);
-    let (proof, stats) =
-        prove(&program, public_input, log_inv_rate).map_err(|e| AggregationError::ProofError(SnarkProveError(e)))?;
+    let (proof, stats) = prove(&program, &seed.to_bytes(), public_input, log_inv_rate)
+        .map_err(|e| AggregationError::ProofError(SnarkProveError(e)))?;
     Ok((
         EthereumProof {
             claims: EthereumClaims {

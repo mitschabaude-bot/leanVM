@@ -1,3 +1,4 @@
+use crate::common::{SEED, words};
 use lean_compiler::{compile, parse};
 use leanvm_core::cpu::{prove, verify};
 use primitives::field::{F64, F192, g_pow};
@@ -49,10 +50,10 @@ def main():
     for end in [2, 3, 9] {
         let sum = (2..end).map(g_pow).sum::<F64>();
         let public = [F192::from(sum), F192::from(g_pow(end))];
-        assert!(program.execute(public).unwrap().unconstrained_reads.is_empty());
+        assert!(program.execute(words(public)).unwrap().unconstrained_reads.is_empty());
         if end == 9 {
-            let (proof, _) = prove(&program, public, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-            verify(&program, &public, &proof).unwrap();
+            let (proof, _) = prove(&program, &SEED, public, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+            verify(&program, &SEED, &public, &proof).unwrap();
         }
     }
 }
@@ -71,7 +72,7 @@ def main():
     return
 "#;
     let program = compile(&parse(source).unwrap());
-    let execution = program.execute([F192::from(F64(7)), F192::ZERO]).unwrap();
+    let execution = program.execute(words([F192::from(F64(7)), F192::ZERO])).unwrap();
     assert!(execution.unconstrained_reads.is_empty());
 }
 
@@ -92,7 +93,7 @@ def main():
     let program = compile(&parse(source).unwrap());
     assert!(
         program
-            .execute([g_pow(65536).into(), g_pow(65537).into()])
+            .execute(words([g_pow(65536).into(), g_pow(65537).into()]))
             .unwrap()
             .unconstrained_reads
             .is_empty()
@@ -123,8 +124,8 @@ def main():
     let public = [F192::ZERO, g_pow(2).into()];
     for bound in ["GEN ** 2", "public[GEN]"] {
         let program = compile(&parse(&source.replace("STOP", bound)).unwrap());
-        assert!(program.execute(public).unwrap().unconstrained_reads.is_empty());
-        let (proof, _) = prove(&program, public, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-        verify(&program, &public, &proof).unwrap();
+        assert!(program.execute(words(public)).unwrap().unconstrained_reads.is_empty());
+        let (proof, _) = prove(&program, &SEED, public, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+        verify(&program, &SEED, &public, &proof).unwrap();
     }
 }

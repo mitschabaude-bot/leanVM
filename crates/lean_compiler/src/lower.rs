@@ -1691,16 +1691,24 @@ pub(crate) fn lower_func(
     // Loop callers write the callee's own fp just past its arguments. That
     // equality is tied to the JUMP target, so the loop can use it directly.
     let loop_frame = loop_bounds.contains_key(&f.name);
+    let is_main = f.name == "main";
+    // `main` runs at `fp = g^0`, so its first cells are the public memory words, which
+    // the statement writes: its locals start past them.
+    let first_local = if is_main {
+        abi_end.max(leanvm_core::cpu::PUBLIC_WORDS as Off)
+    } else {
+        abi_end + u32::from(loop_frame)
+    };
     let mut lowerer = FnLower {
         scope: Scope {
             self_fp_off: loop_frame.then_some(abi_end),
             names,
             ..Default::default()
         },
-        next: abi_end + u32::from(loop_frame),
+        next: first_local,
         arg_cells,
         return_shapes: &f.return_shapes,
-        is_main: f.name == "main",
+        is_main,
         fn_name: &f.name,
         tail_call: false,
         code: Vec::new(),

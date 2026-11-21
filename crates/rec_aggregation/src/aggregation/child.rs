@@ -4,8 +4,9 @@ use super::cells::count;
 use super::deferred::DeferredSubproof;
 use super::error::AggregationError;
 use super::hints::SubHints;
+use super::seed::Seed;
 use fiat_shamir::merkle::hash_to_scalars;
-use leanvm_core::cpu::{Program, from_scalar};
+use leanvm_core::cpu::{Program, from_scalar, public_words};
 use leanvm_core::leaf::Block;
 use primitives::field::F192;
 
@@ -68,12 +69,13 @@ pub(super) fn col_groups(sources: &[(usize, usize)]) -> Vec<usize> {
 }
 
 /// Config + hints for the recursion guest (`guests/lean_ethereum.py`), built
-/// from the REAL `cpu::layout` of the inner program, the `summary` the
+/// from the REAL `cpu::layout` of the inner program under `seed`, the `summary` the
 /// `verifier` crate read out of the child's `proof`, and that proof's Merkle
 /// paths, whose positions and sizes its replay pinned (zero hand-mirroring
 /// drift). Nothing here says the child verifies: the guest's run does.
 pub(super) fn gen_verify(
     program: &Program,
+    seed: &Seed,
     public_input: [F192; 2],
     proof: &leanvm_core::cpu::Proof,
     summary: &verifier::Summary,
@@ -82,7 +84,7 @@ pub(super) fn gen_verify(
     let layout = program.layout(
         summary.log_memory,
         std::array::from_fn(|t| summary.table_rows[t] as usize),
-        public_input,
+        public_words(&seed.to_bytes(), &public_input),
     );
     let sides: [&[Block]; 3] = [&layout.push, &layout.pull, &layout.count];
     let side_layouts = sides.map(leanvm_core::leaf::layout);

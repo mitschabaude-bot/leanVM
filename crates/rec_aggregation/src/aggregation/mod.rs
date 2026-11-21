@@ -47,6 +47,7 @@ mod hints;
 mod node;
 mod placeholders;
 mod proof;
+mod seed;
 mod statement;
 #[cfg(test)]
 mod tests;
@@ -55,6 +56,7 @@ pub use error::{AggregateVerifyError, AggregationError, SnarkProveError, SnarkVe
 pub use guest::{unified_guest, warm_up};
 pub use node::{aggregate, aggregate_with_stats};
 pub use proof::{EthereumClaims, EthereumProof};
+pub use seed::Seed;
 use signatures::lean_sphincs::LeanSphincsPublicKey;
 use signatures::lean_xmss::LeanXmssPublicKey;
 use signatures::{lean_sphincs, lean_xmss};

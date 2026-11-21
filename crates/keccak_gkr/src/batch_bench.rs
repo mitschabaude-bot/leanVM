@@ -88,9 +88,9 @@ pub fn run(n: usize, depth: usize, log_inv_rate: usize, plan: Plan) -> Report {
     });
 
     let proof = scalar_proof(&transcript);
-    let iv = primitives::hash::hash(LABEL);
+    let seed = primitives::hash::hash(LABEL);
     let (_, verify) = Plan::new(plan.repeat, 0).measure_quiet(|_| {
-        verifier::verify_keccak_batch(&iv, shape.n_log(), shape.depth(), log_inv_rate, &proof)
+        verifier::verify_keccak_batch(&seed, shape.n_log(), shape.depth(), log_inv_rate, &proof)
             .expect("the batch proof verifies");
     });
 
@@ -158,12 +158,12 @@ impl Report {
     }
 }
 
-/// The transcript of a batch proved alone, as `verifier::verify_keccak_batch` reads it: seeded
-/// from `label` and, as its public input, the shape and the PCS rate.
+/// The transcript of a batch proved alone, as `verifier::verify_keccak_batch` reads it: under
+/// `label`'s hash as its seed and, as its public input, the shape and the PCS rate.
 pub(crate) fn batch_transcript(label: &[u8], shape: Shape, log_inv_rate: usize) -> ProverState {
-    let iv = fiat_shamir::digest_words(&primitives::hash::hash(label));
+    let seed = fiat_shamir::digest_words(&primitives::hash::hash(label));
     let statement = [shape.n_log(), shape.depth(), log_inv_rate, 0].map(|w| F64(w as u64));
-    ProverState::new(iv, statement)
+    ProverState::new(seed, statement)
 }
 
 /// Discharge the reduction's openings against the commitment to `stack`, which holds the

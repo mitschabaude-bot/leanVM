@@ -3,16 +3,19 @@
 use std::time::Instant;
 
 use lean_compiler::{compile, parse};
-use leanvm_core::cpu::{prove, verify};
+use leanvm_core::cpu::{prove, public_words, verify};
 use leanvm_core::vmhash::compress;
 use primitives::{
     field::{F64, F192},
     pretty_f64, pretty_integer,
 };
 
+/// The seed the chain is proved under.
+const SEED: [u8; 32] = [0x33; 32];
+
 fn instruction_counts(source: &str, public_input: [F192; 2]) -> [usize; leanvm_core::cpu::Stats::TABLES.len()] {
     compile(&parse(source).expect("parse"))
-        .execute(public_input)
+        .execute(public_words(&SEED, &public_input))
         .unwrap()
         .rows()
 }
@@ -85,10 +88,10 @@ fn keccak_hash_chain() {
     let program = compile(&parse(&source).expect("parse"));
 
     let started = Instant::now();
-    let (proof, stats) = prove(&program, public_input, leanvm_core::pcs::TEST_LOG_INV_RATE).expect("proves");
+    let (proof, stats) = prove(&program, &SEED, public_input, leanvm_core::pcs::TEST_LOG_INV_RATE).expect("proves");
     let prove_time = started.elapsed();
     let started = Instant::now();
-    verify(&program, &public_input, &proof).expect("hash-chain proof verifies");
+    verify(&program, &SEED, &public_input, &proof).expect("hash-chain proof verifies");
     let verify_time = started.elapsed();
 
     assert_eq!(instruction_counts(&source, public_input)[5], steps);

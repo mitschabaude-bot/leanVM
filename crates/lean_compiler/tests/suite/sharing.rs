@@ -4,6 +4,7 @@
 //! ran after lowering, and they outlived it: the hazard belongs to the sharing,
 //! not to where it happens.
 
+use crate::common::{SEED, words};
 use lean_compiler::{compile, parse};
 use leanvm_core::cpu::{prove, verify};
 use primitives::field::{F64, F192, g_pow};
@@ -31,8 +32,8 @@ def main():
 ";
     let program = compile(&parse(src).expect("parse"));
     let want = [F192::from(g_pow(3)) * F192::from(F64(7)), F192::from(F64(7))];
-    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-    verify(&program, &want, &proof).expect("returned duplicate constant is preserved");
+    let (proof, _) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    verify(&program, &SEED, &want, &proof).expect("returned duplicate constant is preserved");
 }
 
 /// An argument slot written with a value that already exists in the caller: the
@@ -56,8 +57,8 @@ def main():
     let program = compile(&parse(src).expect("parse"));
     // (k + k) + (k + k) == 0 in characteristic two.
     let want = [F192::ZERO, F192::ZERO];
-    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-    verify(&program, &want, &proof).expect("duplicated call arguments are preserved");
+    let (proof, _) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    verify(&program, &SEED, &want, &proof).expect("duplicated call arguments are preserved");
 }
 
 /// A duplicate on one side of a branch must not be shared with the other side's
@@ -88,8 +89,8 @@ def main():
 ";
     let run = |pi: [F192; 2]| -> bool {
         let program = compile(&parse(src).expect("parse"));
-        prove(&program, pi, leanvm_core::pcs::TEST_LOG_INV_RATE)
-            .is_ok_and(|(proof, _)| verify(&program, &pi, &proof).is_ok())
+        prove(&program, &SEED, pi, leanvm_core::pcs::TEST_LOG_INV_RATE)
+            .is_ok_and(|(proof, _)| verify(&program, &SEED, &pi, &proof).is_ok())
     };
     assert!(
         run([F192::from(g_pow(4)), F192::from(g_pow(3))]),
@@ -131,8 +132,8 @@ def main():
 fn assert_survives_a_duplicated_comparison() {
     let program = compile(&parse(&duplicated_comparison(9)).expect("parse"));
     let want = [F192::ZERO, F192::from(g_pow(9))];
-    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-    verify(&program, &want, &proof).expect("passing assert still verifies");
+    let (proof, _) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    verify(&program, &SEED, &want, &proof).expect("passing assert still verifies");
 }
 
 /// A hint at the end of a runtime branch is attached to a no-op anchor by the
@@ -157,8 +158,8 @@ def main():
     let mut program = compile(&parse(src).expect("parse"));
     program.set_witness("flag", vec![vec![F192::ZERO]]);
     let want = [F192::ZERO, F192::ZERO];
-    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-    verify(&program, &want, &proof).expect("untaken branch must not consume its witness");
+    let (proof, _) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    verify(&program, &SEED, &want, &proof).expect("untaken branch must not consume its witness");
 }
 
 /// A `keccak` state names a CONSECUTIVE RUN, so no cell of it may be folded into a
@@ -200,8 +201,8 @@ def main():
 ";
     let program = compile(&parse(src).expect("parse"));
     let want = [F192::from(g_pow(11)), F192::from(g_pow(22))];
-    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-    verify(&program, &want, &proof).expect("each hash absorbs into its own state");
+    let (proof, _) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    verify(&program, &SEED, &want, &proof).expect("each hash absorbs into its own state");
 }
 
 #[test]
@@ -224,7 +225,13 @@ def main():
     let mut program = compile(&parse(source).unwrap());
     program.set_witness("values", vec![vec![value, F192::ONE, value]]);
     for branch in [F192::ZERO, F192::ONE] {
-        assert!(program.execute([branch, value]).unwrap().unconstrained_reads.is_empty());
+        assert!(
+            program
+                .execute(words([branch, value]))
+                .unwrap()
+                .unconstrained_reads
+                .is_empty()
+        );
     }
 }
 
@@ -256,9 +263,9 @@ def main():
             let source = source.replace("TOUCH", touch).replace("FILL", fill);
             let mut program = compile(&parse(&source).unwrap());
             program.set_witness("value", vec![vec![value]]);
-            assert!(program.execute(public).unwrap().unconstrained_reads.is_empty());
-            let (proof, _) = prove(&program, public, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-            verify(&program, &public, &proof).unwrap();
+            assert!(program.execute(words(public)).unwrap().unconstrained_reads.is_empty());
+            let (proof, _) = prove(&program, &SEED, public, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+            verify(&program, &SEED, &public, &proof).unwrap();
         }
     }
 }
@@ -279,8 +286,8 @@ def main():
 ";
     let program = compile(&parse(source).unwrap());
     let public = [F192::from(g_pow(4)), F192::ZERO];
-    let (proof, _) = prove(&program, public, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-    verify(&program, &public, &proof).unwrap();
+    let (proof, _) = prove(&program, &SEED, public, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    verify(&program, &SEED, &public, &proof).unwrap();
 }
 
 /// A heap cell nothing stores to is prover-chosen, so using a value loaded from it
@@ -295,7 +302,9 @@ def main():
     public[1] = x * GEN
     return
 ";
-    let exec = compile(&parse(source).unwrap()).execute([F192::ZERO; 2]).unwrap();
+    let exec = compile(&parse(source).unwrap())
+        .execute(words([F192::ZERO; 2]))
+        .unwrap();
     assert!(!exec.unconstrained_reads.is_empty());
 }
 
@@ -329,8 +338,8 @@ def main():
         let source = source.replace("FILL_DEST", fill).replace("DEST", dest);
         let mut program = compile(&parse(&source).unwrap());
         program.set_witness("value", vec![vec![value]]);
-        assert!(program.execute(public).unwrap().unconstrained_reads.is_empty());
-        let (proof, _) = prove(&program, public, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-        verify(&program, &public, &proof).unwrap();
+        assert!(program.execute(words(public)).unwrap().unconstrained_reads.is_empty());
+        let (proof, _) = prove(&program, &SEED, public, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+        verify(&program, &SEED, &public, &proof).unwrap();
     }
 }

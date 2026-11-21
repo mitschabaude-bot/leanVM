@@ -2,6 +2,7 @@
 //! the rate, a `keccak(.., cap=)` duplex step, and a challenge read off the output,
 //! against the duplex sponge of `fiat_shamir::FiatShamirState`.
 
+use crate::common::words;
 use lean_compiler::{compile, f192_literal, parse};
 use primitives::field::F192;
 use primitives::hash::{STATE_LANES, keccak_f};
@@ -72,8 +73,8 @@ fn guest_transcript_step_matches_the_native_duplex() {
 
     let program = compile(&parse(&src).expect("parse"));
     program
-        .execute([first, second])
+        .execute(words([first, second]))
         .expect("the guest's step is the native duplex");
     let wrong = second + F192::new(1, 0, 0);
-    assert!(program.execute([first, wrong]).is_err());
+    assert!(program.execute(words([first, wrong])).is_err());
 }

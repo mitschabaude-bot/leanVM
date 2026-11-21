@@ -30,11 +30,12 @@ pub struct Sponge {
 }
 
 impl Sponge {
-    /// One permutation of the IV and the public input, from the zero state.
-    pub fn new(fiat_shamir_iv: Digest, public_input: Digest) -> Self {
+    /// One permutation of the IV and two digests, lanes `0..4`, `4..8` and `8..12` of the zero state.
+    pub fn new(iv: Digest, first: Digest, second: Digest) -> Self {
         let mut state = [0u64; STATE_LANES];
-        state[..4].copy_from_slice(&fiat_shamir_iv.words());
-        state[4..8].copy_from_slice(&public_input.words());
+        state[..4].copy_from_slice(&iv.words());
+        state[4..8].copy_from_slice(&first.words());
+        state[8..12].copy_from_slice(&second.words());
         Self {
             state: {
                 keccak_f(&mut state);
@@ -83,10 +84,11 @@ pub struct Transcript<'a> {
 }
 
 impl<'a> Transcript<'a> {
-    pub fn new(proof: &'a Proof, fiat_shamir_iv: Digest, public_input: Digest, checked: bool) -> Self {
+    /// A proof's transcript under `seed`, for `public_input`: the seed is the IV and the second public digest.
+    pub fn new(proof: &'a Proof, seed: Digest, public_input: Digest, checked: bool) -> Self {
         Self {
             proof,
-            sponge: Sponge::new(fiat_shamir_iv, public_input),
+            sponge: Sponge::new(seed, public_input, seed),
             stream_offset: 0,
             opening_offset: 0,
             checked,

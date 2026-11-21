@@ -54,12 +54,14 @@ Ordinary functions may return scalars, `HeapBuf` pointers, and `StackBuf` values
 
 ## Public input
 
-Memory cells `m[0]` and `m[1]` hold the two public-input words, each an F192 machine word. A program *publishes* results by asserting them against those cells through the write-once heap store (the pointer `g^0` addresses absolute memory):
+Memory cells `m[0]` and `m[1]` hold the two public-input words, and `m[2]` and `m[3]` the two halves of the seed the proof is made under, each an F192 machine word. `main` runs at `fp = g^0`, so its locals start at cell 4. A program *publishes* results by asserting them against cells 0 and 1 through the write-once heap store (the pointer `g^0` addresses absolute memory), and reads its seed from cells 2 and 3:
 
 ```python
 p = GEN ** 0
 p[1] = result_a     # m[p·1]  = m[0], an equality assert against the public input
 p[GEN] = result_b   # m[p·g] = m[1]
+seed_0 = p[GEN ** 2]
+seed_1 = p[GEN ** 3]
 ```
 
 Test programs under `tests/programs/` declare the public input they expect with a top-of-file annotation of two constant elements (or omit it to run with two zeros); the generic harness `tests/suite/py_source.rs` proves and verifies every program in the directory:

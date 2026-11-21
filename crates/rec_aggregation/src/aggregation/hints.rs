@@ -51,6 +51,9 @@ pub(super) type Forgery = Box<dyn FnOnce(&mut Hints)>;
 thread_local! {
     /// The forgery the next node this thread aggregates gets.
     pub(super) static FORGE: std::cell::RefCell<Option<Forgery>> = const { std::cell::RefCell::new(None) };
+    /// The seed the next node this thread aggregates replays its children under, as a host
+    /// building a witness for children proved under another seed would.
+    pub(super) static REPLAY_UNDER: std::cell::Cell<Option<super::seed::Seed>> = const { std::cell::Cell::new(None) };
 }
 
 /// One `hint_witness` stream: a name and its entries, in the order the guest

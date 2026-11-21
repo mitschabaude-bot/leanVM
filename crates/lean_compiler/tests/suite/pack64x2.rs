@@ -2,6 +2,7 @@ use lean_compiler::{compile, parse};
 use leanvm_core::cpu::{prove, verify};
 use primitives::field::F192;
 
+use crate::common::SEED;
 use crate::common::mix;
 
 #[test]
@@ -23,12 +24,12 @@ def main():
 ";
     let program = compile(&parse(src).expect("parse"));
     let want = [F192::new(5, 7, 0), F192::new(5, 7, 0)];
-    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, _) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     let counts = mix(src, want);
     assert_eq!(
         (counts[0], counts[1], counts[4]),
         (1, 2, 2),
         "XOR, MUL and JUMP lowering"
     );
-    verify(&program, &want, &proof).expect("pack64x2 program verifies");
+    verify(&program, &SEED, &want, &proof).expect("pack64x2 program verifies");
 }

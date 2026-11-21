@@ -2,7 +2,7 @@
 
 use super::cells::{cell_bytes, count, pack_16_bytes};
 use super::deferred::DeferredClaim;
-use super::guest::unified_guest;
+use super::seed::Seed;
 use super::{LeanSphincsClaim, LeanXmssClaim};
 use fiat_shamir::merkle::hash_to_scalars;
 use primitives::field::F192;
@@ -55,7 +55,7 @@ pub(super) fn lean_sphincs_claim_cells((pk, message): &LeanSphincsClaim) -> [F19
     claim_cells(&pk.to_bytes(), message)
 }
 
-/// The statement's fixed header, ahead of the deferred cells: the seed, the two
+/// The statement's fixed header, ahead of the deferred cells: the tree's seed, the two
 /// claim-list digests (leanXMSS then leanSPHINCS), and the DA digest ([`verifier::da::digest`]).
 /// Fed to the guest as `STMT_HEADER`, which pins where its deferred cells start;
 /// the header cells themselves are written out again there, and only the
@@ -75,20 +75,20 @@ fn lane_hash(lanes: impl Iterator<Item = u64>) -> [F192; 2] {
 /// each child's claims, bound by the two list digests, onto its parent's lists.
 ///
 /// Fixed-length preimage, so a plain hash, with no domain tag of its own: every
-/// field has a fixed width, and the header leads with the environment digest, which
-/// binds this bytecode and the proof system's version and so already separates the
-/// preimage from every other use of the hash here. The header is hashed as the
+/// field has a fixed width, and the header leads with the tree's seed, which binds
+/// the salt, this bytecode and the proof system's version. The header is hashed as the
 /// canonical cells it already is (two lanes each, whence the assert, the guest being
 /// unable to hash a third), then all three lanes of each deferred cell. Each claim
 /// list's digest binds its own length through the hash's padding, so the pair binds
 /// both lists whole.
 pub(super) fn statement_digest(
+    seed: &Seed,
     xmss_signers: &[LeanXmssClaim],
     lean_sphincs_signers: &[LeanSphincsClaim],
     da_digest: [u8; 32],
     defer: &DeferredClaim,
 ) -> [F192; 2] {
-    let seed = leanvm_core::cpu::fs_seed(unified_guest());
+    let seed = hash_to_scalars(&seed.to_bytes());
     let xmss_digest = claim_list_digest(xmss_signers.iter().map(lean_xmss_claim_cells));
     let lean_sphincs_digest = claim_list_digest(lean_sphincs_signers.iter().map(lean_sphincs_claim_cells));
     let da_digest = hash_to_scalars(&da_digest);

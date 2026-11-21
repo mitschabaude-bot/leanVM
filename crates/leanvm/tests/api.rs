@@ -7,6 +7,8 @@ const MSG_2: lean_xmss::Message = [2; lean_xmss::MESSAGE_LEN];
 #[test]
 fn public_api_end_to_end() {
     setup();
+    // The published salt, and its seed: every proof of the tree is made and verified under it.
+    let seed = Seed::of_salt(&[0x2b; 32]);
 
     // 1. Eight leanXMSS signatures over three messages, three of the first, four of the second, one of the third,
     //    by four keys. A key signs each message at its own leaf index, which the statement does not record.
@@ -32,6 +34,7 @@ fn public_api_end_to_end() {
     let blobs: Vec<_> = (0..lean_da::BLOB_SYMBOLS).map(|i| i as u64).collect();
     let (commitment, _) = lean_da::commit(&blobs).unwrap();
     let left = aggregate(
+        &seed,
         &[],
         lean_xmss_input[..4].to_vec(),
         lean_sphincs_input[..1].to_vec(),
@@ -41,11 +44,12 @@ fn public_api_end_to_end() {
     )
     .unwrap();
     let left = EthereumProof::from_proof_bytes(&left.proof_bytes(), left.claims().clone()).unwrap();
-    left.verify().unwrap();
+    left.verify(&seed).unwrap();
     assert_eq!(left.claims().da_commitment, Some(commitment));
     let other_blobs: Vec<_> = blobs.iter().map(|x| x ^ 42).collect();
     let (other_commitment, _) = lean_da::commit(&other_blobs).unwrap();
     let right = aggregate(
+        &seed,
         &[],
         lean_xmss_input[4..7].to_vec(),
         lean_sphincs_input[1..].to_vec(),
@@ -56,7 +60,16 @@ fn public_api_end_to_end() {
     .unwrap();
     assert_eq!(right.claims().da_commitment, Some(other_commitment));
     // A proof carries one blob matrix: the root passes on one child's, by default the first's.
-    let root = aggregate(&[left, right], lean_xmss_input[7..].to_vec(), vec![], &[], None, 2).unwrap();
+    let root = aggregate(
+        &seed,
+        &[left, right],
+        lean_xmss_input[7..].to_vec(),
+        vec![],
+        &[],
+        None,
+        2,
+    )
+    .unwrap();
     assert_eq!(root.claims().num_signature_claims(), 11);
     assert_eq!(root.claims().da_commitment, Some(commitment));
 
@@ -64,14 +77,19 @@ fn public_api_end_to_end() {
     //    verifying says exactly these pubkeys signed exactly these messages.
     let bytes = root.proof_bytes();
     let received = EthereumProof::from_proof_bytes(&bytes, root.claims().clone()).unwrap();
-    received.verify().unwrap();
+    received.verify(&seed).unwrap();
     let on = |message| received.claims().xmss.iter().filter(|(_, m)| *m == message).count();
     assert_eq!((on(MSG_0), on(MSG_1), on(MSG_2)), (3, 4, 1));
     // Claims the proof does not prove fail, here one signature claim short.
     let mut fewer = root.claims().clone();
     fewer.xmss.pop();
     let wrong = EthereumProof::from_proof_bytes(&bytes, fewer).unwrap();
-    assert!(matches!(wrong.verify(), Err(AggregateVerifyError::Snark(_))));
+    assert!(matches!(wrong.verify(&seed), Err(AggregateVerifyError::Snark(_))));
+    // Under another salt the same proof proves nothing.
+    assert!(matches!(
+        received.verify(&Seed::of_salt(&[0x2c; 32])),
+        Err(AggregateVerifyError::Snark(_))
+    ));
 
     // 5. Removing some signatures from the aggregate: `declare` is what we keep. Here every claim on MSG_1 goes,
     //    and one leanSPHINCS claim.
@@ -86,8 +104,8 @@ fn public_api_end_to_end() {
         lean_sphincs: received.claims().lean_sphincs[1..].to_vec(),
         da_commitment: Some(commitment),
     };
-    let narrowed = aggregate(&[received], vec![], vec![], &[], Some(&retained), 2).unwrap();
-    narrowed.verify().unwrap();
+    let narrowed = aggregate(&seed, &[received], vec![], vec![], &[], Some(&retained), 2).unwrap();
+    narrowed.verify(&seed).unwrap();
     assert_eq!(narrowed.claims(), &retained);
     assert_eq!(narrowed.claims().num_signature_claims(), 11 - 4 - 1);
 
@@ -96,7 +114,7 @@ fn public_api_end_to_end() {
         da_commitment: None,
         ..retained
     };
-    let dropped = aggregate(&[narrowed], vec![], vec![], &[], Some(&without_blobs), 2).unwrap();
-    dropped.verify().unwrap();
+    let dropped = aggregate(&seed, &[narrowed], vec![], vec![], &[], Some(&without_blobs), 2).unwrap();
+    dropped.verify(&seed).unwrap();
     assert_eq!(dropped.claims(), &without_blobs);
 }

@@ -84,9 +84,9 @@ fn layers_reduce_outputs_to_inputs() {
 const LABEL: &[u8] = b"keccak-gkr-test";
 
 fn verify(shape: Shape, proof: &Proof) -> Result<(), VerifierError> {
-    let iv = primitives::hash::hash(LABEL);
+    let seed = primitives::hash::hash(LABEL);
     let log_inv_rate = pcs::whir::LOG_INV_RATE_0;
-    verifier::verify_keccak_batch(&iv, shape.n_log(), shape.depth(), log_inv_rate, &scalar_proof(proof))
+    verifier::verify_keccak_batch(&seed, shape.n_log(), shape.depth(), log_inv_rate, &scalar_proof(proof))
 }
 
 /// A proof of the batch `inputs`, its output claim offset by `lane_error` in one lane.

@@ -5,7 +5,7 @@
 use bench::{Plan, Timing};
 use primitives::{pretty_f64, pretty_integer};
 use rand::{Rng, SeedableRng, rngs::StdRng};
-use rec_aggregation::{EthereumClaims, EthereumProof, aggregate, aggregate_with_stats, signers_cache};
+use rec_aggregation::{EthereumClaims, EthereumProof, Seed, aggregate, aggregate_with_stats, signers_cache};
 use signatures::lean_xmss::{LeanXmssPublicKey, LeanXmssSignature};
 use signatures::{lean_sphincs, lean_xmss};
 
@@ -84,6 +84,7 @@ pub fn run_aggregation(n_lean_xmss: usize, n_lean_sphincs: usize, n_blobs: usize
     );
     let trace_span = tracing::info_span!("aggregation", n_lean_xmss, n_lean_sphincs, n_blobs, log_inv_rate).entered();
     rec_aggregation::warm_up();
+    let seed = Seed::of_salt(&crate::SALT);
     let raw_lean_xmss = signers(0, n_lean_xmss);
     let raw_lean_sphincs = lean_sphincs_signers(0, n_lean_sphincs);
     let blobs = blobs(n_blobs, 0);
@@ -92,6 +93,7 @@ pub fn run_aggregation(n_lean_xmss: usize, n_lean_sphincs: usize, n_blobs: usize
     let ((sig, stats), prove_time) = plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
         aggregate_with_stats(
+            &seed,
             &[],
             raw_lean_xmss.clone(),
             raw_lean_sphincs.clone(),
@@ -103,7 +105,7 @@ pub fn run_aggregation(n_lean_xmss: usize, n_lean_sphincs: usize, n_blobs: usize
     });
     let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        sig.verify().expect("the leaf aggregate verifies");
+        sig.verify(&seed).expect("the leaf aggregate verifies");
     });
     drop(trace_span);
 
@@ -165,8 +167,12 @@ pub fn run_recursion(
     let guest_instructions = rec_aggregation::aggregation::unified_guest().code_len();
     let compile_time = started.elapsed();
     rec_aggregation::warm_up();
+    let started = std::time::Instant::now();
+    let seed = Seed::of_salt(&crate::SALT);
+    let seed_time = started.elapsed();
     if let Some(out) = std::env::var_os(LEAVES_OUT) {
         return write_leaves(
+            &seed,
             n,
             per_leaf,
             lean_sphincs_per_leaf,
@@ -182,11 +188,11 @@ pub fn run_recursion(
     }
     let ((sig, stats), prove_time) = plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        aggregate_with_stats(&children, vec![], vec![], &[], None, log_inv_rate).expect("node aggregates")
+        aggregate_with_stats(&seed, &children, vec![], vec![], &[], None, log_inv_rate).expect("node aggregates")
     });
     let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        sig.verify().expect("the recursive aggregate verifies");
+        sig.verify(&seed).expect("the recursive aggregate verifies");
     });
 
     println!(
@@ -197,6 +203,10 @@ pub fn run_recursion(
             .len()
             .trailing_zeros(),
         pretty_f64(compile_time.as_secs_f64())
+    );
+    println!(
+        "seed from the salt: {} s, once per salt",
+        pretty_f64(seed_time.as_secs_f64())
     );
     let mut inputs = Vec::new();
     if per_leaf > 0 || lean_sphincs_per_leaf > 0 {
@@ -234,6 +244,7 @@ pub fn run_recursion(
 /// Prove a recursion step's `n` leaves and write them to `out`: each leaf's claims, then its proof's
 /// bytes after their length.
 fn write_leaves(
+    seed: &Seed,
     n: usize,
     per_leaf: usize,
     lean_sphincs_per_leaf: usize,
@@ -246,6 +257,7 @@ fn write_leaves(
     let mut bytes = Vec::new();
     for k in 0..n {
         let leaf = aggregate(
+            seed,
             &[],
             all[k * per_leaf..(k + 1) * per_leaf].to_vec(),
             all_lean_sphincs[k * lean_sphincs_per_leaf..(k + 1) * lean_sphincs_per_leaf].to_vec(),

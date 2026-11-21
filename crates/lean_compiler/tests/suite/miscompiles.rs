@@ -1,6 +1,7 @@
 //! Programs that compiled to something other than what they say, or crashed the
 //! compiler. Each is now rejected with a diagnostic, or compiled as written.
 
+use crate::common::words;
 use lean_compiler::{compile, parse};
 use primitives::field::{F64, F192, g_pow};
 
@@ -92,7 +93,7 @@ fn programs_compile_as_written() {
             program.set_witness(name, vec![vec![v]]);
         }
         program
-            .execute([F192::ZERO; 2])
+            .execute(words([F192::ZERO; 2]))
             .unwrap_or_else(|e| panic!("{e:?}, for:\n{src}"));
     };
     // Integers past `u32` were compared as field elements, `2^33 XOR 2^33 = 0`.

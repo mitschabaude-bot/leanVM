@@ -327,6 +327,7 @@ POINT_BUF_RHO = 1
 POINT_BUF_PI = 2
 POINT_BUF_QKECCAK_RHO = 3
 POINT_BUF_KECCAK_OUT = 4
+POINT_BUF_SEED = 5
 KECCAK_OUT_POOL = KECCAK_OUT_POOL_PLACEHOLDER
 CLAIM_POINT_BUF = CLAIM_POINT_BUF_PLACEHOLDER
 CLAIM_COMMITTED_COL = CLAIM_COMMITTED_COL_PLACEHOLDER
@@ -3257,6 +3258,12 @@ def check_opening_terminal(g_squares, zeta, chi, rm, g_bus_mu, g_zc_n, g_log_mem
     for xk in mul_range(GEN, g_log_mem):
         pi_chain[xk * GEN] = pi_chain[xk] * point1[xk]
     pi_eq = pi_chain[g_log_mem]
+    # The seed's point [rm, 1, 0..]: coordinate 1 against a one bit, so its factor is point[1].
+    seed_chain = HeapBuf(SIZE_BITS + 1)
+    seed_chain[GEN ** 2] = pi_chain[GEN ** 1] * point[GEN ** 1]
+    for xk in mul_range(GEN ** 2, g_log_mem):
+        seed_chain[xk * GEN] = seed_chain[xk] * point1[xk]
+    seed_eq = seed_chain[g_log_mem]
 
     # Every low dimension here is a certified log at a baked kappa source, as
     # certify_placement derives the columns'.
@@ -3280,6 +3287,8 @@ def check_opening_terminal(g_squares, zeta, chi, rm, g_bus_mu, g_zc_n, g_log_mem
             nlow_adj = CLAIM_KAPPA_ADJ[j]
             if CLAIM_POINT_BUF[j] == POINT_BUF_PI:
                 low_eq = pi_eq
+            if CLAIM_POINT_BUF[j] == POINT_BUF_SEED:
+                low_eq = seed_eq
             if CLAIM_POINT_BUF[j] == POINT_BUF_ZETA:
                 low_eq = zeta_eq_chain[cplen_g]
             if CLAIM_POINT_BUF[j] == POINT_BUF_RHO:
@@ -3339,11 +3348,11 @@ def verify_sub(pi_0, pi_1, seed_0, seed_1, g_squares, defer_out):
     # its certified low dimension, which the terminal pins its lengths against.
     claim_pool = HeapBuf(N_CLAIMS)
 
-    # ---- seed (statement pre-bound: hinted sub pi + baked program digest) ----
-    # The sponge's first permutation takes the program digest and the statement as
-    # its rate, from the zero state.
+    # ---- seed (statement pre-bound: the child's statement digest and the seed) ----
+    # The sponge's first permutation takes the seed as its IV, then the child's two
+    # public digests, its statement's and the seed, as its rate, from the zero state.
     sp = StackBuf(KECCAK_STATE)
-    keccak_cells([seed_0, seed_1, pi_0, pi_1], sp, final=0)
+    keccak_cells([seed_0, seed_1, pi_0, pi_1, seed_0, seed_1], sp, final=0)
     stream = HeapBuf(STREAM_CAP)
     hint_witness(stream[0:STREAM_CAP], "stream")
     cursor = stream  # the proof stream, replayed word by word (advance = * g)
@@ -3376,6 +3385,7 @@ def verify_sub(pi_0, pi_1, seed_0, seed_1, g_squares, defer_out):
     g_log_mem = g_power_of_word(log_mem_word)
     assert log(g_log_mem) < MAX_LOG_MEM + 1  # native log_mem <= MAX_LOG_MEM
     assert log(g_log_mem / GEN ** MIN_LOG_MEM) < COUNT_BITS  # native MIN_LOG_MEM <= log_mem
+    assert log(g_log_mem / GEN ** 2) < COUNT_BITS  # the memory holds the four public words
     dims_g[GEN ** 0] = g_log_mem
     hint_witness(dims_g[1:1 + N_TABLES], "table_logs")  # certified in verify_tables
     # kappa_base maps a kappa source index to its certified log (source 0
@@ -3436,6 +3446,14 @@ def verify_sub(pi_0, pi_1, seed_0, seed_1, g_squares, defer_out):
     # ---- the bus leaves, the table sumcheck, and the public-input claim ----
     chi = HeapBuf(SIZE_BITS)  # chi[i] = the challenge that bound variable i
     fs0, fs1, fs2, fs3, fs4, cursor, g_zc_n, bc_share, rm, col_eval_words = verify_tables(fs0, fs1, fs2, fs3, fs4, cursor, pi_0, pi_1, zeta, g_bus_mu, dims_g, table_rows, g_squares, fp_w, beta, claim_pool, chi, claim_push, claim_pull, claim_count)
+    # The seed's binding claims, the pool's last three: each MEM limb at [rm, 1, 0..],
+    # the line through cells 2 and 3, is that limb's line through the seed's halves
+    # at rm, as verify_tables claims the public input's at [rm, 0..] (doc sec:e2e-pi).
+    slo_0, shi_0 = canonical_limbs(seed_0)
+    slo_1, shi_1 = canonical_limbs(seed_1)
+    claim_pool[GEN ** (N_CLAIMS - 3)] = slo_0 + rm * (slo_0 + slo_1)
+    claim_pool[GEN ** (N_CLAIMS - 2)] = shi_0 + rm * (shi_0 + shi_1)
+    claim_pool[GEN ** (N_CLAIMS - 1)] = 0
 
     # ---- KECCAK validity, by GKR over the rounds ----
     tau_keccak_g = dims_g[GEN ** (TABLE_KECCAK + 1)]  # the KECCAK table's certified tau
@@ -4064,8 +4082,7 @@ def verify_sig_lean_sphincs(signer, byte_bits):
 
 def statement_digest(seed_0, seed_1, xd_0, xd_1, sd_0, sd_1, da_0, da_1, defer):
     # A node's statement, hashed to the two words the VM publishes, over the
-    # proving environment's Fiat-Shamir seed (the proof system's version and this
-    # bytecode), the leanXMSS and leanSPHINCS claim-list digests, its DA digest (zeros
+    # tree's seed (the salt, the proof system's version and this bytecode), the leanXMSS and leanSPHINCS claim-list digests, its DA digest (zeros
     # without a root), and the DEFER_STMT_CELLS deferred-claim cells. A
     # parent rebuilds a child's statement with this same call, over list digests it
     # re-absorbed itself, which forces the child to be a proof of THIS bytecode over
@@ -4539,14 +4556,15 @@ def main():
     n_total_g = lx_slots_g * lean_sphincs_slots_g
     assert_gpow(n_total_g)
 
-    # The proving environment (the proof system's version and this bytecode) as one
-    # digest. It rides the statement rather than the bytecode, so nothing here has to
-    # know its own hash; the outer verifier pins it, and every child statement rebuilt
-    # below copies it, which is what keeps a whole tree on one bytecode.
-    fs_seed = StackBuf(2)
-    hint_witness(fs_seed, "fs_seed")
-    seed_0 = fs_seed[0]
-    seed_1 = fs_seed[1]
+    # The seed, which binds the published salt, the proof system's version and this
+    # bytecode, read from memory words 2 and 3, which the public-input phase binds to
+    # it: the node's second public digest. Nothing here has to know its own hash; the
+    # outer verifier derives the seed, and every child is verified under it and its
+    # statement rebuilt with it, which is what keeps a whole tree on one bytecode and
+    # one salt.
+    pub_ptr = GEN ** 0
+    seed_0 = pub_ptr[GEN ** 2]
+    seed_1 = pub_ptr[GEN ** 3]
 
     # ---- the claim lists ----
     g_squares = exponent_tables()
@@ -4669,7 +4687,6 @@ def main():
         aggregate_claims(n_children_g, child_pi, child_fresh, child_carried, defer_stmt)
 
     own_0, own_1 = statement_digest(seed_0, seed_1, xd_0, xd_1, sd_0, sd_1, da[1], da[GEN], defer_stmt)
-    pub_ptr = GEN ** 0
     assert pub_ptr[1] == own_0
     assert pub_ptr[GEN] == own_1
     return

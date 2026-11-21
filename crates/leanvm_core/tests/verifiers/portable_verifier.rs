@@ -3,7 +3,7 @@
 //! transcription (`formal/Statement/LeanVmVerifier.lean`) is pinned against this crate by `formal/`'s differential tests.
 
 use crate::fixture::fixture;
-use leanvm_core::cpu::{prove, scalar_proof};
+use leanvm_core::cpu::{prove, prove_with_words, public_words, scalar_proof};
 use leanvm_core::tables::N_TABLES;
 use verifier::{E, VerifierError, replay_unchecked, verify_execution};
 
@@ -14,6 +14,7 @@ fn replay_reads_the_summary_unchecked() {
     assert_eq!(
         replay_unchecked(
             &fixture.bytecode,
+            &fixture.seed,
             &fixture.public_input_bytes,
             &scalar_proof(&fixture.proof)
         )
@@ -30,10 +31,14 @@ fn verifies_at_every_rate() {
     for log_inv_rate in 1..=4 {
         let proof = match log_inv_rate {
             1 => scalar_proof(&fixture.proof),
-            _ => scalar_proof(&prove(&fixture.program, fixture.public_input, log_inv_rate).unwrap().0),
+            _ => scalar_proof(
+                &prove(&fixture.program, &fixture.seed, fixture.public_input, log_inv_rate)
+                    .unwrap()
+                    .0,
+            ),
         };
         assert_eq!(
-            verify_execution(&fixture.bytecode, &fixture.public_input_bytes, &proof).map(|_| ()),
+            verify_execution(&fixture.bytecode, &fixture.seed, &fixture.public_input_bytes, &proof).map(|_| ()),
             Ok(()),
             "rate {log_inv_rate}"
         );
@@ -71,9 +76,28 @@ fn tampers_fail_their_check() {
         let mut proof = scalar_proof(&fixture.proof);
         proof.stream[position] += E::new(0, 0, 1);
         assert_eq!(
-            verify_execution(&fixture.bytecode, &fixture.public_input_bytes, &proof),
+            verify_execution(&fixture.bytecode, &fixture.seed, &fixture.public_input_bytes, &proof),
             Err(error),
             "scalar {position}"
         );
     }
+}
+
+/// The public-input phase binds memory words 2 and 3 to the seed: a run holding another digest there, proved under the
+/// seed, is rejected by the opening that batches the phase's claims, the only false ones.
+#[test]
+fn a_wrong_second_digest_is_rejected() {
+    let fixture = fixture();
+    let mut words = public_words(&fixture.seed, &fixture.public_input);
+    words[3] += primitives::field::F192::ONE;
+    let (proof, _) = prove_with_words(&fixture.program, &fixture.seed, words, 1).unwrap();
+    assert_eq!(
+        verify_execution(
+            &fixture.bytecode,
+            &fixture.seed,
+            &fixture.public_input_bytes,
+            &scalar_proof(&proof)
+        ),
+        Err(VerifierError::WhirTerminal)
+    );
 }

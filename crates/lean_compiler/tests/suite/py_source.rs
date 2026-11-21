@@ -16,6 +16,7 @@
 
 use std::fs;
 
+use crate::common::SEED;
 use lean_compiler::{compile, parse, parse_const};
 use leanvm_core::cpu::{prove, verify};
 use primitives::field::F192;
@@ -74,8 +75,8 @@ fn all_py_programs() {
         for (stream, entries) in witness(&src) {
             program.set_witness(stream, entries);
         }
-        let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-        verify(&program, &want, &proof).unwrap_or_else(|e| panic!("{name}: verify: {e:?}"));
+        let (proof, _) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+        verify(&program, &SEED, &want, &proof).unwrap_or_else(|e| panic!("{name}: verify: {e:?}"));
         println!("{name}: ok");
     }
 }

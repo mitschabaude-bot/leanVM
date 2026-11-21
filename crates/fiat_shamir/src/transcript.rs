@@ -19,9 +19,10 @@ pub struct ProverState {
 }
 
 impl ProverState {
-    /// `iv` and `public_input` seed the Fiat-Shamir state (see [`FiatShamirState::new`]).
-    pub fn new(iv: [F64; 4], public_input: [F64; 4]) -> Self {
-        Self::from_fs(FiatShamirState::new(iv, public_input))
+    /// A proof's transcript under `seed`, for `public_input`: the seed is the IV and the second
+    /// digest of the Fiat-Shamir state (see [`FiatShamirState::new`]).
+    pub fn new(seed: [F64; 4], public_input: [F64; 4]) -> Self {
+        Self::from_fs(FiatShamirState::new(seed, public_input, seed))
     }
 
     /// A protocol with no public input of its own, seeded from `label` alone.

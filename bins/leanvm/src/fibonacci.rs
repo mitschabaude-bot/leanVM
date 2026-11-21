@@ -18,15 +18,16 @@ pub fn run_fibonacci(n: usize, log_inv_rate: usize, plan: Plan) {
 
     let (src, pi) = fibonacci_program(n);
     let program = compile(&parse(&src).unwrap());
+    let seed = program.seed(&crate::SALT);
 
     // Only the final measured pass of each stage is traced (see `run_aggregation`).
     let ((proof, stats), prove_time) = plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        prove(&program, pi, log_inv_rate).expect("the Fibonacci program proves")
+        prove(&program, &seed, pi, log_inv_rate).expect("the Fibonacci program proves")
     });
     let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        verify(&program, &pi, &proof).unwrap()
+        verify(&program, &seed, &pi, &proof).unwrap()
     });
 
     drop(trace_span);

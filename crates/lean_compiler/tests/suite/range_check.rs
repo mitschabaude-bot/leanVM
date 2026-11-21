@@ -11,6 +11,7 @@ use leanvm_core::cpu::{prove, verify};
 use primitives::field::{F64, F192, g_pow};
 
 use crate::common::mix;
+use crate::common::{SEED, words};
 
 /// Both bound forms (`log GEN ** k` and a plain integer exponent) with the
 /// boundary elements (`g^{k-1}`, `1 = g^0`), end-to-end: prove + verify, and a
@@ -34,10 +35,10 @@ def main():
 ";
     let program = compile(&parse(src).expect("parse"));
     let want = [F192::from(g_pow(12)), F192::from(g_pow(5))];
-    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, _) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     // 2 DEREFs per range check (4 checks) + 2 publishing stores.
     assert_eq!(mix(src, want)[3], 10, "DEREF count");
-    verify(&program, &want, &proof).expect("range-checked program verifies");
+    verify(&program, &SEED, &want, &proof).expect("range-checked program verifies");
 }
 
 /// A check whose two touched cells (`m[300]` and the complement's `m[99]`) are
@@ -56,8 +57,8 @@ def main():
 ";
     let program = compile(&parse(src).expect("parse"));
     let want = [F192::from(g_pow(300)), F192::from(g_pow(300))];
-    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-    verify(&program, &want, &proof).expect("unwritten touches verify");
+    let (proof, _) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    verify(&program, &SEED, &want, &proof).expect("unwritten touches verify");
 }
 
 /// The complement read sizes the memory: with `x = g^0`, a bound `k` touches `g^{k-1}`,
@@ -72,9 +73,9 @@ fn range_check_complement_sizes_the_memory() {
         );
         let program = compile(&parse(&src).expect("parse"));
         let want = [F192::from(g_pow(0)); 2];
-        let (proof, stats) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+        let (proof, stats) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
         assert_eq!(stats.log_mem, log_mem, "bound {k}");
-        verify(&program, &want, &proof).unwrap_or_else(|e| panic!("bound {k}: {e:?}"));
+        verify(&program, &SEED, &want, &proof).unwrap_or_else(|e| panic!("bound {k}: {e:?}"));
     }
 }
 
@@ -95,10 +96,10 @@ def main():
 ";
     let program = compile(&parse(src).expect("parse"));
     let want = [F192::from(F64(5)), F192::from(F64(7))];
-    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, _) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     // 6 iterations × 2 range-check DEREFs, plus call/publish plumbing.
     assert!(mix(src, want)[3] >= 12, "at least the 12 range-check DEREFs");
-    verify(&program, &want, &proof).expect("loop range checks verify");
+    verify(&program, &SEED, &want, &proof).expect("loop range checks verify");
 }
 
 /// Bound 0 names the empty set: rejected at compile time.
@@ -115,7 +116,7 @@ fn range_check_empty_bound_rejected() {
 fn range_check_bound_past_the_prover_is_an_error() {
     let src = "def main():\n    x = GEN ** 5\n    assert log x < 268435472\n    return\n";
     let program = compile(&parse(src).expect("parse"));
-    match program.execute([F192::ZERO; 2]) {
+    match program.execute(words([F192::ZERO; 2])) {
         Err(err) => assert!(
             matches!(err.fault, leanvm_core::cpu::Fault::WildPointer { .. }),
             "{err}"
@@ -144,9 +145,9 @@ def main():
     let mut program = compile(&parse(src).expect("parse"));
     program.set_witness("n", vec![vec![F192::from(g_pow(5000))]]);
     let want = [F192::from(g_pow(3)); 2];
-    let (proof, stats) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, stats) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     assert_eq!(stats.log_mem, 13);
-    verify(&program, &want, &proof).expect("hinted g-power range checks verify");
+    verify(&program, &SEED, &want, &proof).expect("hinted g-power range checks verify");
 }
 
 /// Bounds beyond `2^30`, the largest memory, could never be complete: rejected at
@@ -190,8 +191,8 @@ def main():
     let mut program = compile(&parse(src).expect("parse"));
     program.set_witness("n", vec![vec![F192::from(g_pow(6))]]);
     let want = [F192::from(g_pow(5)), F192::from(g_pow(6))];
-    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-    verify(&program, &want, &proof).expect("runtime-bound range check verifies");
+    let (proof, _) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    verify(&program, &SEED, &want, &proof).expect("runtime-bound range check verifies");
 }
 
 /// A bound that folds at parse time but is not a power of `GEN` stays a parse

@@ -3,6 +3,7 @@
 //! conflict on `p` being the assertion. Sound whatever the hint: `x = 0` forces
 //! `p = 0`, which cannot then be set to `1`. Three rows and no `JUMP`.
 
+use crate::common::SEED;
 use lean_compiler::{compile, parse};
 use leanvm_core::cpu::{Op, prove, verify};
 use primitives::field::{F64, F192, g_pow};
@@ -24,8 +25,8 @@ def main():
 ";
     let program = compile(&parse(src).expect("parse"));
     let want = [F192::from(g_pow(12)), F192::from(g_pow(5))];
-    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-    verify(&program, &want, &proof).expect("inequality program verifies");
+    let (proof, _) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    verify(&program, &SEED, &want, &proof).expect("inequality program verifies");
 }
 
 /// `assert a != b` inside a `mul_range` body: the check is emitted once per
@@ -45,8 +46,8 @@ def main():
 ";
     let program = compile(&parse(src).expect("parse"));
     let want = [F192::from(F64(5)), F192::from(F64(7))];
-    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-    verify(&program, &want, &proof).expect("loop inequality verifies");
+    let (proof, _) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    verify(&program, &SEED, &want, &proof).expect("loop inequality verifies");
 }
 
 /// A compile-time-equal literal pair (e.g. after `Const`-arg substitution) is a

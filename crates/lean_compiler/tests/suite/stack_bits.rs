@@ -2,6 +2,7 @@
 //! `StackBuf`, and `addr()` naming the run so it can still be indexed through a
 //! pointer (at a runtime index, or from a callee).
 
+use crate::common::{SEED, words};
 use lean_compiler::{compile, parse};
 use leanvm_core::cpu::{Stats, prove, verify};
 use primitives::field::{F64, F192};
@@ -74,7 +75,7 @@ def main():
     let bits: Vec<F192> = [1u64, 1, 0, 1].iter().map(|&b| F192::from(F64(b))).collect();
     program.set_witness("bits", vec![bits]);
     let want = [F192::from(primitives::field::g_pow(4)), F192::from(F64::ONE)];
-    let exec = program.execute(want).unwrap();
+    let exec = program.execute(words(want)).unwrap();
     assert!(
         exec.unconstrained_reads.is_empty(),
         "every cell of the run must still be written"
@@ -119,8 +120,8 @@ def probe(v):
     let mut program = compile(&parse(src).expect("parse"));
     program.set_witness("v", vec![vec![F192::from(F64(V))]]);
     let want = [F192::from(F64(V)), F192::from(F64::ONE)];
-    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
-    verify(&program, &want, &proof).expect("the pointer reads the frame run");
+    let (proof, _) = prove(&program, &SEED, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
+    verify(&program, &SEED, &want, &proof).expect("the pointer reads the frame run");
 }
 
 /// A frame pointer carries the same compile-time bound a `HeapBuf` pointer gets.

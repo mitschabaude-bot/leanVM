@@ -72,8 +72,13 @@ fn public_input(loop_steps: usize) -> [F192; 2] {
 }
 
 /// One honest proof of the program above.
+/// The salt the fixture's proof is made under.
+pub(crate) const SALT: [u8; 32] = [0x5a; 32];
+
 pub(crate) struct Fixture {
     pub program: Program,
+    /// The seed [`SALT`] gives the program.
+    pub seed: [u8; 32],
     pub public_input: [F192; 2],
     pub proof: leanvm_core::cpu::Proof,
     /// What verifying it leaves.
@@ -88,13 +93,15 @@ pub(crate) fn fixture() -> &'static Fixture {
     static FIXTURE: OnceLock<Fixture> = OnceLock::new();
     FIXTURE.get_or_init(|| {
         let (program, public_input) = chain(LOOP_STEPS);
-        let (proof, _) = prove(&program, public_input, 1).unwrap();
-        let summary = verify(&program, &public_input, &proof).expect("honest proof verifies");
+        let seed = program.seed(&SALT);
+        let (proof, _) = prove(&program, &seed, public_input, 1).unwrap();
+        let summary = verify(&program, &seed, &public_input, &proof).expect("honest proof verifies");
         let table = leanvm_core::cpu::layout::bytecode_table(program.prog());
         let bytecode = Bytecode::new(&table.iter().map(|word| word.0).collect::<Vec<_>>());
         Fixture {
             public_input_bytes: public_input_bytes(&public_input),
             program,
+            seed,
             public_input,
             proof,
             summary,

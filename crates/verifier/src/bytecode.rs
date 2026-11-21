@@ -1,19 +1,32 @@
-//! The program a proof is about, prepared once so that verifying many proofs of it hashes its table once.
+//! The program a proof is about, prepared once so that verifying many proofs of it sorts its table once, and the seed
+//! a salt gives it.
 
 use crate::field::{E, ZERO, reduce};
-use crate::hash::{Digest, keccak_hash};
+use crate::hash::keccak_hash;
 use crate::layout::TAG;
 use crate::multilinear::eq_kernel;
 use crate::{VerifierError, require};
 
-/// The stacked bytecode multilinear, prepared to be evaluated, and the Fiat-Shamir IV it gives every transcript.
+/// The seed of `salt` for the stacked bytecode multilinear `table`: Keccak-256 of the salt, the version tag [`TAG`]
+/// and the table's little-endian words. A proof under this seed starts its transcript from it and holds it in memory
+/// words 2 and 3.
+pub fn seed_of_salt(salt: &[u8; 32], table: &[u64]) -> [u8; 32] {
+    let preimage: Vec<u8> = salt
+        .iter()
+        .chain(TAG)
+        .copied()
+        .chain(table.iter().flat_map(|word| word.to_le_bytes()))
+        .collect();
+    keccak_hash(&preimage).0
+}
+
+/// The stacked bytecode multilinear, prepared to be evaluated.
 ///
 /// The table is fixed while the points vary, so its words are sorted once: per block of `2^BLOCK_LOG` words, the
 /// positions of each distinct nonzero word, and the bytes those words have.
 #[derive(Clone, Debug)]
 pub struct Bytecode {
     len: usize,
-    pub(crate) fiat_shamir_iv: Digest,
     blocks: Vec<Block>,
     /// A distinct word of a block, and where its positions end.
     words: Vec<(u64, usize)>,
@@ -43,15 +56,6 @@ fn byte_buckets(word: u64) -> impl Iterator<Item = u16> {
 
 impl Bytecode {
     pub fn new(table: &[u64]) -> Self {
-        let fiat_shamir_iv = {
-            let iv_preimage: Vec<u8> = TAG
-                .iter()
-                .copied()
-                .chain(table.iter().flat_map(|word| word.to_le_bytes()))
-                .collect();
-            keccak_hash(&iv_preimage)
-        };
-
         let (mut blocks, mut words, mut positions, mut bytes) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         for (index, block) in table.chunks(1 << BLOCK_LOG).enumerate() {
             let mut members = std::collections::BTreeMap::<u64, Vec<u16>>::new();
@@ -80,7 +84,6 @@ impl Bytecode {
         }
         Self {
             len: table.len(),
-            fiat_shamir_iv,
             blocks,
             words,
             positions,

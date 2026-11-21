@@ -13,7 +13,7 @@ use fiat_shamir::merkle::hash_to_scalars;
 use lean_compiler::f192_literal;
 use lean_da::{CELLS_PER_ROW, DA_LOG_CELL, DA_LOG_K, DA_MAX_ROWS};
 use leanvm_core::constraints::xi_offsets;
-use leanvm_core::cpu::{KeccakLane, keccak_value};
+use leanvm_core::cpu::{KeccakLane, PUBLIC_WORDS, keccak_value};
 use leanvm_core::leaf::{Block, Coord};
 use leanvm_core::tables::N_TABLES;
 use leanvm_core::transcript::{FiatShamirState, RATE_SCALARS};
@@ -42,14 +42,15 @@ struct ClaimDescriptor {
 }
 
 // The guest's `POINT_BUF_*`, the point a pooled claim is made at: the bus's `zeta`, the table
-// sumcheck's point, the public input's, that point on a slot of `q_keccak`, and none for an
+// sumcheck's point, the public input's, that point on a slot of `q_keccak`, none for an
 // output lane's, which the Keccak reduction takes as its claim on the permutation's output and
-// the opening never sees.
+// the opening never sees, and the seed's.
 const POINT_BUF_ZETA: usize = 0;
 const POINT_BUF_RHO: usize = 1;
 const POINT_BUF_PI: usize = 2;
 const POINT_BUF_QKECCAK_RHO: usize = 3;
 const POINT_BUF_KECCAK_OUT: usize = 4;
+const POINT_BUF_SEED: usize = 5;
 
 fn literals(values: impl IntoIterator<Item = impl std::fmt::Display>) -> String {
     format!(
@@ -167,7 +168,7 @@ pub(super) fn placeholder_map(kbc: usize) -> BTreeMap<String, String> {
     // Only block and coordinate structure is used here; dummy instructions and
     // table sizes let us derive it before the guest's bytecode exists.
     let stand_in = vec![leanvm_core::cpu::Op::Xor { a: 0, b: 0, c: 0 }; 1 << kbc];
-    let layout = leanvm_core::cpu::layout(&stand_in, 20, [1 << 10; N_TABLES], [F192::ZERO, F192::ZERO]);
+    let layout = leanvm_core::cpu::layout(&stand_in, 20, [1 << 10; N_TABLES], [F192::ZERO; PUBLIC_WORDS]);
 
     let mut rep = BTreeMap::new();
     let mut ps = |k: &str, v: String| {
@@ -372,7 +373,7 @@ fn claim_placeholders(
         .iter()
         .map(|t| t.n_committed_columns())
         .sum();
-    let ncl = nclaims + evtot + 3; // bus + constraint + the three PI memory-limb claims
+    let ncl = nclaims + evtot + 6; // bus + constraint + the PI memory-limb claims, three a digest
 
     // ---- claim descriptor buffer ids (structural) ----
     let col_sources_pm = leanvm_core::cpu::col_kappa_sources(kbc);
@@ -425,6 +426,12 @@ fn claim_placeholders(
             }
             ClaimSite::MemoryLimb { column } => ClaimDescriptor {
                 buffer: POINT_BUF_PI,
+                column: compact_col_pm[column],
+                qkeccak_slot: 0,
+                source: (1, 0),
+            },
+            ClaimSite::SeedLimb { column } => ClaimDescriptor {
+                buffer: POINT_BUF_SEED,
                 column: compact_col_pm[column],
                 qkeccak_slot: 0,
                 source: (1, 0),

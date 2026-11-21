@@ -2,6 +2,7 @@
 
 use super::deferred::{DeferredClaim, scalar_bytecode};
 use super::error::{AggregateVerifyError, SnarkVerifyError};
+use super::seed::Seed;
 use super::statement::statement_digest;
 use super::{LeanSphincsClaim, LeanXmssClaim};
 use leanvm_core::cpu::{public_input_bytes, scalar_proof};
@@ -96,10 +97,10 @@ impl EthereumClaims {
 }
 
 impl EthereumProof {
-    /// The VM's public input for this aggregate: the digest of its claims and its deferred claim.
-    pub(super) fn vm_public_input(&self) -> [F192; 2] {
+    /// The VM's public input for this aggregate under `seed`: the digest of its claims and its deferred claim.
+    pub(super) fn vm_public_input(&self, seed: &Seed) -> [F192; 2] {
         let da = verifier::da::digest(self.claims.da_commitment);
-        statement_digest(&self.claims.xmss, &self.claims.lean_sphincs, da, &self.defer)
+        statement_digest(seed, &self.claims.xmss, &self.claims.lean_sphincs, da, &self.defer)
     }
 
     /// What this aggregate claims, which [`Self::verify`] checks.
@@ -134,10 +135,9 @@ impl EthereumProof {
         })
     }
 
-    /// Verify the aggregate's internal consistency: the signer set is well
-    /// formed, the deferred bytecode claim holds at its
-    /// transmitted point, and the VM proof satisfies the statement built from
-    /// all of it.
+    /// Verify the aggregate under the tree's `seed` ([`Seed::of_salt`] of the published salt): the
+    /// signer set is well formed, the deferred bytecode claim holds at its transmitted point, and
+    /// the VM proof under the seed satisfies the statement built from all of it.
     ///
     /// This says "every `(pubkey, message)` in the claims' `xmss` is a valid leanXMSS signature,
     /// and every one in their `lean_sphincs` a valid leanSPHINCS signature", and that the
@@ -146,7 +146,7 @@ impl EthereumProof {
     /// leanXMSS signature used is not part of the claim.
     ///
     /// Every field operation, the proof check and its Merkle hashing run in the `verifier` crate: one thread, no explicit SIMD.
-    pub fn verify(&self) -> Result<(), AggregateVerifyError> {
+    pub fn verify(&self, seed: &Seed) -> Result<(), AggregateVerifyError> {
         check_signer_set(&self.claims)?;
         // Discharging the deferred claim IS recomputing it: its value has
         // to be the true evaluation, or the recursion below proves nothing about
@@ -158,10 +158,15 @@ impl EthereumProof {
             return Err(AggregateVerifyError::MalformedClaim);
         }
         let _s = tracing::info_span!("Statement digest").entered();
-        let pi = self.vm_public_input();
+        let pi = self.vm_public_input(seed);
         drop(_s);
-        verifier::verify_execution(scalar_bytecode(), &public_input_bytes(&pi), &scalar_proof(&self.proof))
-            .map(|_| ())
-            .map_err(|e| AggregateVerifyError::Snark(SnarkVerifyError(e)))
+        verifier::verify_execution(
+            scalar_bytecode(),
+            &seed.to_bytes(),
+            &public_input_bytes(&pi),
+            &scalar_proof(&self.proof),
+        )
+        .map(|_| ())
+        .map_err(|e| AggregateVerifyError::Snark(SnarkVerifyError(e)))
     }
 }

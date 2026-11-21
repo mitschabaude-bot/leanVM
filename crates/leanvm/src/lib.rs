@@ -6,7 +6,7 @@
 
 pub use rec_aggregation::{
     AggregateVerifyError, AggregationError, EthereumClaims, EthereumProof, LeanSphincsClaim, LeanXmssClaim,
-    MAX_RECURSIONS, SnarkProveError, SnarkVerifyError, aggregate,
+    MAX_RECURSIONS, Seed, SnarkProveError, SnarkVerifyError, aggregate,
 };
 
 pub use leanvm_core::pcs::{MAX_LOG_INV_RATE, MIN_LOG_INV_RATE};
@@ -35,7 +35,7 @@ pub mod lean_sphincs {
     };
 }
 
-/// Call once before [`aggregate`] or [`EthereumProof::verify`].
+/// Call once before [`Seed::of_salt`], [`aggregate`] or [`EthereumProof::verify`].
 ///
 /// A proof's buffers are ordinary heap allocations, freed before it returns, so
 /// proving speed depends on the process's global allocator. One that keeps freed

@@ -21,7 +21,7 @@ mod ring_switch;
 mod transcript;
 mod whir;
 
-pub use bytecode::Bytecode;
+pub use bytecode::{Bytecode, seed_of_salt};
 pub use field::{E, K};
 pub use layout::{
     MAX_LOG_BYTECODE, MAX_LOG_MEMORY, MAX_STACKED_LOG, MAX_TABLE_LOG, MIN_LOG_MEMORY, MIN_STACKED_LOG, TAG,
@@ -32,7 +32,7 @@ pub use transcript::Proof;
 pub use whir::whir_queries;
 
 use bus::{ColumnClaim, table_sumcheck, verify_bus_balance};
-use field::{ZERO, powers};
+use field::{ONE, ZERO, powers};
 use hash::{Digest, ROUNDS, STATE_LANES};
 use keccak::{KeccakShape, verify_keccak};
 use layout::{
@@ -75,6 +75,7 @@ pub enum VerifierError {
     AnnouncedHighLimb,
     PcsInverseRate,
     CommittedSize,
+    MemoryWords,
 }
 
 impl std::fmt::Display for VerifierError {
@@ -107,6 +108,7 @@ impl std::fmt::Display for VerifierError {
             Self::AnnouncedHighLimb => "announced size has a nonzero high limb",
             Self::PcsInverseRate => "invalid PCS inverse rate",
             Self::CommittedSize => "committed size outside the PCS window",
+            Self::MemoryWords => "the memory has fewer than the four public words",
         };
         f.write_str(message)
     }
@@ -153,26 +155,38 @@ pub struct Summary {
     pub keccak_scalars: Range<usize>,
 }
 
-/// Verify that `proof` shows an execution of `bytecode` (the stacked bytecode multilinear) on the 256-bit `public_input`.
-pub fn verify_execution(bytecode: &Bytecode, public_input: &[u8; 32], proof: &Proof) -> Result<Summary, VerifierError> {
-    walk(bytecode, public_input, proof, true)
+/// Verify that `proof` shows an execution of `bytecode` (the stacked bytecode multilinear) under `seed` on the 256-bit
+/// `public_input`: memory words 0 and 1 hold the public input and words 2 and 3 the seed, which is also the
+/// transcript's IV.
+pub fn verify_execution(
+    bytecode: &Bytecode,
+    seed: &[u8; 32],
+    public_input: &[u8; 32],
+    proof: &Proof,
+) -> Result<Summary, VerifierError> {
+    walk(bytecode, seed, public_input, proof, true)
 }
 
 /// NOT a verification: the [`Summary`] of `proof`, read out without checking it. An invalid proof is accepted.
 ///
 /// For a prover that reads its guest's witness out of a proof the guest then verifies in full. It walks the same transcript as [`verify_execution`] and leaves out every check: the sumcheck, GKR, constraint, Keccak and WHIR terminal identities, the bus count's nonzero check, the proof of work, the bytecode evaluation and the Merkle roots. It still fails on a proof it cannot walk: announced sizes out of range, a stream or openings of the wrong length or shape, a Merkle path at a position the protocol did not open.
-pub fn replay_unchecked(bytecode: &Bytecode, public_input: &[u8; 32], proof: &Proof) -> Result<Summary, VerifierError> {
-    walk(bytecode, public_input, proof, false)
+pub fn replay_unchecked(
+    bytecode: &Bytecode,
+    seed: &[u8; 32],
+    public_input: &[u8; 32],
+    proof: &Proof,
+) -> Result<Summary, VerifierError> {
+    walk(bytecode, seed, public_input, proof, false)
 }
 
 /// Exposed for the Keccak reduction's benchmark and tests: a batch of `2^log_steps` permutations proved alone, a state
 /// committed every `depth` rounds, the committed states the whole stack.
 ///
 /// The proof is the commitment root, the output lanes claimed at a challenge point, the reduction, then the ring
-/// switch and its opening, as in an execution proof. Its public input is the shape, the words `log_steps`, `depth`,
-/// `log_inv_rate` and zero, so a proof of one shape verifies for no other.
+/// switch and its opening, as in an execution proof, under `seed`. Its public input is the shape, the words `log_steps`,
+/// `depth`, `log_inv_rate` and zero, so a proof of one shape verifies for no other.
 pub fn verify_keccak_batch(
-    fiat_shamir_iv: &[u8; 32],
+    seed: &[u8; 32],
     log_steps: usize,
     depth: usize,
     log_inv_rate: usize,
@@ -197,7 +211,7 @@ pub fn verify_keccak_batch(
     {
         *bytes = (word as u64).to_le_bytes();
     }
-    let mut transcript = Transcript::new(proof, Digest(*fiat_shamir_iv), Digest(statement), true);
+    let mut transcript = Transcript::new(proof, Digest(*seed), Digest(statement), true);
     let halves = transcript.next_scalars(2)?;
     let root = Digest::from_halves(halves[0], halves[1])?;
     let instance = transcript.samples(log_steps);
@@ -214,9 +228,15 @@ pub fn verify_keccak_batch(
     Ok(())
 }
 
-fn walk(bytecode: &Bytecode, public_input: &[u8; 32], proof: &Proof, checked: bool) -> Result<Summary, VerifierError> {
-    let public_input = Digest(*public_input);
-    let mut transcript = Transcript::new(proof, bytecode.fiat_shamir_iv, public_input, checked);
+fn walk(
+    bytecode: &Bytecode,
+    seed: &[u8; 32],
+    public_input: &[u8; 32],
+    proof: &Proof,
+    checked: bool,
+) -> Result<Summary, VerifierError> {
+    let (seed, public_input) = (Digest(*seed), Digest(*public_input));
+    let mut transcript = Transcript::new(proof, seed, public_input, checked);
 
     // 1] memory log-size, table row counts, and log-inv-rate in WHIR
     let announced = transcript.next_scalars(2 + N_TABLES)?;
@@ -267,19 +287,28 @@ fn walk(bytecode: &Bytecode, public_input: &[u8; 32], proof: &Proof, checked: bo
         }));
     }
 
-    // 5] binding the public input: each memory limb's claim is that limb's public line at the challenge, which the verifier
-    // evaluates itself, so the prover sends nothing. Both public words are 128-bit, so the top limb's claim is zero.
+    // 5] binding the public input: memory words 0 and 1 hold the public input, words 2 and 3 the seed. One challenge,
+    // and for each memory limb two claims, each that limb's line through a digest's halves at the challenge, which the
+    // verifier evaluates itself, so the prover sends nothing: the public input's at `(r, 0, ..)`, the line through cells
+    // 0 and 1, then the seed's at `(r, 1, 0, ..)`, the line through cells 2 and 3. Every half is 128-bit, so the top
+    // limb's claims are zero.
+    let memory_variables = layout.placements[MEMORY_0].expect("memory is committed").variables;
+    require(memory_variables >= 2, VerifierError::MemoryWords)?;
     let public_challenge = transcript.sample();
-    let (first, second) = public_input.halves();
-    let mut public_point = vec![ZERO; layout.placements[MEMORY_0].expect("memory is committed").variables];
-    public_point[0] = public_challenge;
-    let public_pairs = [(first.c0, second.c0), (first.c1, second.c1), (first.c2, second.c2)];
-    for (column, (low, high)) in [MEMORY_0, MEMORY_1, MEMORY_2].into_iter().zip(public_pairs) {
-        claims.push(ColumnClaim {
-            column,
-            point: public_point.clone(),
-            value: multilinear_eval(&[K(low), K(high)], &[public_challenge])?,
-        });
+    let mut first_point = vec![ZERO; memory_variables];
+    first_point[0] = public_challenge;
+    let mut second_point = first_point.clone();
+    second_point[1] = ONE;
+    for (point, digest) in [(first_point, public_input), (second_point, seed)] {
+        let (low, high) = digest.halves();
+        let pairs = [(low.c0, high.c0), (low.c1, high.c1), (low.c2, high.c2)];
+        for (column, (low, high)) in [MEMORY_0, MEMORY_1, MEMORY_2].into_iter().zip(pairs) {
+            claims.push(ColumnClaim {
+                column,
+                point: point.clone(),
+                value: multilinear_eval(&[K(low), K(high)], &[public_challenge])?,
+            });
+        }
     }
 
     // 6] KECCAK validity, by GKR over the rounds. The table's claims on its output lanes are the reduction's claim on

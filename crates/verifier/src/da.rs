@@ -13,7 +13,7 @@ const LABEL: &[u8] = b"leanDA/rs-membership/v1";
 
 /// `z`: the VM's transcript seeded with the label's hash as its IV and the root as its public input, squeezed once.
 pub fn membership_challenge(root: &[u8; 32]) -> E {
-    Sponge::new(keccak_hash(LABEL), Digest(*root)).sample()
+    Sponge::new(keccak_hash(LABEL), Digest(*root), Digest([0; 32])).sample()
 }
 
 /// What the statement of an aggregate carries for its DA root: `H(root ‖ z)`, `z` as its three little-endian limbs

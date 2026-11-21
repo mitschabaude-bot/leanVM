@@ -5,6 +5,9 @@ static ALLOCATOR: bench::Jemalloc = bench::Jemalloc;
 
 use clap::{Parser, Subcommand};
 
+/// The salt the benchmarks prove under.
+const SALT: [u8; 32] = [0; 32];
+
 mod benchmark;
 mod fibonacci;
 mod report;
