@@ -77,16 +77,6 @@ impl FiatShamirState {
         fs
     }
 
-    /// Seed a protocol that has no public input of its own from `label`, whose hash
-    /// is all a domain separator has to be.
-    pub fn from_label(label: &[u8]) -> Self {
-        Self::new(
-            digest_words(&primitives::hash::hash(label)),
-            [F64::ZERO; 4],
-            [F64::ZERO; 4],
-        )
-    }
-
     /// Permute, taking the waiting scalars, and return the output's first three lanes.
     fn duplex(&mut self) -> F192 {
         primitives::hash::keccak_f(&mut self.state);
@@ -224,10 +214,10 @@ mod tests {
 
     #[test]
     fn fs_binds_order() {
-        let mut a = FiatShamirState::from_label(b"t");
+        let mut a = FiatShamirState::new(pi(0), pi(1), pi(3));
         a.observe(f(1));
         a.observe(f(2));
-        let mut b = FiatShamirState::from_label(b"t");
+        let mut b = FiatShamirState::new(pi(0), pi(1), pi(3));
         b.observe(f(2));
         b.observe(f(1));
         assert_ne!(a.sample(), b.sample());
@@ -237,8 +227,8 @@ mod tests {
     #[test]
     fn fs_binds_length() {
         for n in 0..9u64 {
-            let mut a = FiatShamirState::from_label(b"t");
-            let mut b = FiatShamirState::from_label(b"t");
+            let mut a = FiatShamirState::new(pi(0), pi(1), pi(3));
+            let mut b = FiatShamirState::new(pi(0), pi(1), pi(3));
             for k in 0..n {
                 a.observe(f(k + 1));
                 b.observe(f(k + 1));
