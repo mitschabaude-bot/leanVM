@@ -38,13 +38,10 @@ open Recursion.Salted
 
 @[expose] public section
 
-/-- The key's state under `s` at `key`. -/
-def KeyAt (rd : Reader) (key : E) (s : Digest) : Prop := StateAt rd key 0 (keyState s)
-
 /-- **What a keyed claim list's call returns**: under every seed whose key's state is at `key`,
 the keyed digest of the `4n` canonical cells at `entries`. -/
 def ClaimListOutK (rd : Reader) (key entries : E) (n : ℕ) (rets : List E) : Prop :=
-  ∀ s : Digest, KeyAt rd key s → ∃ cells : List E, cells.length = 4 * n ∧ ReadsAt rd entries cells ∧
+  ∀ s : Digest, KeyIs rd key s → ∃ cells : List E, cells.length = 4 * n ∧ ReadsAt rd entries cells ∧
     AllCanonical cells ∧ rets = digestCells (keyedHash s (cellsBytes cells))
 
 /-- **The salted `claim_list_digest(key, entries, n_g)`**. -/
@@ -124,12 +121,6 @@ theorem find_claim_list_digestS :
     SaltedGuest.coreProgram.find? "claim_list_digest" = some LeanVM.SaltedGuest.Data.core23 :=
   find_of_getElem? cl_idx23S
 
-/-- The two key-state prefixes are the same. -/
-theorem key_state_eq {rd : Reader} {key : E} {s : Digest} (hk : KeyAt rd key s) (c : Fin 13) :
-    LoadHolds rd key c (cellsOfState (absorbChunks 2 zeroState (keyPrefix s)) false c) := by
-  have := hk c
-  rwa [Nat.zero_add] at this
-
 /-- **The salted `claim_list_digest` computes the keyed digest of the claims.** -/
 theorem claim_list_digest_soundK : claim_list_digest_sound_SpecK := by
   intro rd hm args rets h
@@ -160,7 +151,7 @@ theorem claim_list_digest_soundK : claim_list_digest_sound_SpecK := by
         simp only [ChainSpec.initCell, czSpecS]
         have := hkl c
         rw [Nat.zero_add] at this
-        exact loadHolds_unique this (key_state_eq hk c))
+        exact hk.load this)
     rw [hz10, hz11, show List.take (czSpecS.len / 16) (czSpecS.vals σ) = [] by simp [czSpecS]] at hd
     rw [← hr, h65, h66, keyedHash_eq, digestCells, ← hd]
   · -- a nonempty list
@@ -250,7 +241,7 @@ theorem claim_list_digest_soundK : claim_list_digest_sound_SpecK := by
       have l1 := load_sound (hzs c c.isLt).1 hat
       have l2 := load_sound (hzs c c.isLt).2 hat
       rw [Nat.zero_add]
-      rw [loadHolds_unique l2 (key_state_eq hk c)] at l1
+      rw [show σ (.n (40 + c)) = keyCells s ⟨c, c.isLt⟩ from hk.load l2] at l1
       exact l1
     obtain ⟨ca, cb, cc, hla, hlb, hlc, hra, hrb, hrc, hcan, hd⟩ := hcells _ _ (keyPrefix_length s) h0
     refine ⟨ca ++ cb ++ cc, by rw [List.length_append, List.length_append, hla, hlb, hlc]; ring,

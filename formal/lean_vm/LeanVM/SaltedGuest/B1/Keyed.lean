@@ -78,6 +78,16 @@ theorem key_whole {s : Digest} {I O : ℕ → Fin 13 → E}
   rw [this, List.nil_append, Nat.zero_add, cellsBytes_keyInput]
   rfl
 
+/-- **The key of `s` at `p`**: `p` is in `K` and every readable word at `p·g^c`, `c < 13`, is the key's
+cell `c` (what a frame run of the key's cells gives, `addr`, and a heap run holding them). -/
+def KeyIs (rd : Reader) (p : E) (s : Digest) : Prop :=
+  IsInK p ∧ ∀ c : Fin 13, ∀ w, rd (p.limb 0 * addressOfIndex c.val) = some w → w = keyCells s c
+
+/-- A word loaded from the key's run is the key's cell. -/
+theorem KeyIs.load {rd : Reader} {p : E} {s : Digest} (h : KeyIs rd p s) {c : Fin 13} {v : E}
+    (hl : LoadHolds rd p c v) : v = keyCells s c :=
+  h.2 c v hl.2
+
 /-! ## Chains from the key -/
 
 /-- **A `final` chain from the key's cells computes the keyed hash** of its message, the first
