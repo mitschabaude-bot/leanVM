@@ -56,9 +56,11 @@ structure CalleesWCK (bytecode : List K) (C : CallRel) (rd : Reader) (bb0 key : 
   da : ∀ gsq rets, C "da_verify" [gsq, key] rets → Da.SquaresAt rd gsq →
     ∃ (root : Digest) (z c2 : E), OpensUnder S root z (wD [gsq] rets) ∧ IsInK c2 ∧
       rets = digestCells root ++ [z + y * y * c2, c2 + y * eOfNat 0]
-  /-- A child proof's check with the exponent table: the proof `wV args`. -/
+  /-- A child proof's check with the exponent table and its seed's cells in memory words `2` and
+  `3`: the proof `wV args`. -/
   sub : ∀ pi0 pi1 s0 s1 gsq out,
     C "verify_sub" [pi0, pi1, s0, s1, gsq, out] [] → ExpTables rd gsq →
+    LoadHolds rd 1 2 s0 → LoadHolds rd 1 3 s1 →
     VerifySubOutK bytecode rd [pi0, pi1, s0, s1, gsq, out] (wV [pi0, pi1, s0, s1, gsq, out])
   /-- The batching from the seed's cells, for `n_children_g = g^m`, `1 ≤ m ≤ 16`, with the hints
   `wA args`. -/

@@ -18,8 +18,8 @@ public import LeanVM.Guest.B1.Sig.XmssLoop2
 salted `main`'s values read at the deployed numbers, `mainR`), for the seed `S` of memory words `2`
 and `3` and its key `key`, with the fields where the salted `main` differs:
 
-* `seed`, `keyIs`: the cells `fs_seed` are the halves of `S`, and `key` holds `S`'s key
-  (`key_of_seed`);
+* `seed`, `seedLoads`, `keyIs`: the cells `fs_seed` are the halves of `S` and memory words `2`
+  and `3`, and `key` holds `S`'s key (`key_of_seed`);
 * `xlist`, `slist`: the declared claim lists' digests are keyed by `S` (`ClaimListOutS`);
 * `rawx`, `raws`: the signature loops' calls, at their deployed names (`toDC C`);
 * `da`: the direct DA check takes the key, and the node's own DA digest is the keyed hash of the
@@ -59,6 +59,8 @@ structure MainFactsK (C : CallRel) (rd : Reader) (σ : Val) (S : Digest) (key : 
   addr : ∀ v ∈ [0, 1, 2, 3, 4, 5, 24], ∃ t, LoadHolds rd (σ (.n v)) 0 t
   /-- The cells `fs_seed` are the seed's halves. -/
   seed : (σ (.n 26), σ (.n 27)) = digestHalves S
+  /-- Memory words `2` and `3` hold the cells `fs_seed`. -/
+  seedLoads : LoadHolds rd 1 2 (σ (.n 26)) ∧ LoadHolds rd 1 3 (σ (.n 27))
   /-- `key` holds the seed's key. -/
   keyIs : KeyIs rd key S
   exp : ExpTables rd (σ (.n 28))
@@ -249,7 +251,7 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
     unfold l2Args lxTagsVS
     simp only [List.map_map]
     congr 1
-  refine ⟨fun v hv => ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+  refine ⟨fun v hv => ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp only [List.mem_cons, List.mem_nil_iff, or_false] at hv
     rcases hv with rfl | rfl | rfl | rfl | rfl | rfl <;> simp only [g0, g1, g2, g3, g4, g5] <;>
@@ -268,6 +270,8 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
       | exact ⟨_, touch_sound (prc _ (by omega)) atP⟩
   · show (σ (.n 29), σ (.n 33)) = _
     rw [hs29, hs33]
+  · show LoadHolds rd 1 2 (σ (.n 29)) ∧ LoadHolds rd 1 3 (σ (.n 33))
+    rw [hs29, hs33]; exact ⟨hS2, hS3⟩
   · exact hkey
   · -- the exponent tables
     exact End.expTablesSound rd _ (hle _ _ _ (call_of_flat hpre pexp))

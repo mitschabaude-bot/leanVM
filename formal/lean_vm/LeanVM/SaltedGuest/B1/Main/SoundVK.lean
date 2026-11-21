@@ -18,7 +18,8 @@ public import LeanVM.SaltedGuest.Start
 `SubSoundWK piOf`: the salted `verify_sub`'s statement, its proof named by `piOf` (a function of the
 memory, its valuation and the frame map): on a memory image of at most `2^32` words, under a call
 relation that unfolds at a frame map and lies below the salted core IR's, a run of its body whose
-arguments hold the exponent tables returns nothing, and its proof is accepted by the deferring
+arguments hold the exponent tables and whose seed's cells are memory words `2` and `3`
+(`SeedAtWords`, where the salted `level_queries` reads the key's seed) returns nothing, and its proof is accepted by the deferring
 verifier with a second public digest, with the IV the seed of its arguments and the keyed hash
 under it, for the public input of its arguments (`VerifySubOutK`).
 
@@ -51,6 +52,12 @@ theorem find_aggregate_claimsS : SaltedGuest.coreProgram.find? "aggregate_claims
     some LeanVM.SaltedGuest.Data.core35 :=
   Program.find?_of_indexOf? (j := 35) (by decide +kernel) rfl
 
+/-- **The seed's cells of a `verify_sub` call are memory words `2` and `3`**, where the salted
+`level_queries` reads the key's seed. -/
+def SeedAtWords (rd : Reader) : List E → Prop
+  | [_, _, s0, s1, _, _] => LoadHolds rd 1 2 s0 ∧ LoadHolds rd 1 3 s1
+  | _ => False
+
 /-- **The salted `verify_sub`'s statement, its proof named by `piOf`.** -/
 def SubSoundWK (piOf : Reader → Val → End.FrameMap → Proof) : Prop :=
   ∀ {κ : ℕ} (L : MemoryImage κ), κ ≤ 32 → ∀ (C : CallRel) (V : End.FrameMap),
@@ -58,6 +65,7 @@ def SubSoundWK (piOf : Reader → Val → End.FrameMap → Proof) : Prop :=
     ∀ (σ : Val) (rets : List E),
       Stmt.HoldsList C L.read σ (Fn.body LeanVM.SaltedGuest.Data.core18) False (fun rs ↦ rs = rets) →
       VerifySub.VerifySubPre L.read (LeanVM.SaltedGuest.Data.core18.params.map σ) →
+      SeedAtWords L.read (LeanVM.SaltedGuest.Data.core18.params.map σ) →
         rets = [] ∧ VerifySubOutK End.bytecode L.read (LeanVM.SaltedGuest.Data.core18.params.map σ)
           (piOf L.read σ V)
 
@@ -94,7 +102,7 @@ theorem mainSound_of_sub {piOf : Reader → Val → End.FrameMap → Proof} (hv 
       (fun args => aggHintsS L.read
         (V "aggregate_claims" ([mainVal σ (.n 26), mainVal σ (.n 27)] ++ args) [])) := by
     refine ⟨fun args h => ?_, fun p h hbb => ?_, fun gsq rets h hsq => ?_,
-      fun pi0 pi1 s0 s1 gsq out h hexp => ?_, fun ncg cpi cfresh ccarried dst h m hm1 hm16 hN => ?_⟩
+      fun pi0 pi1 s0 s1 gsq out h hexp hl2 hl3 => ?_, fun ncg cpi cfresh ccarried dst h m hm1 hm16 hN => ?_⟩
     · obtain ⟨hp, hbx⟩ := body_ofV hVd find_loop2 h
       exact loop2Out_of_body Sig.verify_lean_xmss_sound_holds hp hbx
     · obtain ⟨hp, hbs⟩ := body_ofV hVd Sig.find_verify_sig_lean_sphincs h
@@ -108,6 +116,7 @@ theorem mainSound_of_sub {piOf : Reader → Val → End.FrameMap → Proof} (hv 
       exact Da.da_verify_sound_wK hV hle hm hp hbd hsq MF.keyIs
     · obtain ⟨hp, hbv⟩ := body_ofVS hV find_verify_subS h
       obtain ⟨-, ho⟩ := hv L hκ C V hV hle _ _ hbv (by rw [hp]; exact hexp)
+        (by rw [hp]; exact ⟨hl2, hl3⟩)
       rw [hp] at ho
       exact ho
     · obtain ⟨hp, hba⟩ := body_ofVS hV find_aggregate_claimsS h
