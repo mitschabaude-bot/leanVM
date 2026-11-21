@@ -1,5 +1,7 @@
 import LeanVM.Guest.Data.Source
 import Statement.Data.Bytecode
+import LeanVM.SaltedGuest.Data.Source
+import LeanVM.SaltedGuest.Data.Bytecode
 import LeanVM.Guest.Code
 import LeanVM.Guest.Expand
 import LeanVM.Guest.Renumber
@@ -808,10 +810,10 @@ partial def calleesOf : List Core.Stmt → List String
 
 /-- The memory bounds a function's top-level calls need of their arguments, `(statement, value,
 offset, n)`: obligations its proof takes from the statements before the call. -/
-def knownOf (body : List Core.Stmt) (memOf : String → List (ℕ × ℕ × ℕ)) :
+def knownOf (body : List Core.Stmt) (memOf : String → ℕ → List (ℕ × ℕ × ℕ)) :
     List (ℕ × ℕ × ℕ × ℕ) :=
   body.zipIdx.flatMap fun
-    | (.call g args _, i) => (memOf g).filterMap fun (o, c, n) =>
+    | (.call g args _, i) => (memOf g args.length).filterMap fun (o, c, n) =>
         (args[o - 2]?).map fun v => (i, v.idx, c, n)
     | _ => []
 
@@ -850,9 +852,21 @@ def loopsOf (body : List Core.Stmt) : List String :=
     | .callIf _ g _ => if g.startsWith "__loop" then some g else none
     | _ => none
 
+/-- The argument of `main`'s call of the children's loop `__loop4` that is the table
+`exponent_tables` returns, if `main` makes both calls. -/
+def expTableArg (P : List Core.Fn) : Option ℕ := do
+  let mainFn ← P.find? (·.name == "main")
+  let table ← mainFn.body.findSome? fun
+    | .call "exponent_tables" [] [v] => some v
+    | _ => none
+  let args ← mainFn.body.findSome? fun
+    | .callIf _ "__loop4" args => some args
+    | _ => none
+  args.findIdx? (· == table)
+
 /-- The tagged tuples of frame cells each function assumes in the semantic relations
 (`Glob.sem`, `WalkTags.lean`): the exponent table (tag `0`) at `verify_sub`'s argument 4 and at
-`__loop4`'s argument 14, which passes it on; the windows of the windowed Merkle walk, at
+`__loop4`'s argument that `main` passes it in (`expTableArg`), which passes it on; the windows of the windowed Merkle walk, at
 `opening_queries`' window pointers and iteration count (arguments 4 and 6, `OqMainWins`) and at
 its loop's `[t, x, N]` (arguments 2, 0, 1: `WinWalk`, `WinWalk2` at level 0), with `x ≠ N`
 (`Check.tagNe`); and `level_queries`' window pointers (argument 1, `lqTag`), which it hands
@@ -860,7 +874,8 @@ its loop's `[t, x, N]` (arguments 2, 0, 1: `WinWalk`, `WinWalk2` at level 0), wi
 def semTab (P : List Core.Fn) : Std.HashMap String (List (ℕ × List ℕ)) := Id.run do
   let mut m : Std.HashMap String (List (ℕ × List ℕ)) := {}
   m := m.insert "verify_sub" [(0, [6])]
-  m := m.insert "__loop4" [(0, [16])]
+  if let some k := expTableArg P then
+    m := m.insert "__loop4" [(0, [2 + k])]
   -- `verify_bus_gkr`'s radix-four layer loop, which dispatches `gkr_rounds` on the layer's parity:
   -- `GkrPar` on `[layers, x, depth_shift, g_bus_mu, k_mod_next]` (arguments 4, 0, 2, 3, 6)
   let byName : Std.HashMap String Core.Fn := P.foldl (fun m f => m.insert f.name f) {}
@@ -990,16 +1005,16 @@ memory bounds they take from named obligations. `verify_tables` dispatches on `g
 `lean_ethereum.py:2131-2134, 2231-2234`; the logs `t ≥ 1` it range checks itself, G:2189-2199),
 `log2_ceil_in_the_exponent`'s returned power (cell 4); `claim_list_digest` and
 `child_claim_list_any`/`child_claim_list_mono` on `list_split`'s `rest` (its cell 5, below
-`CLAIM_GROUP = 17`; their argument 6);
+`CLAIM_GROUP = 17`; their last argument, of `nargs`);
 `da_verify` (its tree's `match` on the padded count's log) on `da_row_shape`'s checked argument;
 `check_opening_terminal` on `kb[i] = kappa_base[g^i]` (argument 8, cell 10) and on `kb[0]·g^19`,
 `kb[7]·g^6`, which `verify_sub` knows from an obligation: `kb[0] = g^0`, `kb[1..6] < g^31`,
 `kb[7] < g^25` (`lean_ethereum.py:3366-3383`). -/
-def bounds (name : String) :
+def bounds (name : String) (nargs : ℕ) :
     List (ℕ × ℕ) × List (ℕ × ℕ) × List (ℕ × ℕ × ℕ) × List (ℕ × ℕ × ℕ) :=
   if name == "da_row_shape" then ([], [(3, 11)], [], [])
   else if name == "list_split" then ([], [(5, 17)], [], [])
-  else if name == "child_claim_list_any" || name == "child_claim_list_mono" then ([(8, 17)], [], [], [])
+  else if name == "child_claim_list_any" || name == "child_claim_list_mono" then ([(1 + nargs, 17)], [], [], [])
   else if name == "verify_tables" then ([(11, 34)], [], [(12, 0, 34)], [])
   else if name == "log2_ceil_in_the_exponent__L0_L34" ||
     name == "log2_ceil_in_the_exponent__L15_L34" then
@@ -1139,7 +1154,7 @@ partial def laterNeeds (walk : String → Bool) (cellOf : Core.V → ℕ) :
   | [] => ([], [])
   | s :: ss =>
     let preCells (g : String) (args : List Core.V) : List ℕ :=
-      (bounds g).1.filterMap fun (o, _) => (args[o - 2]?).map cellOf
+      (bounds g args.length).1.filterMap fun (o, _) => (args[o - 2]?).map cellOf
     let (a, b) := laterNeeds walk cellOf ss
     let (a', b') : List ℕ × List (ℕ × ℕ × ℕ × ℕ) := match s with
       | .atom (.frameAddr q _) => ([cellOf q], [])
@@ -1266,7 +1281,7 @@ def planCuts (coarse : Bool) (F : GFacts) (f : CompiledFunction) (cf : Core.Fn) 
         | _ => false).bind fun d => if d < idx then some (cellOf (.n v), 2) else none
     -- the bounds earlier top-level calls return (`bounds`' after), handed on as bounds
     let posts := (cf.body.take idx).flatMap fun
-      | .call g args rets => ((bounds g).2.1).filterMap fun (o, n) =>
+      | .call g args rets => ((bounds g args.length).2.1).filterMap fun (o, n) =>
           ((args ++ rets)[o - 2]?).map fun v => (cellOf v, n)
       | _ => []
     -- a chained `match` is entered at its arms, the selector's cell its scrutinee's
@@ -1315,7 +1330,7 @@ def forcedOf (semMap : Std.HashMap String (List (ℕ × List ℕ))) (cf : Core.F
   let none3 : List (ℕ × ℕ × ℕ) := []
   let noneS : List (ℕ × List ℕ) := []
   let walkFn := (semMap.getD cf.name []).any (·.1 ≥ 2)
-  return (knownOf cf.body (fun g => (bounds g).2.2.1)).map (fun (i, v, c, n) =>
+  return (knownOf cf.body (fun g n => (bounds g n).2.2.1)).map (fun (i, v, c, n) =>
       (i, i, [(cell v, c, n)], none3, noneS)) ++
     (semsOf cf.body).map (fun (i, q) => (i, i, none3, none3, [(0, [cell q])])) ++
     (← callObligations semMap cf.body cell).map (fun (i, lo, tu) =>
@@ -1341,7 +1356,7 @@ def certOf (coarse : Bool) (T : Tables) (fns : Array CompiledFunction) (index : 
   let segs := execG F f 0 f.instructionCount (F.env.foldl (fun m (o, s) => m.insert o s) {})
   let (locs, nr, marks, spine, uses, entered) ← (inferLocs segs f cf main).mapError (s!"{f.name}: " ++ ·)
   let callees := ((calleesOf cf.body).filterMap index.get?).eraseDups.mergeSort
-  let (pre, post, mem, _) := bounds f.name
+  let (pre, post, mem, _) := bounds f.name cf.params.length
   let locA := locs.toArray
   let cell (v : ℕ) : ℕ := locA.getD v 0
   let forced ← (forcedOf semMap cf cell).mapError (s!"{f.name}: " ++ ·)
@@ -2818,10 +2833,11 @@ def fnBlock : ℕ := 50
 
 /-- The modules deciding the checks: each window's (`(function, window, instructions)`), in
 modules of consecutive windows, and each subtree of the power tree's. -/
-def checkedFiles (obl : List ℕ) (wins : Array (ℕ × ℕ × ℕ)) (ps : Array (ℕ × ℕ)) (nPow : ℕ)
+def checkedFiles (F : List CompiledFunction) (obl : List ℕ) (wins : Array (ℕ × ℕ × ℕ))
+    (ps : Array (ℕ × ℕ)) (nPow : ℕ)
     (splits : Std.HashMap (ℕ × ℕ) (List (ℕ × ℕ × List (ℕ × ℕ)))) :
     List (String × String) := Id.run do
-  let fns := Data.functions.toArray
+  let fns := F.toArray
   -- a function cut in windows has its `CheckOk` in a module of `Fn*`
   let cut (j : ℕ) : Bool := wins.any fun (j', w, _) => j' == j && w > 0
   -- the windows in order, in modules of at most `maxChecked`; a split window alone
@@ -3012,11 +3028,11 @@ def bigStaticFiles (fname : String) (j : ℕ) (ns : Array ℕ) (counts : List �
 windows (`(function, window, cost)`), in modules of at most `maxShared` cost; a function of one
 window has its static check, window and `ShareOk` together, one of several its `ShareOk` in the
 index. -/
-def sharedFiles (statics : Array (ℕ × ℕ)) (wins : Array (ℕ × ℕ × ℕ)) (n : ℕ)
-    (splits : Std.HashMap (ℕ × ℕ) (List (ℕ × ℕ × List (ℕ × ℕ))))
+def sharedFiles (F : List CompiledFunction) (statics : Array (ℕ × ℕ)) (wins : Array (ℕ × ℕ × ℕ))
+    (n : ℕ) (splits : Std.HashMap (ℕ × ℕ) (List (ℕ × ℕ × List (ℕ × ℕ))))
     (bigs : Std.HashMap ℕ (Array ℕ × List ℕ)) :
     List (System.FilePath × String) := Id.run do
-  let fns := Data.functions.toArray
+  let fns := F.toArray
   let cut (j : ℕ) : Bool := wins.any fun (j', w, _) => j' == j && w > 0
   -- items: `(function, none)` a static check, `(function, some w)` a window
   let mut items : Array (ℕ × Option ℕ × ℕ) := #[]
@@ -3549,9 +3565,11 @@ theorem chainOk_all : ∀ j, 1 ≤ j → j < nFns → ChainOk j := fun j _ hj �
 
 end CplK
 
-def files (P : Core.Program) (kOnly : Bool := false) : Except String (List (System.FilePath × String)) := do
-  let fns := Data.functions.toArray
-  let T := tables Data.functions
+def files (F : List CompiledFunction) (P : Core.Program) (kOnly : Bool := false)
+    (salted : Bool := false) :
+    Except String (List (System.FilePath × String) × List String) := do
+  let fns := F.toArray
+  let T := tables F
   let index := (fns.toList.zipIdx.map fun (f, j) => (f.name, j)).foldl
     (fun m (n, j) => if m.contains n then m else m.insert n j) ({} : Std.HashMap String ℕ)
   let semMap := semTab P
@@ -3571,15 +3589,21 @@ def files (P : Core.Program) (kOnly : Bool := false) : Except String (List (Syst
   let mut shareSplits : Std.HashMap (ℕ × ℕ) (List (ℕ × ℕ × List (ℕ × ℕ))) := {}
   let mut bigStatics : Std.HashMap ℕ (Array ℕ × List ℕ) := {}
   let mut chainedFns : Array (ℕ × String × ℕ) := #[]
+  -- the salted guest's functions whose completeness walk fails, their completeness data left empty
+  let mut noCpl : Array String := #[]
   for (cf, i) in P.zipIdx do
     -- the smaller windows, or the larger ones where the sharing check cannot cut the smaller, and
     -- for `main` and `verify_sub`, whose windows `Sound`'s obligations name
     let attempt (coarse : Bool) := do
       let (c, sizes, fsz, locs, segs, (starts, los, his, insW), offs, entW) ←
         certOf coarse T fns index semMap (i + 1) cf
-      let (pt, statL, sh, tmps, runs, marks, stopAt, acs, ent) ← if kOnly then pure default else
-        plumbOfFn T fns selfByEntry expTable (i + 1) cf locs segs fsz
-      let (sts, costs, wpos) ← if kOnly then pure default else
+      -- for the salted guest, a function whose completeness walk fails gets no completeness data
+      let plumbed ← if kOnly then pure none else
+        match plumbOfFn T fns selfByEntry expTable (i + 1) cf locs segs fsz with
+        | .ok r => pure (some r)
+        | .error e => if salted && coarse then pure none else throw e
+      let (pt, statL, sh, tmps, runs, marks, stopAt, acs, ent) := plumbed.getD default
+      let (sts, costs, wpos) ← if plumbed.isNone then pure default else
         ShareM.snaps (i + 1) cf locs starts los his insW statL sh tmps runs
       let nw := starts.size
       let sp := (List.range nw).filterMap fun w =>
@@ -3613,9 +3637,17 @@ def files (P : Core.Program) (kOnly : Bool := false) : Except String (List (Syst
     for (w, gs) in sp do splits := splits.insert (i + 1, w) gs
     for (k, gs) in ssp do shareSplits := shareSplits.insert (i + 1, k) gs
     armRows := armRows.push acs
+    -- an empty plumbing literal: the salted completeness walk failed (`attempt`)
+    let pt := if kOnly || !pt.isEmpty then pt else
+      s!"/-- `{cf.name}`: no completeness data, its completeness walk fails. -/\n" ++
+        s!"noncomputable def plumb{i + 1} : B2C.Plumb := \{}\n"
     unless kOnly do
-      cplFns := cplFns.push (← CplK.partsOf (i + 1) fns[i + 1]! (factsOf T fns[i + 1]! (i == 0)) cf segs starts offs
-        sizes marks stopAt ent entW)
+      if pt.startsWith "/-- `" && (pt.splitOn "no completeness data").length > 1 then
+        noCpl := noCpl.push s!"{i + 1} {cf.name}"
+        cplFns := cplFns.push { j := i + 1, name := cf.name, wins := [], costs := [] }
+      else
+        cplFns := cplFns.push (← CplK.partsOf (i + 1) fns[i + 1]! (factsOf T fns[i + 1]! (i == 0)) cf segs starts
+          offs sizes marks stopAt ent entW)
     plumbs := plumbs.push pt
     snapTexts := snapTexts.push (i + 1, sts)
     frames := frames.push fsz
@@ -3705,18 +3737,19 @@ noncomputable def certs : List Check.Cert :=
   let nPow := (powTop (T.pows.toArray.qsort (·.1 < ·.1)) powCut 0).2.length
   let kFiles := (([("Pows", powsFile T), ("FrameSizes", framesFile frames.toList)] ++ certFiles ++
       [("Cert", index)]).map fun (n, t) => (dataDir / (n ++ ".lean"), t)) ++
-    (checkedFiles (oblFnsOf semMap P) wins (T.pows.toArray.qsort (·.1 < ·.1)) nPow splits).map (fun (n, t) =>
+    (checkedFiles F (oblFnsOf semMap P) wins (T.pows.toArray.qsort (·.1 < ·.1)) nPow splits).map (fun (n, t) =>
       (if n == "Checked" then ("LeanVM/Guest" : System.FilePath) / "Checked.lean"
         else checkedDir / (n ++ ".lean"), t))
-  if kOnly then return kFiles
-  return (([("Pows", powsFile T), ("FrameSizes", framesFile frames.toList)] ++ certFiles ++
+  if kOnly then return (kFiles, noCpl.toList)
+  let all := (([("Pows", powsFile T), ("FrameSizes", framesFile frames.toList)] ++ certFiles ++
       [("Cert", index)] ++ plumbFiles ++ [("Plumb", plumbIndex)]).map fun (n, t) =>
     (dataDir / (n ++ ".lean"), t)) ++
-    (checkedFiles (oblFnsOf semMap P) wins (T.pows.toArray.qsort (·.1 < ·.1)) nPow splits).map (fun (n, t) =>
+    (checkedFiles F (oblFnsOf semMap P) wins (T.pows.toArray.qsort (·.1 < ·.1)) nPow splits).map (fun (n, t) =>
       (if n == "Checked" then ("LeanVM/Guest" : System.FilePath) / "Checked.lean"
-        else checkedDir / (n ++ ".lean"), t)) ++ sharedFiles shareStatics shareWins P.length shareSplits bigStatics ++
+        else checkedDir / (n ++ ".lean"), t)) ++ sharedFiles F shareStatics shareWins P.length shareSplits bigStatics ++
     (snapsFiles snapTexts.toList).map (fun (n, t) => (dataDir / (n ++ ".lean"), t)) ++ CplK.cplFiles cplFns.toList splits ++ [(dataDir / "CplArms.lean", CplK.armsFile armRows.toList)] ++
     CplK.chainedFiles chainedFns.toList
+  return (all, noCpl.toList)
 
 /-- The generated files on disk. -/
 def existing : IO (List System.FilePath) := do
@@ -3742,24 +3775,30 @@ end GuestCert
 
 open GuestCert in
 def main (args : List String) : IO UInt32 := do
+  -- `--salted`: the salted guest's certificates (`LeanVM.SaltedGuest.Data`), written in the
+  -- deployed guest's layout under the current directory, which `scripts/salted-guest-cert`
+  -- runs in a staging directory and renames into `LeanVM/SaltedGuest/`
+  let (salted, F, source, args) := match args with
+    | "--salted" :: rest => (true, LeanVM.SaltedGuest.Data.functions, LeanVM.SaltedGuest.Data.guest, rest)
+    | rest => (false, Data.functions, Data.guest, rest)
   let check := args == ["--check"]
   -- `--k`: the soundness certificates and their checks only (`Data/Cert*`, `Pows`, `FrameSizes`,
   -- `Checked`), the other files left as they are
   let kOnly := args == ["--k"]
   unless args.isEmpty || check || kOnly || args.head? == some "--windows" do
-    IO.eprintln "usage: guest-cert [--check | --k | --windows [j]]"
+    IO.eprintln "usage: guest-cert [--salted] [--check | --k | --windows [j]]"
     return 2
   unless ← dataDir.isDir do
     IO.eprintln s!"{dataDir} not found: run from lean_vm"
     return 2
-  let P ← match Expand.expandProgram Data.guest with
+  let P ← match Expand.expandProgram source with
     | .ok P => pure (P.map Core.Fn.renumber)
     | .error e => do IO.eprintln s!"expansion failed: {e}"; return 1
   -- `--windows [j]`: the soundness certificates only, each failing function (or function `j`'s
   -- windows, `(instructions, first statement)`), nothing written
   if args.head? == some "--windows" then
-    let fns := Data.functions.toArray
-    let T := tables Data.functions
+    let fns := F.toArray
+    let T := tables F
     let index := (fns.toList.zipIdx.map fun (f, j) => (f.name, j)).foldl
       (fun m (n, j) => if m.contains n then m else m.insert n j) ({} : Std.HashMap String ℕ)
     let semMap := semTab P
@@ -3773,9 +3812,11 @@ def main (args : List String) : IO UInt32 := do
       | .error e1, .error e => IO.println s!"{i + 1} {cf.name}: {e1} / coarse: {e}"
       | .ok _, .error _ => pure ()
     return 0
-  let fs ← match files P kOnly with
+  let (fs, noCpl) ← match files F P kOnly salted with
     | .ok fs => pure fs
     | .error e => do IO.eprintln s!"certificate failed: {e}"; return 1
+  for f in noCpl do
+    IO.eprintln s!"no completeness data: {f}"
   unless check do
     IO.FS.createDirAll checkedDir
     IO.FS.createDirAll sharedDir

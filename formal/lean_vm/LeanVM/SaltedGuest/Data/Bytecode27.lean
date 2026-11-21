@@ -18,7 +18,7 @@ set_option maxRecDepth 20000
 @[expose] public section
 
 /-- `walk_path__L12_L8` from offset 2048. -/
-def f1537c1 : List OffsetInstruction := [
+def f1538c1 : List OffsetInstruction := [
   .xor 9 30 142,
   .xor 10 31 143,
   .keccak 140 141 142 143 11 15 16 138 false false .two,
@@ -111,8 +111,8 @@ def f1537c1 : List OffsetInstruction := [
   .mul 162 21 121,
   .mul 163 21 122,
   .deref 4 1 168 .cell,
-  .set 171 13324373887580281925 0 0,
-  .deref 168 14357 172 .cell,
+  .set 171 2444793871171542879 0 0,
+  .deref 168 14346 172 .cell,
   .jump 21 172 129,
   .xor 7 121 175,
   .xor 8 122 176,
@@ -2069,7 +2069,7 @@ def f1537c1 : List OffsetInstruction := [
   .xor 7 52 181]
 
 /-- `walk_path__L12_L8` from offset 4096. -/
-def f1537c2 : List OffsetInstruction := [
+def f1538c2 : List OffsetInstruction := [
   .xor 8 53 182,
   .xor 9 173 183,
   .xor 10 174 184,

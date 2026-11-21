@@ -4602,6 +4602,18 @@ def da_column_offsets(zs):
 # ================================ the aggregation node ==============================
 
 
+def key_of_seed(seed_0, seed_1):
+    # The keyed hash's state under the seed, in this function's frame, and its address. Its
+    # own frame and not main's: main runs at fp = g^0, where the address of a frame run is a
+    # product of constants, and the formalization's check of the compiled code against the
+    # core IR (`formal/lean_vm/LeanVM/Guest/Check.lean`, `addrOk`) reads a frame run's address
+    # as stepped from the frame pointer, as every other function computes it.
+    key_run = StackBuf(KECCAK_STATE)
+    keyed_state(seed_0, seed_1, key_run)
+    key = addr(key_run)
+    return key
+
+
 def main():
     # One node of an aggregation tree: n_raw_lean_xmss leanXMSS signatures, n_raw_lean_sphincs
     # leanSPHINCS signatures and n_children sub-proofs OF THIS SAME BYTECODE. A claim of
@@ -4656,9 +4668,7 @@ def main():
     seed_1 = pub_ptr[GEN ** 3]
     # The keyed hash's state under the seed, computed here from the seed's cells: the claim
     # lists, the DA matrix and the DA claim are hashed under it.
-    key_run = StackBuf(KECCAK_STATE)
-    keyed_state(seed_0, seed_1, key_run)
-    key = addr(key_run)
+    key = key_of_seed(seed_0, seed_1)
 
     # ---- the claim lists ----
     g_squares = exponent_tables()
@@ -4722,6 +4732,8 @@ def main():
     own_da = da_digests * n_children_g ** 2
     if n_direct_da_g == GEN:
         root_0, root_1, z_0, z_1 = da_verify(g_squares, key)
+        key_run = StackBuf(KECCAK_STATE)
+        load_key(key, key_run)
         keccak_cells([root_0, root_1, z_0, z_1], own_da[0:2], state=key_run)
     else:
         own_da[1] = 0

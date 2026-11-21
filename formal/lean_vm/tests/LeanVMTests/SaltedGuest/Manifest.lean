@@ -18,18 +18,18 @@ def leanvmRev : String := "b2ac3d2e6191e74775e19f91b3a4847b6a4bce6f"
 def logSize : Nat := 19
 
 /-- The compiled functions' instructions. -/
-def codeLen : Nat := 456500
+def codeLen : Nat := 456530
 
 /-- The compiled functions. -/
-def functionCount : Nat := 1538
+def functionCount : Nat := 1539
 
 /-- The instructions of each opcode (`XOR`, `MUL`, `SET`, `DEREF`, `JUMP`, `KECCAK`), the padding included. -/
-def opcodeCounts : List Nat := [137981, 85455, 124658, 74221, 22725, 79248]
+def opcodeCounts : List Nat := [137981, 85456, 124635, 74241, 22727, 79248]
 
 /-- The salt of the exported vectors. -/
 def salt : Digest := #v[0x5a5a5a5a5a5a5a5a, 0x5a5a5a5a5a5a5a5a, 0x5a5a5a5a5a5a5a5a, 0x5a5a5a5a5a5a5a5a]
 
 /-- `Seed::of_salt(salt)`: Keccak-256 of the salt, the version tag and the stacked bytecode. -/
-def seed : Digest := #v[0x23c77ddfb2ba3f81, 0x10fdae066acc9635, 0x90bf8f9cbd7ba33c, 0xa02adb8048de3cbf]
+def seed : Digest := #v[0x9aaab0d02198781e, 0x0a32835be41bac46, 0x2ccddc3551a59fc0, 0x79f1d839b9247729]
 
 end LeanVMTests.SaltedGuest.Manifest

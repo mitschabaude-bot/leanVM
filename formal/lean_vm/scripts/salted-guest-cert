@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""The salted guest's certificates and their kernel checks, from `guest-cert --salted`.
+
+  python3 -I scripts/salted-guest-cert [--check]       (from lean_vm, after `lake build guest-cert`)
+
+`guest-cert --salted` writes the salted guest's soundness certificates and checks in the deployed
+guest's layout under the current directory; this runs it in a staging directory and renames its
+output into `LeanVM/SaltedGuest/` (`scripts/salted-rename.py`): the certificates and the data the
+checks read (`Data/Cert*`, `Pows`, `FrameSizes`, `CplParts`, `CplArms`, `Plumb*`, `Snaps*`) and the
+kernel checks (`Checked.lean`, `Checked/`). B2's completeness families (`B2C/Shared`, `Cplw`,
+`Chained`), which the soundness theorem does not import, are not kept. `--check` writes nothing and
+fails when a file differs or is not generated.
+"""
+
+import importlib.util
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+LEAN_VM = Path(__file__).resolve().parent.parent
+spec = importlib.util.spec_from_file_location("salted_rename", LEAN_VM / "scripts" / "salted-rename.py")
+salted_rename = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(salted_rename)
+SALTED = salted_rename.SALTED
+KEPT_DATA = ("Cert", "Pows", "FrameSizes", "CplParts", "CplArms", "Plumb", "Snaps")
+
+
+def kept(rel: Path) -> bool:
+    """A generated file the salted guest keeps, by its path under `LeanVM/Guest/`."""
+    if rel.parts[0] == "Data":
+        return rel.name.startswith(KEPT_DATA)
+    return rel.parts[0] == "Checked" or rel == Path("Checked.lean")
+
+
+def main() -> None:
+    check = sys.argv[1:] == ["--check"]
+    if sys.argv[1:] not in ([], ["--check"]):
+        sys.exit(__doc__)
+    exe = LEAN_VM / ".lake" / "build" / "bin" / "guest-cert"
+    with tempfile.TemporaryDirectory(prefix="salted-guest-cert-") as stage:
+        stage = Path(stage)
+        (stage / "LeanVM" / "Guest" / "Data").mkdir(parents=True)
+        subprocess.run([str(exe), "--salted"], cwd=stage, check=True)
+        guest = stage / "LeanVM" / "Guest"
+        modules = sorted(".".join(("LeanVM", "Guest", *p.relative_to(guest).with_suffix("").parts))
+                         for p in guest.rglob("*.lean") if kept(p.relative_to(guest)))
+        files = salted_rename.rename(stage, modules)
+    ours = set(files)
+    generated = {p for p in SALTED.rglob("*.lean") if kept(p.relative_to(SALTED))}
+    bad = False
+    for path, text in sorted(files.items()):
+        same = path.exists() and path.read_text() == text
+        if check and not same:
+            print(f"{path.relative_to(LEAN_VM)} is stale")
+            bad = True
+        elif not same:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+    for path in sorted(generated - ours):
+        if check:
+            print(f"{path.relative_to(LEAN_VM)} is not generated")
+            bad = True
+        else:
+            path.unlink()
+    if bad:
+        sys.exit("regenerate with `python3 -I scripts/salted-guest-cert`")
+    if not check:
+        print(f"{len(files)} files")
+
+
+if __name__ == "__main__":
+    main()

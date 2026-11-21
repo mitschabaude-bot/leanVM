@@ -18,7 +18,7 @@ set_option maxRecDepth 20000
 @[expose] public section
 
 /-- `walk_path__L18_L6` from offset 6144. -/
-def f1511c3 : List OffsetInstruction := [
+def f1512c3 : List OffsetInstruction := [
   .xor 7 214 222,
   .xor 8 215 223,
   .xor 9 78 224,
@@ -258,7 +258,7 @@ def f1511c3 : List OffsetInstruction := [
   .jump 21 0 1]
 
 /-- `__loop541` from offset 0. -/
-def f1512c0 : List OffsetInstruction := [
+def f1513c0 : List OffsetInstruction := [
   .mul 4 2 24,
   .mul 24 2 25,
   .deref 25 1 27 .cell,
@@ -557,7 +557,7 @@ def f1512c0 : List OffsetInstruction := [
   .set 390 0 9223372036854775808 0,
   .xor 363 390 391,
   .keccak 377 378 379 380 381 391 364 309 true false .two,
-  .set 393 18139948443221138642 0 0,
+  .set 393 17908044084836350409 0 0,
   .deref 392 2 309 .cell,
   .deref 392 3 310 .cell,
   .deref 392 4 27 .cell,
@@ -838,7 +838,7 @@ def f1512c0 : List OffsetInstruction := [
   .xor 712 385 734,
   .xor 713 390 735,
   .keccak 727 728 729 730 731 735 714 659 true false .two,
-  .set 737 18139948443221138642 0 0,
+  .set 737 17908044084836350409 0 0,
   .deref 736 2 659 .cell,
   .deref 736 3 660 .cell,
   .deref 736 4 395 .cell,
@@ -859,7 +859,7 @@ def f1512c0 : List OffsetInstruction := [
   .xor 745 3 746,
   .set 747 7687011246368900097 0 0,
   .mul 23 747 748,
-  .set 749 1121641220860019562 0 0,
+  .set 749 15686882866137833337 0 0,
   .mul 745 385 752,
   .mul 3 385 753,
   .mul 4 385 754,
@@ -888,7 +888,7 @@ def f1512c0 : List OffsetInstruction := [
   .jump 385 0 1]
 
 /-- `__loop542` from offset 0. -/
-def f1513c0 : List OffsetInstruction := [
+def f1514c0 : List OffsetInstruction := [
   .mul 4 2 24,
   .mul 24 2 25,
   .deref 25 0 27 .cell,
@@ -1187,7 +1187,7 @@ def f1513c0 : List OffsetInstruction := [
   .set 390 0 9223372036854775808 0,
   .xor 363 390 391,
   .keccak 377 378 379 380 381 391 364 309 true false .two,
-  .set 393 9865757586501533880 0 0,
+  .set 393 4603382701300589360 0 0,
   .deref 392 2 309 .cell,
   .deref 392 3 310 .cell,
   .deref 392 4 27 .cell,
@@ -1468,7 +1468,7 @@ def f1513c0 : List OffsetInstruction := [
   .xor 712 385 734,
   .xor 713 390 735,
   .keccak 727 728 729 730 731 735 714 659 true false .two,
-  .set 737 9865757586501533880 0 0,
+  .set 737 4603382701300589360 0 0,
   .deref 736 2 659 .cell,
   .deref 736 3 660 .cell,
   .deref 736 4 395 .cell,
@@ -1489,7 +1489,7 @@ def f1513c0 : List OffsetInstruction := [
   .xor 745 3 746,
   .set 747 7687011246368900097 0 0,
   .mul 23 747 748,
-  .set 749 2481491745197114921 0 0,
+  .set 749 1180630892335600506 0 0,
   .mul 745 385 752,
   .mul 3 385 753,
   .mul 4 385 754,
@@ -1518,7 +1518,7 @@ def f1513c0 : List OffsetInstruction := [
   .jump 385 0 1]
 
 /-- `__loop543` from offset 0. -/
-def f1514c0 : List OffsetInstruction := [
+def f1515c0 : List OffsetInstruction := [
   .mul 4 2 25,
   .deref 25 0 26 .cell,
   .set 123 0 0 0,
@@ -1707,7 +1707,7 @@ def f1514c0 : List OffsetInstruction := [
   .set 284 9223372036854775808 0 0,
   .xor 257 284 285,
   .keccak 271 272 273 274 275 285 258 225 false false .two,
-  .set 287 18139948443221138642 0 0,
+  .set 287 17908044084836350409 0 0,
   .deref 286 2 225 .cell,
   .deref 286 3 226 .cell,
   .deref 286 4 26 .cell,
@@ -1726,7 +1726,7 @@ def f1514c0 : List OffsetInstruction := [
   .xor 293 3 294,
   .set 295 306319541451882496 0 0,
   .mul 23 295 296,
-  .set 297 580871053463254838 0 0,
+  .set 297 5800352430065829251 0 0,
   .mul 293 279 300,
   .mul 3 279 301,
   .mul 4 279 302,
@@ -1755,7 +1755,7 @@ def f1514c0 : List OffsetInstruction := [
   .jump 279 0 1]
 
 /-- `residual_batch__L21` from offset 0. -/
-def f1515c0 : List OffsetInstruction := [
+def f1516c0 : List OffsetInstruction := [
   .deref 2 0 8 .cell,
   .deref 3 0 9 .cell,
   .xor 9 8 10,
@@ -2473,7 +2473,7 @@ def f1515c0 : List OffsetInstruction := [
   .jump 11 0 1]
 
 /-- `decode_query_windows__L26_L2` from offset 0. -/
-def f1516c0 : List OffsetInstruction := [
+def f1517c0 : List OffsetInstruction := [
   .deref 62 0 0 .fp,
   .deref 62 0 63 .cell,
   .set 65 9223372036854775808 0 0,
@@ -2832,7 +2832,7 @@ def f1516c0 : List OffsetInstruction := [
   .jump 405 0 1]
 
 /-- `walk_path__L18_L7` from offset 0. -/
-def f1517c0 : List OffsetInstruction := [
+def f1518c0 : List OffsetInstruction := [
   .deref 5 512 7 .cell,
   .deref 5 513 8 .cell,
   .deref 5 514 9 .cell,
@@ -2858,8 +2858,8 @@ def f1517c0 : List OffsetInstruction := [
   .set 127 0 0 0,
   .deref 128 0 0 .fp,
   .deref 128 0 129 .cell,
-  .set 130 3430869347609831139 0 0,
-  .deref 120 13077 131 .cell,
+  .set 130 11512284457816233193 0 0,
+  .deref 120 13066 131 .cell,
   .jump 21 131 129,
   .xor 7 2 134,
   .xor 8 3 135,
@@ -4883,7 +4883,7 @@ def f1517c0 : List OffsetInstruction := [
   .xor 8 133 141]
 
 /-- `walk_path__L18_L7` from offset 2048. -/
-def f1517c1 : List OffsetInstruction := [
+def f1518c1 : List OffsetInstruction := [
   .xor 9 30 142,
   .xor 10 31 143,
   .keccak 140 141 142 143 11 15 16 138 false false .two,
@@ -4976,8 +4976,8 @@ def f1517c1 : List OffsetInstruction := [
   .mul 162 21 121,
   .mul 163 21 122,
   .deref 4 1 168 .cell,
-  .set 171 18103159471242126769 0 0,
-  .deref 168 13141 172 .cell,
+  .set 171 17791656618271215457 0 0,
+  .deref 168 13130 172 .cell,
   .jump 21 172 129,
   .xor 7 121 175,
   .xor 8 122 176,
@@ -6934,7 +6934,7 @@ def f1517c1 : List OffsetInstruction := [
   .xor 7 52 181]
 
 /-- `walk_path__L18_L7` from offset 4096. -/
-def f1517c2 : List OffsetInstruction := [
+def f1518c2 : List OffsetInstruction := [
   .xor 8 53 182,
   .xor 9 173 183,
   .xor 10 174 184,
@@ -7094,8 +7094,8 @@ def f1517c2 : List OffsetInstruction := [
   .mul 203 21 169,
   .mul 204 21 170,
   .deref 4 2 209 .cell,
-  .set 212 1599349062203993140 0 0,
-  .deref 209 13205 213 .cell,
+  .set 212 16510613006732333417 0 0,
+  .deref 209 13194 213 .cell,
   .jump 21 213 129,
   .xor 7 169 216,
   .xor 8 170 217,
@@ -8985,7 +8985,7 @@ def f1517c2 : List OffsetInstruction := [
   .keccak 216 217 218 219 11 15 16 214 false false .two]
 
 /-- `walk_path__L18_L7` from offset 6144. -/
-def f1517c3 : List OffsetInstruction := [
+def f1518c3 : List OffsetInstruction := [
   .xor 7 214 222,
   .xor 8 215 223,
   .xor 9 78 224,
@@ -9225,7 +9225,7 @@ def f1517c3 : List OffsetInstruction := [
   .jump 21 0 1]
 
 /-- `__loop544` from offset 0. -/
-def f1518c0 : List OffsetInstruction := [
+def f1519c0 : List OffsetInstruction := [
   .mul 4 2 24,
   .mul 24 2 25,
   .deref 25 1 27 .cell,
@@ -9524,7 +9524,7 @@ def f1518c0 : List OffsetInstruction := [
   .set 390 0 9223372036854775808 0,
   .xor 363 390 391,
   .keccak 377 378 379 380 381 391 364 309 true false .two,
-  .set 393 9865757586501533880 0 0,
+  .set 393 4603382701300589360 0 0,
   .deref 392 2 309 .cell,
   .deref 392 3 310 .cell,
   .deref 392 4 27 .cell,
@@ -9805,7 +9805,7 @@ def f1518c0 : List OffsetInstruction := [
   .xor 712 385 734,
   .xor 713 390 735,
   .keccak 727 728 729 730 731 735 714 659 true false .two,
-  .set 737 9865757586501533880 0 0,
+  .set 737 4603382701300589360 0 0,
   .deref 736 2 659 .cell,
   .deref 736 3 660 .cell,
   .deref 736 4 395 .cell,
@@ -9826,7 +9826,7 @@ def f1518c0 : List OffsetInstruction := [
   .xor 745 3 746,
   .set 747 7687011246368900097 0 0,
   .mul 23 747 748,
-  .set 749 2339612620665085581 0 0,
+  .set 749 1707101356421420358 0 0,
   .mul 745 385 752,
   .mul 3 385 753,
   .mul 4 385 754,
@@ -9855,7 +9855,7 @@ def f1518c0 : List OffsetInstruction := [
   .jump 385 0 1]
 
 /-- `__loop545` from offset 0. -/
-def f1519c0 : List OffsetInstruction := [
+def f1520c0 : List OffsetInstruction := [
   .mul 4 2 24,
   .mul 24 2 25,
   .deref 25 0 27 .cell,
@@ -10154,7 +10154,7 @@ def f1519c0 : List OffsetInstruction := [
   .set 390 0 9223372036854775808 0,
   .xor 363 390 391,
   .keccak 377 378 379 380 381 391 364 309 true false .two,
-  .set 393 5853302540027460982 0 0,
+  .set 393 8741099145773257443 0 0,
   .deref 392 2 309 .cell,
   .deref 392 3 310 .cell,
   .deref 392 4 27 .cell,
@@ -10435,7 +10435,7 @@ def f1519c0 : List OffsetInstruction := [
   .xor 712 385 734,
   .xor 713 390 735,
   .keccak 727 728 729 730 731 735 714 659 true false .two,
-  .set 737 5853302540027460982 0 0,
+  .set 737 8741099145773257443 0 0,
   .deref 736 2 659 .cell,
   .deref 736 3 660 .cell,
   .deref 736 4 395 .cell,
@@ -10456,7 +10456,7 @@ def f1519c0 : List OffsetInstruction := [
   .xor 745 3 746,
   .set 747 7687011246368900097 0 0,
   .mul 23 747 748,
-  .set 749 10326918611413697646 0 0,
+  .set 749 15018309694569517840 0 0,
   .mul 745 385 752,
   .mul 3 385 753,
   .mul 4 385 754,
@@ -10485,7 +10485,7 @@ def f1519c0 : List OffsetInstruction := [
   .jump 385 0 1]
 
 /-- `__loop546` from offset 0. -/
-def f1520c0 : List OffsetInstruction := [
+def f1521c0 : List OffsetInstruction := [
   .mul 4 2 25,
   .deref 25 0 26 .cell,
   .set 123 0 0 0,
@@ -10674,7 +10674,7 @@ def f1520c0 : List OffsetInstruction := [
   .set 284 9223372036854775808 0 0,
   .xor 257 284 285,
   .keccak 271 272 273 274 275 285 258 225 false false .two,
-  .set 287 9865757586501533880 0 0,
+  .set 287 4603382701300589360 0 0,
   .deref 286 2 225 .cell,
   .deref 286 3 226 .cell,
   .deref 286 4 26 .cell,
@@ -10693,7 +10693,7 @@ def f1520c0 : List OffsetInstruction := [
   .xor 293 3 294,
   .set 295 306319541451882496 0 0,
   .mul 23 295 296,
-  .set 297 13016040866205613947 0 0,
+  .set 297 3245353554805009327 0 0,
   .mul 293 279 300,
   .mul 3 279 301,
   .mul 4 279 302,
@@ -10722,7 +10722,7 @@ def f1520c0 : List OffsetInstruction := [
   .jump 279 0 1]
 
 /-- `residual_batch__L22` from offset 0. -/
-def f1521c0 : List OffsetInstruction := [
+def f1522c0 : List OffsetInstruction := [
   .deref 2 0 8 .cell,
   .deref 3 0 9 .cell,
   .xor 9 8 10,
@@ -11474,7 +11474,7 @@ def f1521c0 : List OffsetInstruction := [
   .jump 11 0 1]
 
 /-- `decode_query_windows__L27_L3` from offset 0. -/
-def f1522c0 : List OffsetInstruction := [
+def f1523c0 : List OffsetInstruction := [
   .deref 62 0 0 .fp,
   .deref 62 0 63 .cell,
   .set 65 9223372036854775808 0 0,
@@ -11854,7 +11854,7 @@ def f1522c0 : List OffsetInstruction := [
   .jump 428 0 1]
 
 /-- `walk_path__L24_L2` from offset 0. -/
-def f1523c0 : List OffsetInstruction := [
+def f1524c0 : List OffsetInstruction := [
   .deref 5 16 7 .cell,
   .deref 5 17 8 .cell,
   .deref 5 18 9 .cell,
@@ -11880,8 +11880,8 @@ def f1523c0 : List OffsetInstruction := [
   .set 127 0 0 0,
   .deref 128 0 0 .fp,
   .deref 128 0 129 .cell,
-  .set 130 12033838280333285613 0 0,
-  .deref 120 13269 131 .cell,
+  .set 130 2013344573337822958 0 0,
+  .deref 120 13258 131 .cell,
   .jump 21 131 129,
   .xor 7 2 134,
   .xor 8 3 135,
@@ -13905,7 +13905,7 @@ def f1523c0 : List OffsetInstruction := [
   .xor 8 133 141]
 
 /-- `walk_path__L24_L2` from offset 2048. -/
-def f1523c1 : List OffsetInstruction := [
+def f1524c1 : List OffsetInstruction := [
   .xor 9 30 142,
   .xor 10 31 143,
   .keccak 140 141 142 143 11 15 16 138 false false .two,
@@ -13998,8 +13998,8 @@ def f1523c1 : List OffsetInstruction := [
   .mul 162 21 121,
   .mul 163 21 122,
   .deref 4 1 168 .cell,
-  .set 171 16414465525077210632 0 0,
-  .deref 168 13333 172 .cell,
+  .set 171 6631512518180164741 0 0,
+  .deref 168 13322 172 .cell,
   .jump 21 172 129,
   .xor 7 121 175,
   .xor 8 122 176,
@@ -15956,7 +15956,7 @@ def f1523c1 : List OffsetInstruction := [
   .xor 7 52 181]
 
 /-- `walk_path__L24_L2` from offset 4096. -/
-def f1523c2 : List OffsetInstruction := [
+def f1524c2 : List OffsetInstruction := [
   .xor 8 53 182,
   .xor 9 173 183,
   .xor 10 174 184,
@@ -16116,8 +16116,8 @@ def f1523c2 : List OffsetInstruction := [
   .mul 203 21 169,
   .mul 204 21 170,
   .deref 4 2 209 .cell,
-  .set 212 9853084283849927223 0 0,
-  .deref 209 13397 213 .cell,
+  .set 212 17453412896229768228 0 0,
+  .deref 209 13386 213 .cell,
   .jump 21 213 129,
   .xor 7 169 216,
   .xor 8 170 217,
