@@ -146,6 +146,13 @@ name = "salted-node-diff"
 root = "SaltedNodeDiff"
 srcDir = "cli"
 
+# Writes the salted guest's functions that are the deployed guest's up to their loop helpers'
+# names (`LeanVM/SaltedGuest/Same/`); `--check` fails when they are stale.
+[[lean_exe]]
+name = "salted-same"
+root = "SaltedSame"
+srcDir = "cli"
+
 # Writes the guest's kernel-checked memory-layer facts (`LeanVM/Guest/Memory/GuestFresh*`,
 # `GuestWf*`); `--check` fails when they are stale.
 [[lean_exe]]

@@ -113,7 +113,7 @@ lean_da() {
 executables() {
   step "lean_vm: the executables"
   (cd lean_vm && lake build node-vectors guest-core guest-cert guest-memory scheme-vectors guest-diff \
-    leanvm-verify wire-diff leanvm-prove salted-node-diff)
+    leanvm-verify wire-diff leanvm-prove salted-node-diff salted-same)
 }
 
 lean_vm() {
@@ -134,6 +134,7 @@ lean_vm() {
   step "lean_vm: the salted guest's core IR data and certificates are current"
   (cd lean_vm && capped .lake/build/bin/guest-core --salted --check)
   (cd lean_vm && python3 -I scripts/salted-guest-cert --check)
+  (cd lean_vm && capped .lake/build/bin/salted-same --check)
   step "lean_vm: the guest's memory-layer checks are current"
   (cd lean_vm && capped .lake/build/bin/guest-memory --check)
   # Their inputs evaluated from the build just made (`decoder-tables-inputs.lean`: one line each).
