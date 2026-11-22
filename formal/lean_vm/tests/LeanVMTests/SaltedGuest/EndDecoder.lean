@@ -22,3 +22,10 @@ example : (⟨LeanVM.SaltedGuest.guestProgram, LeanVM.SaltedGuest.Decoder.salted
 /-- info: 'LeanVM.SaltedGuest.Decoder.decTopK_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms LeanVM.SaltedGuest.Decoder.decTopK_eq
+
+/-- info: 'LeanVM.SaltedGuest.End.saltedGuest_decodingsBounded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms LeanVM.SaltedGuest.End.saltedGuest_decodingsBounded
+
+/-- The bound is the number `8633083319170770143622`. -/
+example : LeanVM.SaltedGuest.Decoder.decodingSizeBoundK = 8633083319170770143622 := rfl
