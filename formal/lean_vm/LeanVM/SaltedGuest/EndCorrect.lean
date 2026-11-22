@@ -9,6 +9,7 @@ module
 
 public import LeanVM.SaltedGuest.EndBounds
 public import LeanVM.SaltedGuest.Bounds.PriceK
+public import LeanVM.SaltedGuest.Decoder.Bits
 
 /-!
 # The salted guest's correctness
@@ -21,8 +22,11 @@ Over the executions `SaltedGuest.KnowledgeSound` quantifies over (`ValidExecutio
 * **`saltedGuest_decodesWithin`**: that budget and the claims at `2^20` together, the shape of the
   recursion's `SaltedGuest.DecodesWithin decoderBound (2 ^ 20)` (`extractedStepCap = 2^30`,
   `decoderBound = 2^52`);
-* **`saltedGuest_correct`**: knowledge soundness, `saltedGuest_decodesWithin` and the hints'
-  rounds together.
+* **`saltedGuest_decoderBits`**: the decoder program's bit length (`MachineProgram.bits`, the
+  recursion statement's, `LeanVM/Salted/ProgramCode.lean`) is at most `2^64`
+  (`Decoder.saltedDecoder_bits_le`: at most `57761973`);
+* **`saltedGuest_correct`**: knowledge soundness, `saltedGuest_decodesWithin`, the hints' rounds
+  and the decoder's bits together, the clauses of the recursion's `SaltedGuest.Correct`.
 -/
 
 namespace LeanVM.SaltedGuest.End
@@ -58,10 +62,19 @@ theorem saltedGuest_decodesWithin :
                 2 ^ 20 :=
   fun input t hv ↦ ⟨saltedGuest_budgetWithin input t hv, saltedGuest_claimsWithin input t hv⟩
 
+set_option maxRecDepth 100000 in
+/-- **The salted guest's decoder program has at most `2^64` bits.** -/
+theorem saltedGuest_decoderBits : saltedGuest.decoder.bits ≤ 2 ^ 64 := by
+  have h := Decoder.saltedDecoder_bits_le
+  unfold saltedGuest
+  dsimp only
+  exact h
+
 /-- **The salted guest is correct**: knowledge sound; on every valid execution for a public input
 of two digests its decoder's budget is at most `2^52` where the execution takes at most `2^30`
 steps, and a decoding the decoder outputs and each of its children have at most `2^20` signature
-claims; and the decoding's batching hints have at most `log₂ |bytecode|` rounds. -/
+claims; the decoding's batching hints have at most `log₂ |bytecode|` rounds; and its decoder
+program has at most `2^64` bits. -/
 theorem saltedGuest_correct :
     saltedGuest.KnowledgeSound ∧
     (∀ input (execution : Execution saltedGuest.program),
@@ -84,8 +97,10 @@ theorem saltedGuest_correct :
             (encodeGuestWitnessDecoderInput saltedGuest.program execution) =
           some (encodeValue dec) →
         dec.witness.batchingHints.sumcheckMessages.length ≤
-          Nat.log2 saltedGuest.bytecode.length) :=
-  ⟨saltedGuest_knowledgeSound, saltedGuest_decodesWithin, saltedGuest_hintsWithinRounds⟩
+          Nat.log2 saltedGuest.bytecode.length) ∧
+    saltedGuest.decoder.bits ≤ 2 ^ 64 :=
+  ⟨saltedGuest_knowledgeSound, saltedGuest_decodesWithin, saltedGuest_hintsWithinRounds,
+    saltedGuest_decoderBits⟩
 
 end
 end LeanVM.SaltedGuest.End

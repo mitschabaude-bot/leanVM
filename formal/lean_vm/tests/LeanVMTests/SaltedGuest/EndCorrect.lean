@@ -4,8 +4,8 @@ import LeanVM.SaltedGuest.EndCorrect
 # The salted guest's correctness, its axioms
 
 Knowledge soundness, the decoder's budget at most `2^52` on a valid execution of at most `2^30`
-steps with the claims at `2^20` (`saltedGuest_decodesWithin`), and the hints' rounds together
-(`saltedGuest_correct`); the price's formula in the steps (`saltedDecoderPrice_le`) and its
+steps with the claims at `2^20` (`saltedGuest_decodesWithin`), the hints' rounds and the decoder's bits at most `2^64`
+together (`saltedGuest_correct`); the price's formula in the steps (`saltedDecoderPrice_le`) and its
 numbers at `2^30` and `2^35` steps. The axiom footprint of each is Lean's three.
 -/
 
@@ -30,3 +30,10 @@ example : LeanVM.SaltedGuest.Bounds.saltedPrice30 = 2053965827132468 := by decid
 
 /-- The price at `2^35` steps, about `2^55.83`. -/
 example : LeanVM.SaltedGuest.Bounds.saltedPrice35 = 63883479202725087 := by decide +kernel
+
+/-- info: 'LeanVM.SaltedGuest.Decoder.saltedDecoder_bits_le' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms LeanVM.SaltedGuest.Decoder.saltedDecoder_bits_le
+
+/-- The bit length's bound evaluated: `57761973`. -/
+example : LeanVM.SaltedGuest.Decoder.saltedDecoderBitsBound = 57761973 := by decide +kernel
