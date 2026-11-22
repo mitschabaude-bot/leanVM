@@ -20,22 +20,21 @@ the decoding by replay off the memory (`output_valid`), whose counts `main`'s ch
 (`countsK_valid`). So, over the executions `SaltedGuest.KnowledgeSound` quantifies over
 (`ValidExecution₂`):
 
-* **`childClaims_valid`**: every child of a decoding the decoder outputs has at most `2^30 - 1`
-  signature claims (a child's claims are slots of the two regions, `kidSlots_length_le`, below
-  the memory's size together);
-* **`stmtClaims_valid`**: the decoding's own statement has at most `2^30 - 1` signature claims
-  (its declared claims of both schemes together, below the memory's size);
+* **`childClaims_valid`**: every child of a decoding the decoder outputs has at most `2^20`
+  signature claims (a child's claims are slots of the two regions, `kidSlots_length_le`, at most
+  `2^20` together, `main`'s cap);
+* **`stmtClaims_valid`**: the decoding's own statement has at most `2^20` signature claims (its
+  declared claims of both schemes together, at most the regions' slots);
 * **`hints_le`**: its batching hints have at most `23` sumcheck messages, on every execution;
 * **`daRows_le`**: the DA matrix of every decoding the decoder outputs has at most
   `LeanDa.maxRows = 1024` rows, on every execution (the decoder reads at most `1024` rows,
   `dvWitK_ok`); on a valid execution this also follows from the node relation (`OpensUnder`);
 * **`decodingSize_valid`**: every decoding its output decodes to has an encoding of size at most
-  `decodingSizeBoundValid = 2760663911915` (about `2^41.33`): at most `16` children, the declared
-  claims of both schemes together, a child's claims and the raw signatures of each scheme below
-  `2^30`, a child's proof within `21475247062` (its stream's words at most `2^32 + 121`, the
+  `decodingSizeBoundValid = 346031412918` (about `2^38.33`): at most `16` children, the declared
+  claims of both schemes together, a child's claims and the raw signatures of each scheme at most
+  `2^20`, a child's proof within `21475247062` (its stream's words at most `2^32 + 121`, the
   dispatch table's openings), the DA matrix within `1024` rows of `32768` symbols, the batching's
-  `23` rounds. The raw signatures dominate (`2^30` of each scheme, `1539` and `474` limbs a
-  signature with its claim).
+  `23` rounds. The children's proofs dominate.
 -/
 
 namespace LeanVM.SaltedGuest.Bounds
@@ -144,36 +143,34 @@ end Fields
 /-! ## The children's claims -/
 
 /-- **On a valid execution of the salted guest, every child of a decoding the decoder outputs has
-at most `2^30 - 1` signature claims.** -/
+at most `2^20` signature claims.** -/
 theorem childClaims_valid {input : PublicInput₂} {t : Execution guestProgram}
     (hv : ValidExecution₂ guestProgram input t) (dec : SeedStatementAndWitness)
     (h : outputWithin saltedDecoder saltedDecoder.size (saltedDecoderPrice t)
       (encodeGuestWitnessDecoderInput guestProgram t) = some (encodeValue dec)) :
     ∀ child ∈ dec.witness.children,
-      child.statement.claims.xmss.length + child.statement.claims.sphincs.length ≤ 2 ^ 30 - 1 := by
+      child.statement.claims.xmss.length + child.statement.claims.sphincs.length ≤ 2 ^ 20 := by
   intro child hc
   rw [output_valid hv h] at hc
   have hC := countsK_valid hv
-  have hp := pow_le_valid hv
   unfold decodeWithR at hc
   rw [decK_children] at hc
   obtain ⟨c, -, rfl⟩ := List.mem_map.mp hc
   have h1 := kidStmt_claims_le (B1.Main.mainVal (valG t.memory 1 (certOf 1))) t.memory.read c
-  have h2 := hC.slots
+  have h2 := hC.slotsCap
   exact h1.trans (by omega)
 
 /-- **On a valid execution of the salted guest, the statement of a decoding the decoder outputs has
-at most `2^30 - 1` signature claims.** -/
+at most `2^20` signature claims.** -/
 theorem stmtClaims_valid {input : PublicInput₂} {t : Execution guestProgram}
     (hv : ValidExecution₂ guestProgram input t) (dec : SeedStatementAndWitness)
     (h : outputWithin saltedDecoder saltedDecoder.size (saltedDecoderPrice t)
       (encodeGuestWitnessDecoderInput guestProgram t) = some (encodeValue dec)) :
-    dec.statement.claims.xmss.length + dec.statement.claims.sphincs.length ≤ 2 ^ 30 - 1 := by
+    dec.statement.claims.xmss.length + dec.statement.claims.sphincs.length ≤ 2 ^ 20 := by
   rw [output_valid hv h]
   unfold decodeWithR
   rw [decK_stmt_claims]
-  have := (countsK_valid hv).claims
-  have := pow_le_valid hv
+  have := (countsK_valid hv).claimsCap
   omega
 
 /-! ## The batching hints -/
@@ -244,7 +241,7 @@ theorem size_decoding_le (d : SeedStatementAndWitness) {n k c P r : ℕ}
   omega
 
 /-- **The salted decoding's size bound on a valid execution**: about `2^41.33`. -/
-def decodingSizeBoundValid : ℕ := 2760663911915
+def decodingSizeBoundValid : ℕ := 346031412918
 
 /-- **On a valid execution of the salted guest, every decoding the decoder's output decodes to
 has an encoding of size at most `decodingSizeBoundValid`.** -/
@@ -268,11 +265,10 @@ theorem decodingSize_valid {input : PublicInput₂} {t : Execution guestProgram}
   obtain ⟨σ₁, rd₁, Vn, e₁⟩ := decTopK_form guestProgram t.logMemorySize (memoryVector t.memory)
   rw [e₁] at eA
   have hC := countsK_valid hv
-  have hp := pow_le_valid hv
   unfold decodeWithR at eV
-  refine (size_decoding_le dec (n := 2 ^ 30 - 1) (k := 16) (c := 2 ^ 30 - 1) (P := 21475247062)
-    (r := 2 ^ 30 - 1) ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_).trans (by unfold decodingSizeBoundValid; norm_num)
-  · rw [eV, decK_stmt_claims]; have := hC.claims; omega
+  refine (size_decoding_le dec (n := 2 ^ 20) (k := 16) (c := 2 ^ 20) (P := 21475247062)
+    (r := 2 ^ 20) ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_).trans (by unfold decodingSizeBoundValid; norm_num)
+  · rw [eV, decK_stmt_claims]; have := hC.claimsCap; omega
   · rw [eV, decK_statement]; exact deferOfCells_len _
   · rw [eV, decK_children, List.length_map, List.length_range]; exact hC.kids
   · intro child hch
@@ -284,8 +280,8 @@ theorem decodingSize_valid {input : PublicInput₂} {t : Execution guestProgram}
     show (encodeValue (B1.VerifySub.vsPiOfK rd₁ (byName Vn "verify_sub" _ []) (byName Vn))).size ≤ _
     rw [← vsPiOfNK_eq]
     exact size_vsPiOfNK _ _ _
-  · rw [eV, decK_xmss_length]; have := hC.rawX; omega
-  · rw [eV, decK_sphincs_length]; have := hC.rawS; omega
+  · rw [eV, decK_xmss_length]; have := hC.rawCap; omega
+  · rw [eV, decK_sphincs_length]; have := hC.rawCap; omega
   · rw [eV]; exact decK_daMatrix _ _ _
   · rw [eV]; exact decK_hints _ _ _
 

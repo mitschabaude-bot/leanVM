@@ -183,7 +183,7 @@ theorem main_sound_CK {bytecode : List K} (hbl : bytecode.length = 2 ^ bytecodeV
     {wX : List E → LeanXmss.Signature} {wS : E → Sphincs.Signature}
     {wD : List E → List E → LeanVM.Da.MatrixWitness} {wV : List E → Proof}
     {wA : List E → BatchingHints}
-    (cw : CalleesWCK bytecode C rd (mainVal σ (.n 47)) (σ (.n 34)) S wX wS wD wV wA) {D : Digest}
+    (cw : CalleesWCK bytecode C rd (mainVal σ (.n 47)) (σ (.n 38)) S wX wS wD wV wA) {D : Digest}
     (hp0 : LoadHolds rd 1 0 (digestHalves D).1) (hp1 : LoadHolds rd 1 1 (digestHalves D).2)
     (hb : Stmt.HoldsList C rd σ (Fn.body LeanVM.SaltedGuest.Data.core0) False (fun rs => rs = [])) :
     saltedStatementDigest S (decStmt (mainVal σ) rd) = D ∧

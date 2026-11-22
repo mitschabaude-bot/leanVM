@@ -17,13 +17,15 @@ execution for the first digest, the second digest in memory words `2` and `3`), 
 salted guest's decoder outputs, within its size bound and budget:
 
 * **`saltedGuest_claimsWithin`**: its statement and the statement of each of its children have at
-  most `2^30 - 1` signature claims (`Bounds.stmtClaims_valid`, `Bounds.childClaims_valid`; the
-  guest bounds its declared claims and the two regions of its coverage table by the memory's size,
-  `2^30` words at most, and by nothing smaller);
+  most `2^20` signature claims (`Bounds.stmtClaims_valid`, `Bounds.childClaims_valid`; `main` caps
+  the two regions of its coverage table at `MAX_CLAIMS = 2^20` slots together, and a claim it
+  declares or a child's claim takes a slot);
 * **`saltedGuest_hintsWithinRounds`**: its batching hints have at most `log₂ |bytecode| = 23`
   sumcheck messages (`Bounds.hints_le`; the decoder reads `23` rounds, with or without children);
+* **`saltedGuest_correct_claims_hints`**: knowledge soundness, the claims at `2^20` and the hints'
+  rounds together, the clauses of the recursion's `SaltedGuest.Correct` but its budget;
 * `saltedGuest_decodingsValid`: its encoding's size is at most `Bounds.decodingSizeBoundValid`,
-  about `2^41.33`, and its DA matrix has at most `LeanDa.maxRows = 1024` rows.
+  about `2^38.33`, and its DA matrix has at most `LeanDa.maxRows = 1024` rows.
 -/
 
 namespace LeanVM.SaltedGuest.End
@@ -34,7 +36,7 @@ open LeanVM.Cost LeanVM.Semantics LeanVM.Node Recursion.SecondDigest
 
 /-- **The claims of the salted guest's decodings**: on every valid execution for a public input of
 two digests, the statement of a decoding the decoder outputs and the statement of each of its
-children have at most `2^30 - 1` signature claims. -/
+children have at most `2^20` signature claims. -/
 theorem saltedGuest_claimsWithin :
     ∀ input (execution : Execution saltedGuest.program),
       ValidExecution₂ saltedGuest.program input execution →
@@ -43,10 +45,10 @@ theorem saltedGuest_claimsWithin :
             (saltedGuest.decoderBudget execution)
             (encodeGuestWitnessDecoderInput saltedGuest.program execution) =
           some (encodeValue dec) →
-        dec.statement.claims.xmss.length + dec.statement.claims.sphincs.length ≤ 2 ^ 30 - 1 ∧
+        dec.statement.claims.xmss.length + dec.statement.claims.sphincs.length ≤ 2 ^ 20 ∧
           ∀ child ∈ dec.witness.children,
             child.statement.claims.xmss.length + child.statement.claims.sphincs.length ≤
-              2 ^ 30 - 1 := by
+              2 ^ 20 := by
   intro input t hv dec h
   unfold saltedGuest at h
   dsimp only at h
@@ -90,6 +92,33 @@ theorem saltedGuest_decodingsValid :
   unfold saltedGuest at h
   dsimp only at h
   exact ⟨Bounds.decodingSize_valid hv _ dec h (decodeDecoded_enc dec), Bounds.daRows_le t dec h⟩
+
+/-- **The salted guest is knowledge sound, its decodings have at most `2^20` claims, and its
+batching hints at most `log₂ |bytecode|` rounds**, each over the valid executions for a public input
+of two digests: the clauses of `SaltedGuest.Correct` but the budget. -/
+theorem saltedGuest_correct_claims_hints :
+    saltedGuest.KnowledgeSound ∧
+    (∀ input (execution : Execution saltedGuest.program),
+      ValidExecution₂ saltedGuest.program input execution →
+      ∀ dec : SeedStatementAndWitness,
+        outputWithin saltedGuest.decoder saltedGuest.decoderSizeBound
+            (saltedGuest.decoderBudget execution)
+            (encodeGuestWitnessDecoderInput saltedGuest.program execution) =
+          some (encodeValue dec) →
+        dec.statement.claims.xmss.length + dec.statement.claims.sphincs.length ≤ 2 ^ 20 ∧
+          ∀ child ∈ dec.witness.children,
+            child.statement.claims.xmss.length + child.statement.claims.sphincs.length ≤
+              2 ^ 20) ∧
+    (∀ input (execution : Execution saltedGuest.program),
+      ValidExecution₂ saltedGuest.program input execution →
+      ∀ dec : SeedStatementAndWitness,
+        outputWithin saltedGuest.decoder saltedGuest.decoderSizeBound
+            (saltedGuest.decoderBudget execution)
+            (encodeGuestWitnessDecoderInput saltedGuest.program execution) =
+          some (encodeValue dec) →
+        dec.witness.batchingHints.sumcheckMessages.length ≤
+          Nat.log2 saltedGuest.bytecode.length) :=
+  ⟨saltedGuest_knowledgeSound, saltedGuest_claimsWithin, saltedGuest_hintsWithinRounds⟩
 
 end
 end LeanVM.SaltedGuest.End

@@ -21,16 +21,19 @@ On a valid execution of the salted guest for a public input of two digests, `mai
 * **`countsK_valid`** (`CountsK`): at most `16` children; the declared claims of both schemes
   together, the raw signatures of each scheme, and the slots of both regions together each below
   the memory's size `2^κ`, `κ ≤ 30` (`assert_gpow`: each is the exponent of an address of the
-  memory, and `n_total_g`'s exponent is the two regions' slots).
+  memory, and `n_total_g`'s exponent is the two regions' slots); and at most `2^20` slots of
+  both regions together (`main`'s cap `MAX_CLAIMS`), so at most `2^20` declared claims and at
+  most `2^20` raw signatures of both schemes together.
 
-The guest bounds the regions' sizes by the memory only: no check of `main` bounds a region below
-`2^κ`.
+The raw signatures are not capped by a check of their own: each writes its mark, distinct from
+every other's, into a slot of its scheme's region (`rawX_le`, `rawS_le`: two marks in one slot
+would be two values at one address), so there are at most as many as the region has slots.
 -/
 
 namespace LeanVM.SaltedGuest.Bounds
 
 open LeanVM.Parameters LeanVM.Semantics LeanVM.Guest.Core LeanVM.Guest.Value
-open LeanVM.Guest.B1 LeanVM.Guest.B1.Main LeanVM.Node LeanVM.Protocol.Verifier
+open LeanVM.Guest.B1 LeanVM.Guest.B1.Digest LeanVM.Guest.B1.Main LeanVM.Node LeanVM.Protocol.Verifier
 open LeanVM.SaltedGuest.End LeanVM.SaltedGuest.Check Recursion.Salted Recursion.SecondDigest
 
 @[expose] public section
@@ -43,6 +46,62 @@ structure CountsK (σ : Val) (κ : ℕ) : Prop where
   rawX : nRawX σ < 2 ^ κ
   rawS : nRawS σ < 2 ^ κ
   slots : lxSlots σ + lsSlots σ < 2 ^ κ
+  claimsCap : gLog (σ (.n 0)) + gLog (σ (.n 3)) ≤ 2 ^ 20
+  rawCap : nRawX σ + nRawS σ ≤ 2 ^ 20
+  slotsCap : lxSlots σ + lsSlots σ ≤ 2 ^ 20
+
+/-- At most `m` items, when each has a slot below `m` holding its value, a slot holds one value at
+most, and the items' values are distinct. -/
+theorem le_of_slots {α : Type} {n m : ℕ} {P : ℕ → α → Prop} {val : ℕ → α}
+    (hP : ∀ s v w, P s v → P s w → v = w) (hval : ∀ i < n, ∀ j < n, val i = val j → i = j)
+    (h : ∀ i < n, ∃ s < m, P s (val i)) : n ≤ m := by
+  classical
+  choose f hf hPf using h
+  let g : Fin n → Fin m := fun i => ⟨f i i.2, hf i i.2⟩
+  have hg : Function.Injective g := by
+    intro a b hab
+    have hs : f a a.2 = f b b.2 := congrArg Fin.val hab
+    have hb := hPf b b.2
+    rw [← hs] at hb
+    exact Fin.ext (hval a a.2 b b.2 (hP _ _ _ (hPf a a.2) hb))
+  simpa using Fintype.card_le_of_injective g hg
+
+/-- A slot below a region's bound `gen ^ r`, `r < 2^33`, is below `r`. -/
+theorem belowLog_lt_of {b : E} {r s : ℕ} (hr : r < 2 ^ 33) (hb : b = gen ^ r) (h : BelowLog b s) :
+    s < r := by
+  obtain ⟨hs, e', he', hbe⟩ := h
+  have := gen_pow_inj (a := r) (b := s + e' + 1) (by omega) (by omega) (hb.symm.trans hbe)
+  omega
+
+/-- **At most as many raw leanXMSS signatures as the leanXMSS region has slots.** -/
+theorem rawX_le {C : CallRel} {rd : Reader} {σ : Val} {S : LeanVM.Protocol.Digest} {key : E}
+    (MF : B1.Main.MainFactsK C rd σ S key) : lg σ 2 ≤ lg σ 0 + lg σ 1 := by
+  have b0 := (MF.counts 0 (by simp)).2
+  have b1 := (MF.counts 1 (by simp)).2
+  have b2 := (MF.counts 2 (by simp)).2
+  refine le_of_slots (P := fun s v => LoadHolds rd (σ (.n 45)) s v) (val := fun i => gen ^ i)
+    (fun _ _ _ h h' => loadHolds_unique h h')
+    (fun i hi j hj e => gen_pow_inj (by omega) (by omega) e) (fun i hi => ?_)
+  obtain ⟨s, hs, hl⟩ := (MF.rawx i hi).2
+  exact ⟨s, belowLog_lt_of (by omega) MF.lxs hs, hl⟩
+
+/-- **At most as many raw leanSPHINCS signatures as the leanSPHINCS region has slots.** -/
+theorem rawS_le {C : CallRel} {rd : Reader} {σ : Val} {S : LeanVM.Protocol.Digest} {key : E}
+    (MF : B1.Main.MainFactsK C rd σ S key) : lg σ 5 ≤ lg σ 3 + lg σ 4 := by
+  have b2 := (MF.counts 2 (by simp)).2
+  have b3 := (MF.counts 3 (by simp)).2
+  have b4 := (MF.counts 4 (by simp)).2
+  have b5 := (MF.counts 5 (by simp)).2
+  have c2 := (MF.counts 2 (by simp)).1
+  refine le_of_slots
+    (P := fun s v => LoadHolds rd (σ (.n 45) * (σ (.n 22) * gen ^ s)) 0 v)
+    (val := fun j => σ (.n 2) * gen ^ j)
+    (fun _ _ _ h h' => loadHolds_unique h h') (fun i hi j hj e => ?_) (fun j hj => ?_)
+  · rw [c2, ← pow_add, ← pow_add] at e
+    have := gen_pow_inj (by omega) (by omega) e
+    omega
+  · obtain ⟨s, hs, hl, -⟩ := MF.raws j hj
+    exact ⟨s, belowLog_lt_of (by omega) MF.lss hs, hl⟩
 
 /-- **The salted `main`'s facts on a valid execution**, at the valuation of `main`'s frame, for
 the second digest. -/
@@ -50,10 +109,10 @@ theorem mainFactsK_valid {input : PublicInput₂} {t : Execution guestProgram}
     (hv : ValidExecution₂ guestProgram input t) :
     B1.Main.MainFactsK (Located.RLg t.memory) t.memory.read
       (B1.Main.mainVal (valG t.memory 1 (certOf 1))) (publicInputDigest input.second)
-      (valG t.memory 1 (certOf 1) (.n 34)) := by
+      (valG t.memory 1 (certOf 1) (.n 38)) := by
   obtain ⟨hb, -, -⟩ := mainBodyL_of b2SoundL hv.1
   obtain ⟨h2, h3⟩ := second_loads hv
-  have hm : MemOk t.memory.read :=
+  have hm : End.MemOk t.memory.read :=
     ⟨t.logMemorySize, hv.1.1.1, hv.1.1.2.1.trans (by decide), t.memory, rfl⟩
   exact B1.Main.main_factsK (Located.unfoldsV_replayK b2SoundL hv.1) (Located.rlg_le_rel t.memory)
     hm h2 h3 hb
@@ -83,8 +142,16 @@ theorem countsK_of {C : CallRel} {κ : ℕ} (hκ : κ ≤ 30) {L : MemoryImage �
       have := (MF.counts 3 (by simp)).2; have := (MF.counts 4 (by simp)).2; omega)]
   have h0 : gLog (σ (.n 0)) = lg σ 0 := (lg_eq_gLog σ 0).symm
   have h3 : gLog (σ (.n 3)) = lg σ 3 := (lg_eq_gLog σ 3).symm
-  refine ⟨hk, ?_, hc 2 (by simp), hc 5 (by simp), ?_⟩
+  have hcap := MF.cap
+  have hrx := rawX_le MF
+  have hrs := rawS_le MF
+  have h2 : nRawX σ = lg σ 2 := (lg_eq_gLog σ 2).symm
+  have h5 : nRawS σ = lg σ 5 := (lg_eq_gLog σ 5).symm
+  refine ⟨hk, ?_, hc 2 (by simp), hc 5 (by simp), ?_, ?_, ?_, ?_⟩
   · rw [h0, h3]; omega
+  · unfold lxSlots lsSlots; rw [hx, hs]; omega
+  · rw [h0, h3]; omega
+  · rw [h2, h5]; omega
   · unfold lxSlots lsSlots; rw [hx, hs]; omega
 
 /-- **On a valid execution of the salted guest, the counts its decoding reads are below the

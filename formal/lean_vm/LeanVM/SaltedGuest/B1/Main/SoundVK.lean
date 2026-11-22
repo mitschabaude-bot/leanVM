@@ -74,7 +74,7 @@ noncomputable def decWitK (piOf : Reader → Val → End.FrameMap → Proof) (σ
     (V : End.FrameMap) : NodeWitness :=
   decWit (mainVal σ) rd (fun args => Sig.xmssSigOf (toDV V "__loop2" args []))
     (fun p => Sig.sphincsSigOf (toDV V "verify_sig_lean_sphincs" [p, mainVal σ (.n 47)] []) (toDV V))
-    (fun args rets => Da.dvWitK (V "da_verify" (args ++ [σ (.n 34)]) rets) V)
+    (fun args rets => Da.dvWitK (V "da_verify" (args ++ [σ (.n 38)]) rets) V)
     (fun args => piOf rd (V "verify_sub" args []) V)
     (fun args => aggHintsS rd
       (V "aggregate_claims" ([mainVal σ (.n 26), mainVal σ (.n 27)] ++ args) []))
@@ -93,11 +93,11 @@ theorem mainSound_of_sub {piOf : Reader → Val → End.FrameMap → Proof} (hv 
   have hVd := unfoldsV_toD hV
   have hseed := MF.seed
   simp only [Prod.ext_iff] at hseed
-  have cw : CalleesWCK End.bytecode C L.read (mainVal σ (.n 47)) (σ (.n 34)) S
+  have cw : CalleesWCK End.bytecode C L.read (mainVal σ (.n 47)) (σ (.n 38)) S
       (fun args => Sig.xmssSigOf (toDV V "__loop2" args []))
       (fun p => Sig.sphincsSigOf (toDV V "verify_sig_lean_sphincs" [p, mainVal σ (.n 47)] [])
         (toDV V))
-      (fun args rets => Da.dvWitK (V "da_verify" (args ++ [σ (.n 34)]) rets) V)
+      (fun args rets => Da.dvWitK (V "da_verify" (args ++ [σ (.n 38)]) rets) V)
       (fun args => piOf L.read (V "verify_sub" args []) V)
       (fun args => aggHintsS L.read
         (V "aggregate_claims" ([mainVal σ (.n 26), mainVal σ (.n 27)] ++ args) [])) := by

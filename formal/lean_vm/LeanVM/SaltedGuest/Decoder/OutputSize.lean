@@ -573,7 +573,7 @@ theorem decWitK_eq (σ : Val) (rd : Reader) (V : End.FrameMap) :
         (fun args => Sig.xmssSigOf (toDV V "__loop2" args []))
         (fun p => Sig.sphincsSigOf (toDV V "verify_sig_lean_sphincs" [p, Main.mainVal σ (.n 47)] [])
           (toDV V))
-        (fun args rets => Da.dvWitK (V "da_verify" (args ++ [σ (.n 34)]) rets) V)
+        (fun args rets => Da.dvWitK (V "da_verify" (args ++ [σ (.n 38)]) rets) V)
         (fun args => VerifySub.vsPiOfK rd (V "verify_sub" args []) V)
         (fun args => Main.aggHintsS rd
           (V "aggregate_claims" ([Main.mainVal σ (.n 26), Main.mainVal σ (.n 27)] ++ args) [])) := by
