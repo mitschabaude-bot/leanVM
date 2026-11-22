@@ -23,6 +23,9 @@ the decoding by replay off the memory (`output_valid`), whose counts `main`'s ch
 * **`childClaims_valid`**: every child of a decoding the decoder outputs has at most `2^30 - 1`
   signature claims (a child's claims are slots of the two regions, `kidSlots_length_le`, below
   the memory's size together);
+* **`stmtClaims_valid`**: the decoding's own statement has at most `2^30 - 1` signature claims
+  (its declared claims of both schemes together, below the memory's size);
+* **`hints_le`**: its batching hints have at most `23` sumcheck messages, on every execution;
 * **`daRows_le`**: the DA matrix of every decoding the decoder outputs has at most
   `LeanDa.maxRows = 1024` rows, on every execution (the decoder reads at most `1024` rows,
   `dvWitK_ok`); on a valid execution this also follows from the node relation (`OpensUnder`);
@@ -158,6 +161,33 @@ theorem childClaims_valid {input : PublicInput₂} {t : Execution guestProgram}
   have h1 := kidStmt_claims_le (B1.Main.mainVal (valG t.memory 1 (certOf 1))) t.memory.read c
   have h2 := hC.slots
   exact h1.trans (by omega)
+
+/-- **On a valid execution of the salted guest, the statement of a decoding the decoder outputs has
+at most `2^30 - 1` signature claims.** -/
+theorem stmtClaims_valid {input : PublicInput₂} {t : Execution guestProgram}
+    (hv : ValidExecution₂ guestProgram input t) (dec : SeedStatementAndWitness)
+    (h : outputWithin saltedDecoder saltedDecoder.size (saltedDecoderPrice t)
+      (encodeGuestWitnessDecoderInput guestProgram t) = some (encodeValue dec)) :
+    dec.statement.claims.xmss.length + dec.statement.claims.sphincs.length ≤ 2 ^ 30 - 1 := by
+  rw [output_valid hv h]
+  unfold decodeWithR
+  rw [decK_stmt_claims]
+  have := (countsK_valid hv).claims
+  have := pow_le_valid hv
+  omega
+
+/-! ## The batching hints -/
+
+/-- **The batching hints of every decoding the decoder outputs have at most `23` sumcheck
+messages**, on every execution (the decoder reads `23` rounds, with or without children). -/
+theorem hints_le (t : Execution guestProgram) (dec : SeedStatementAndWitness)
+    (h : outputWithin saltedDecoder saltedDecoder.size (saltedDecoderPrice t)
+      (encodeGuestWitnessDecoderInput guestProgram t) = some (encodeValue dec)) :
+    dec.witness.batchingHints.sumcheckMessages.length ≤ 23 := by
+  rw [output_any t h]
+  obtain ⟨σ, rd, Vn, e⟩ := decTopK_form guestProgram t.logMemorySize (memoryVector t.memory)
+  rw [e]
+  exact decK_hints σ rd _
 
 /-! ## The DA matrix -/
 
