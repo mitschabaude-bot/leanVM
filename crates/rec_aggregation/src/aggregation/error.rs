@@ -54,6 +54,9 @@ pub enum AggregationError {
     MalformedRawSignature,
     /// More than [`MAX_RECURSIONS`](super::MAX_RECURSIONS) children.
     TooLarge,
+    /// More than [`MAX_CLAIMS`](super::MAX_CLAIMS) claims made: raw signatures and
+    /// children's claims together.
+    TooManyClaims,
     /// The payload has a partial row or exceeds [`DA_MAX_ROWS`].
     InvalidBlobSize { symbols: usize },
     /// The requested DA commitment is not a child's.
@@ -99,6 +102,7 @@ impl std::fmt::Display for AggregationError {
             Self::TooLarge => {
                 write!(f, "too many children")
             }
+            Self::TooManyClaims => write!(f, "too many claims"),
             Self::InvalidBlobSize { symbols } => {
                 write!(
                     f,

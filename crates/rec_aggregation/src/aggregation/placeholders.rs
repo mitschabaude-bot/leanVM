@@ -1,6 +1,5 @@
 //! The constants baked into the guest.
 
-use super::MAX_RECURSIONS;
 use super::cells::{dsl_u128, pack_16_bytes};
 use super::child::{
     MU_CAP, QUERY_WINDOW_BITS, QUERY_WINDOWS_CAP, STREAM_CAP, block_groups, col_groups, merkle_cap_depth, whir_shape,
@@ -9,6 +8,7 @@ use super::claim_pool::{ClaimSite, coord_difference, coord_kind, coord_scale, pu
 use super::deferred::RECURSION_AGG_LABEL;
 use super::hints::{DIGIT_GROUP, LX_DIGIT_GROUP, LX_WINDOW};
 use super::statement::{BIG_GROUPS, CLAIM_GROUP, STATEMENT_HEADER};
+use super::{MAX_CLAIMS, MAX_RECURSIONS};
 use fiat_shamir::merkle::hash_to_scalars;
 use lean_compiler::f192_literal;
 use lean_da::{CELLS_PER_ROW, DA_LOG_CELL, DA_LOG_K, DA_MAX_ROWS};
@@ -940,6 +940,7 @@ fn signature_placeholders(ps: &mut impl FnMut(&str, String)) {
     ps("CLAIM_GROUP", CLAIM_GROUP.to_string());
     ps("BIG_GROUPS", BIG_GROUPS.to_string());
     ps("MAX_RECURSIONS", MAX_RECURSIONS.to_string());
+    ps("MAX_CLAIMS", MAX_CLAIMS.to_string());
 
     // The leanSPHINCS instance: its shape, each address type as A1, the address's
     // second cell, holds it, and the cell bit each address field's low bytes start at.

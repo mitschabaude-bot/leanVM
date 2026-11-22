@@ -71,3 +71,8 @@ pub type LeanSphincsClaim = (LeanSphincsPublicKey, lean_sphincs::Message);
 /// The most earlier aggregates one [`aggregate`] call can take, so the arity of
 /// an aggregation tree.
 pub const MAX_RECURSIONS: usize = 16;
+
+/// The most claims one [`aggregate`] call covers: its raw signatures and its children's
+/// claims together, each taking one slot of the guest's coverage table. It bounds the
+/// claims the aggregate declares as well.
+pub const MAX_CLAIMS: usize = 1 << 20;

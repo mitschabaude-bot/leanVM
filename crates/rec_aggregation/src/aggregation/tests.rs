@@ -190,6 +190,29 @@ fn aggregate_one_signer() {
     assert_eq!(aggregate.claims.xmss[0].1, message());
 }
 
+/// A node making more than [`MAX_CLAIMS`] claims is refused before anything is built, and
+/// one making exactly that many is not refused for its count.
+#[test]
+fn too_many_claims_are_refused() {
+    leanvm_core::init_prover();
+    let signers = get_signers(1);
+    let mut child = prove_leaf(&signers);
+    let claim = child.claims.xmss[0];
+    child.claims.xmss = vec![claim; MAX_CLAIMS];
+    let result = aggregate(
+        seed(),
+        &[child.clone()],
+        signing(&signers, 0),
+        vec![],
+        &[],
+        None,
+        LOG_INV_RATE,
+    );
+    assert!(matches!(result, Err(AggregationError::TooManyClaims)), "over the cap");
+    let result = aggregate(seed(), &[child], vec![], vec![], &[], None, LOG_INV_RATE);
+    assert!(!matches!(result, Err(AggregationError::TooManyClaims)), "at the cap");
+}
+
 /// A leaf holding claims of both schemes, each list in its own region.
 #[test]
 fn aggregate_mixed_leaf() {

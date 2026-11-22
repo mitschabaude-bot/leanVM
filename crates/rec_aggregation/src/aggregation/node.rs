@@ -12,7 +12,7 @@ use super::hints::{Hints, lean_sphincs_hints, lean_xmss_hints};
 use super::proof::{EthereumClaims, EthereumProof, check_signer_set};
 use super::seed::Seed;
 use super::statement::{lean_sphincs_claim_cells, lean_xmss_claim_cells, list_split, statement_digest};
-use super::{LeanSphincsClaim, LeanXmssClaim, MAX_RECURSIONS};
+use super::{LeanSphincsClaim, LeanXmssClaim, MAX_CLAIMS, MAX_RECURSIONS};
 use fiat_shamir::merkle::hash_to_scalars;
 use lean_da::{BLOB_SYMBOLS, CELL_SYMBOLS, CELLS_PER_ROW, CODEWORD_SYMBOLS};
 use leanvm_core::cpu::{from_scalar, prove, public_input_bytes, scalar_proof};
@@ -35,6 +35,8 @@ use signatures::{lean_sphincs, lean_xmss};
 ///   the first child's that has one; `Some` specifies exactly the signatures and DA root to
 ///   publish, which must be the blob matrix's if there are blobs. Every declared claim must be
 ///   covered by the inputs above.
+/// - The raw signatures, after dropping repeated claims, and the children's claims together are at
+///   most [`MAX_CLAIMS`].
 /// - `log_inv_rate`: PCS code rate `2^-log_inv_rate`, higher `log_inv_rate` means a smaller proof
 ///   but slower proving; in [`MIN_LOG_INV_RATE`](pcs::whir::MIN_LOG_INV_RATE)..=[`MAX_LOG_INV_RATE`](pcs::whir::MAX_LOG_INV_RATE).
 ///
@@ -123,6 +125,17 @@ pub fn aggregate_with_stats(
     let mut raw_lean_sphincs = raw_lean_sphincs;
     raw_lean_sphincs.sort_by_key(|(pk, message, _)| (*pk, *message));
     raw_lean_sphincs.dedup_by(|(a, am, _), (b, bm, _)| (a, am) == (b, bm));
+    // Every raw signature and every claim of a child takes one coverage slot, which the
+    // guest caps at MAX_CLAIMS.
+    let claims_made = raw_lean_xmss.len()
+        + raw_lean_sphincs.len()
+        + children
+            .iter()
+            .map(|child| child.claims.xmss.len() + child.claims.lean_sphincs.len())
+            .sum::<usize>();
+    if claims_made > MAX_CLAIMS {
+        return Err(AggregationError::TooManyClaims);
+    }
 
     // The children are assumed checked. Nothing here verifies one: the replay
     // only reads out of its proof the summary `gen_verify` derives the guest's

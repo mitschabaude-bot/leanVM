@@ -506,8 +506,10 @@ SP_UNUSED_BYTES = 8 - SP_TAIL_BYTES
 # The coverage table's slots, both schemes' declared claims and their duplicates, are
 # bounded by the memory itself: each count is a g-power address (`assert_gpow`), so its
 # log is below the announced memory size, at most 2^30, and sums of a few never wrap.
-# MAX_RECURSIONS is the arity of an aggregation tree.
+# MAX_RECURSIONS is the arity of an aggregation tree, MAX_CLAIMS the most slots a node's
+# coverage table has.
 MAX_RECURSIONS = MAX_RECURSIONS_PLACEHOLDER
+MAX_CLAIMS = MAX_CLAIMS_PLACEHOLDER
 
 
 # ---------------------------------- LeanDA ------------------------------------------
@@ -4656,6 +4658,9 @@ def main():
     # what they say. An honest node holds its coverage table in memory, so it fits.
     n_total_g = lx_slots_g * lean_sphincs_slots_g
     assert_gpow(n_total_g)
+    # At most MAX_CLAIMS slots. Every raw signature and every claim of a child takes one
+    # slot, so this also bounds the raw signatures of each scheme and every child's claims.
+    assert log(n_total_g) < MAX_CLAIMS + 1
 
     # The seed, which binds the published salt, the proof system's version and this
     # bytecode, read from memory words 2 and 3, which the public-input phase binds to
