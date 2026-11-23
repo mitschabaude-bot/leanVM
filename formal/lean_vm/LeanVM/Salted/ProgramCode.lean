@@ -21,9 +21,6 @@ its parts. A function index, in a call, a closure or a closure value, is written
 from the index of the function whose body holds it, after a bit for the direction (`indexCode`);
 the code starts with the count of functions. The machine's `MachineProgram.size` is not such a
 length: it counts a tag or an index as one, whatever its value.
-
-The definitions are the recursion statement's (`RecursionStatement/Salted/Program.lean`, namespace
-kept), so that it can import them from here.
 -/
 
 namespace Recursion.Salted

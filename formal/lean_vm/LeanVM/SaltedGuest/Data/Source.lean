@@ -3467,186 +3467,190 @@ def fn_main : Func :=
       .mk 4655 (.let_ "lean_sphincs_slots_g" (.mul (.var "n_lean_sphincs_g") (.var "n_sdup_g"))),
       .mk 4659 (.let_ "n_total_g" (.mul (.var "lx_slots_g") (.var "lean_sphincs_slots_g"))),
       .mk 4660 (.call "assert_gpow" [(.var "n_total_g")]),
-      .mk 4663 (.assertLt (.var "n_total_g") (.const 1048577)),
-      .mk 4671 (.let_ "pub_ptr" (.gpow 0)),
-      .mk 4672 (.let_ "seed_0" (.index (.var "pub_ptr") (.gpow 2))),
-      .mk 4673 (.let_ "seed_1" (.index (.var "pub_ptr") (.gpow 3))),
-      .mk 4676 (.let_ "key" (.call "key_of_seed" [(.var "seed_0"), (.var "seed_1")])),
-      .mk 4679 (.let_ "g_squares" (.call "exponent_tables" [])),
-      .mk 4687 (.let_ "lx_table" (.heapBufDyn (.pow (.var "lx_slots_g") (.lit 4)))),
-      .mk 4688 (.let_ "lean_sphincs_table" (.heapBufDyn (.pow (.var "lean_sphincs_slots_g") (.lit 4)))),
-      .mk 4689 (.letTuple ["xd_0", "xd_1"] "claim_list_digest" [(.var "key"), (.var "lx_table"), (.var "n_lx_g")]),
-      .mk 4690 (.letTuple ["sd_0", "sd_1"] "claim_list_digest" [(.var "key"), (.var "lean_sphincs_table"), (.var "n_lean_sphincs_g")]),
-      .mk 4692 (.for_ "xd" 0 (.runtime (.var "n_xdup_g")) [
-        .mk 4693 (.let_ "dup" (.mul (.var "lx_table") (.pow (.mul (.var "n_lx_g") (.var "xd")) (.lit 4)))),
-        .mk 4694 (.hintWitness (.slice (.var "dup") (.lit 0) (.lit 4)) "dup_claims")]),
-      .mk 4695 (.for_ "xd" 0 (.runtime (.var "n_sdup_g")) [
-        .mk 4696 (.let_ "dup" (.mul (.var "lean_sphincs_table") (.pow (.mul (.var "n_lean_sphincs_g") (.var "xd")) (.lit 4)))),
-        .mk 4697 (.hintWitness (.slice (.var "dup") (.lit 0) (.lit 4)) "dup_claims")]),
-      .mk 4706 (.let_ "cover" (.heapBufDyn (.var "n_total_g"))),
-      .mk 4707 (.let_ "sp_cover" (.mul (.var "cover") (.var "lx_slots_g"))),
-      .mk 4709 (.let_ "byte_bits" (.heapBuf 256)),
-      .mk 4710 (.unroll "v" (.lit 0) (.lit 256) [
-        .mk 4711 (.store (.var "byte_bits") (.genPow (.var "v")) (.var "v"))]),
-      .mk 4714 (.let_ "lx_tags" (.stackBuf 51)),
-      .mk 4715 (.unroll "i" (.lit 1) (.lit 58) [
-        .mk 4716 (.ite false (.index (.var "LX_TAG_SLOT") (.var "i")) (.lit 0) [
-          .mk 4717 (.store (.var "lx_tags") (.sub (.index (.var "LX_TAG_SLOT") (.var "i")) (.lit 1)) (.var "i"))] [] true)]),
-      .mk 4718 (.for_ "xi" 0 (.runtime (.var "n_raw_x_g")) [
-        .mk 4719 (.letHintWitness "idx" "raw_index"),
-        .mk 4724 (.assertLt (.var "idx") (.runtime (.var "lx_slots_g"))),
-        .mk 4725 (.store (.var "cover") (.var "idx") (.var "xi")),
-        .mk 4726 (.call "verify_lean_xmss" [(.mul (.var "lx_table") (.pow (.var "idx") (.lit 4))), (.var "lx_tags")])]),
-      .mk 4727 (.for_ "xj" 0 (.runtime (.var "n_raw_s_g")) [
-        .mk 4728 (.letHintWitness "off_hint" "sp_raw_index"),
-        .mk 4729 (.assertLt (.var "off_hint") (.runtime (.var "lean_sphincs_slots_g"))),
-        .mk 4730 (.store (.var "sp_cover") (.var "off_hint") (.mul (.var "n_raw_x_g") (.var "xj"))),
-        .mk 4731 (.call "verify_sig_lean_sphincs" [(.mul (.var "lean_sphincs_table") (.pow (.var "off_hint") (.lit 4))), (.var "byte_bits")])]),
-      .mk 4736 (.let_ "da_digests" (.heapBufDyn (.pow (.mul (.var "n_children_g") .gen) (.lit 2)))),
-      .mk 4737 (.let_ "own_da" (.mul (.var "da_digests") (.pow (.var "n_children_g") (.lit 2)))),
-      .mk 4738 (.ite true (.var "n_direct_da_g") .gen [
-        .mk 4739 (.letTuple ["root_0", "root_1", "z_0", "z_1"] "da_verify" [(.var "g_squares"), (.var "key")]),
-        .mk 4740 (.let_ "key_run" (.stackBuf 13)),
-        .mk 4741 (.call "load_key" [(.var "key"), (.var "key_run")]),
-        .mk 4742 (.call "keccak_cells" [(.list [(.var "root_0"), (.var "root_1"), (.var "z_0"), (.var "z_1")]), (.slice (.var "own_da") (.lit 0) (.lit 2)), (.call "__kw_state" [(.var "key_run")])])] [
-        .mk 4744 (.store (.var "own_da") (.lit 1) (.lit 0)),
-        .mk 4745 (.store (.var "own_da") .gen (.lit 0))] false),
-      .mk 4748 (.let_ "child_pi" (.heapBufDyn (.mul (.var "n_children_g") (.var "n_children_g")))),
-      .mk 4749 (.let_ "child_fresh" (.heapBufDyn (.pow (.var "n_children_g") (.lit 24)))),
-      .mk 4750 (.let_ "child_carried" (.heapBufDyn (.pow (.var "n_children_g") (.lit 24)))),
-      .mk 4751 (.let_ "written" (.heapBufDyn (.mul (.var "n_children_g") .gen))),
-      .mk 4752 (.store (.var "written") (.gpow 0) (.mul (.var "n_raw_x_g") (.var "n_raw_s_g"))),
-      .mk 4753 (.for_ "xc" 0 (.runtime (.var "n_children_g")) [
-        .mk 4754 (.let_ "base" (.index (.var "written") (.var "xc"))),
-        .mk 4759 (.let_ "child_meta" (.stackBuf 2)),
-        .mk 4760 (.hintWitness (.var "child_meta") "child_meta"),
-        .mk 4761 (.let_ "nsub_x_g" (.index (.var "child_meta") (.lit 0))),
-        .mk 4762 (.let_ "nsub_s_g" (.index (.var "child_meta") (.lit 1))),
-        .mk 4763 (.call "assert_gpow" [(.var "nsub_x_g")]),
-        .mk 4764 (.call "assert_gpow" [(.var "nsub_s_g")]),
-        .mk 4765 (.let_ "nsub_g" (.mul (.var "nsub_x_g") (.var "nsub_s_g"))),
-        .mk 4766 (.letTuple ["cx_0", "cx_1"] "child_claim_list_digest" [(.var "key"), (.var "lx_table"), (.var "cover"), (.var "base"), (.var "lx_slots_g"), (.var "nsub_x_g")]),
-        .mk 4767 (.letTuple ["cs_0", "cs_1"] "child_claim_list_digest" [(.var "key"), (.var "lean_sphincs_table"), (.var "sp_cover"), (.mul (.var "base") (.var "nsub_x_g")), (.var "lean_sphincs_slots_g"), (.var "nsub_s_g")]),
-        .mk 4768 (.let_ "carried" (.mul (.var "child_carried") (.pow (.var "xc") (.lit 24)))),
-        .mk 4769 (.hintWitness (.slice (.var "carried") (.lit 0) (.lit 24)) "child_defer"),
-        .mk 4770 (.let_ "child_da" (.mul (.var "da_digests") (.pow (.var "xc") (.lit 2)))),
-        .mk 4771 (.hintWitness (.slice (.var "child_da") (.lit 0) (.lit 2)) "child_da"),
-        .mk 4772 (.letTuple ["pi_0", "pi_1"] "statement_digest" [(.var "seed_0"), (.var "seed_1"), (.var "cx_0"), (.var "cx_1"), (.var "cs_0"), (.var "cs_1"), (.index (.var "child_da") (.lit 1)), (.index (.var "child_da") .gen), (.var "carried")]),
-        .mk 4773 (.let_ "pi" (.mul (.var "xc") (.var "xc"))),
-        .mk 4774 (.store (.var "child_pi") (.var "pi") (.var "pi_0")),
-        .mk 4775 (.store (.var "child_pi") (.mul (.var "pi") .gen) (.var "pi_1")),
-        .mk 4776 (.call "verify_sub" [(.var "pi_0"), (.var "pi_1"), (.var "seed_0"), (.var "seed_1"), (.var "g_squares"), (.mul (.var "child_fresh") (.pow (.var "xc") (.lit 24)))]),
-        .mk 4777 (.store (.var "written") (.mul (.var "xc") .gen) (.mul (.var "base") (.var "nsub_g")))]),
-      .mk 4778 (.assertEq (.index (.var "written") (.var "n_children_g")) (.var "n_total_g")),
-      .mk 4781 (.letHintWitness "da_pick" "da_pick"),
-      .mk 4782 (.assertLt (.var "da_pick") (.runtime (.mul (.var "n_children_g") .gen))),
-      .mk 4783 (.assertEq (.mul (.add (.var "da_pick") (.var "n_children_g")) (.add (.var "n_direct_da_g") (.lit 1))) (.lit 0)),
-      .mk 4784 (.let_ "da" (.mul (.var "da_digests") (.pow (.var "da_pick") (.lit 2)))),
-      .mk 4787 (.let_ "defer_stmt" (.heapBuf 24)),
-      .mk 4788 (.ite true (.var "n_children_g") (.lit 1) [
-        .mk 4793 (.letHintWitness "leaf_value" "leaf_defer"),
-        .mk 4794 (.unroll "k" (.lit 0) (.lit 23) [
-          .mk 4795 (.store (.var "defer_stmt") (.genPow (.var "k")) (.lit 0))]),
-        .mk 4796 (.store (.var "defer_stmt") (.gpow 23) (.var "leaf_value"))] [
-        .mk 4798 (.call "aggregate_claims" [(.var "seed_0"), (.var "seed_1"), (.var "n_children_g"), (.var "child_pi"), (.var "child_fresh"), (.var "child_carried"), (.var "defer_stmt")])] false),
-      .mk 4800 (.letTuple ["own_0", "own_1"] "statement_digest" [(.var "seed_0"), (.var "seed_1"), (.var "xd_0"), (.var "xd_1"), (.var "sd_0"), (.var "sd_1"), (.index (.var "da") (.lit 1)), (.index (.var "da") .gen), (.var "defer_stmt")]),
-      .mk 4801 (.assertEq (.index (.var "pub_ptr") (.lit 1)) (.var "own_0")),
-      .mk 4802 (.assertEq (.index (.var "pub_ptr") .gen) (.var "own_1")),
-      .mk 4803 (.ret [])] }
+      .mk 4666 (.letHintWitness "claims_hi_g" "claims_hi"),
+      .mk 4667 (.letHintWitness "claims_lo_g" "claims_lo"),
+      .mk 4668 (.assertLt (.var "claims_hi_g") (.const 1024)),
+      .mk 4669 (.assertLt (.var "claims_lo_g") (.const 1024)),
+      .mk 4670 (.assertEq (.mul (.pow (.var "claims_hi_g") (.lit 1024)) (.var "claims_lo_g")) (.var "n_total_g")),
+      .mk 4678 (.let_ "pub_ptr" (.gpow 0)),
+      .mk 4679 (.let_ "seed_0" (.index (.var "pub_ptr") (.gpow 2))),
+      .mk 4680 (.let_ "seed_1" (.index (.var "pub_ptr") (.gpow 3))),
+      .mk 4683 (.let_ "key" (.call "key_of_seed" [(.var "seed_0"), (.var "seed_1")])),
+      .mk 4686 (.let_ "g_squares" (.call "exponent_tables" [])),
+      .mk 4694 (.let_ "lx_table" (.heapBufDyn (.pow (.var "lx_slots_g") (.lit 4)))),
+      .mk 4695 (.let_ "lean_sphincs_table" (.heapBufDyn (.pow (.var "lean_sphincs_slots_g") (.lit 4)))),
+      .mk 4696 (.letTuple ["xd_0", "xd_1"] "claim_list_digest" [(.var "key"), (.var "lx_table"), (.var "n_lx_g")]),
+      .mk 4697 (.letTuple ["sd_0", "sd_1"] "claim_list_digest" [(.var "key"), (.var "lean_sphincs_table"), (.var "n_lean_sphincs_g")]),
+      .mk 4699 (.for_ "xd" 0 (.runtime (.var "n_xdup_g")) [
+        .mk 4700 (.let_ "dup" (.mul (.var "lx_table") (.pow (.mul (.var "n_lx_g") (.var "xd")) (.lit 4)))),
+        .mk 4701 (.hintWitness (.slice (.var "dup") (.lit 0) (.lit 4)) "dup_claims")]),
+      .mk 4702 (.for_ "xd" 0 (.runtime (.var "n_sdup_g")) [
+        .mk 4703 (.let_ "dup" (.mul (.var "lean_sphincs_table") (.pow (.mul (.var "n_lean_sphincs_g") (.var "xd")) (.lit 4)))),
+        .mk 4704 (.hintWitness (.slice (.var "dup") (.lit 0) (.lit 4)) "dup_claims")]),
+      .mk 4713 (.let_ "cover" (.heapBufDyn (.var "n_total_g"))),
+      .mk 4714 (.let_ "sp_cover" (.mul (.var "cover") (.var "lx_slots_g"))),
+      .mk 4716 (.let_ "byte_bits" (.heapBuf 256)),
+      .mk 4717 (.unroll "v" (.lit 0) (.lit 256) [
+        .mk 4718 (.store (.var "byte_bits") (.genPow (.var "v")) (.var "v"))]),
+      .mk 4721 (.let_ "lx_tags" (.stackBuf 51)),
+      .mk 4722 (.unroll "i" (.lit 1) (.lit 58) [
+        .mk 4723 (.ite false (.index (.var "LX_TAG_SLOT") (.var "i")) (.lit 0) [
+          .mk 4724 (.store (.var "lx_tags") (.sub (.index (.var "LX_TAG_SLOT") (.var "i")) (.lit 1)) (.var "i"))] [] true)]),
+      .mk 4725 (.for_ "xi" 0 (.runtime (.var "n_raw_x_g")) [
+        .mk 4726 (.letHintWitness "idx" "raw_index"),
+        .mk 4731 (.assertLt (.var "idx") (.runtime (.var "lx_slots_g"))),
+        .mk 4732 (.store (.var "cover") (.var "idx") (.var "xi")),
+        .mk 4733 (.call "verify_lean_xmss" [(.mul (.var "lx_table") (.pow (.var "idx") (.lit 4))), (.var "lx_tags")])]),
+      .mk 4734 (.for_ "xj" 0 (.runtime (.var "n_raw_s_g")) [
+        .mk 4735 (.letHintWitness "off_hint" "sp_raw_index"),
+        .mk 4736 (.assertLt (.var "off_hint") (.runtime (.var "lean_sphincs_slots_g"))),
+        .mk 4737 (.store (.var "sp_cover") (.var "off_hint") (.mul (.var "n_raw_x_g") (.var "xj"))),
+        .mk 4738 (.call "verify_sig_lean_sphincs" [(.mul (.var "lean_sphincs_table") (.pow (.var "off_hint") (.lit 4))), (.var "byte_bits")])]),
+      .mk 4743 (.let_ "da_digests" (.heapBufDyn (.pow (.mul (.var "n_children_g") .gen) (.lit 2)))),
+      .mk 4744 (.let_ "own_da" (.mul (.var "da_digests") (.pow (.var "n_children_g") (.lit 2)))),
+      .mk 4745 (.ite true (.var "n_direct_da_g") .gen [
+        .mk 4746 (.letTuple ["root_0", "root_1", "z_0", "z_1"] "da_verify" [(.var "g_squares"), (.var "key")]),
+        .mk 4747 (.let_ "key_run" (.stackBuf 13)),
+        .mk 4748 (.call "load_key" [(.var "key"), (.var "key_run")]),
+        .mk 4749 (.call "keccak_cells" [(.list [(.var "root_0"), (.var "root_1"), (.var "z_0"), (.var "z_1")]), (.slice (.var "own_da") (.lit 0) (.lit 2)), (.call "__kw_state" [(.var "key_run")])])] [
+        .mk 4751 (.store (.var "own_da") (.lit 1) (.lit 0)),
+        .mk 4752 (.store (.var "own_da") .gen (.lit 0))] false),
+      .mk 4755 (.let_ "child_pi" (.heapBufDyn (.mul (.var "n_children_g") (.var "n_children_g")))),
+      .mk 4756 (.let_ "child_fresh" (.heapBufDyn (.pow (.var "n_children_g") (.lit 24)))),
+      .mk 4757 (.let_ "child_carried" (.heapBufDyn (.pow (.var "n_children_g") (.lit 24)))),
+      .mk 4758 (.let_ "written" (.heapBufDyn (.mul (.var "n_children_g") .gen))),
+      .mk 4759 (.store (.var "written") (.gpow 0) (.mul (.var "n_raw_x_g") (.var "n_raw_s_g"))),
+      .mk 4760 (.for_ "xc" 0 (.runtime (.var "n_children_g")) [
+        .mk 4761 (.let_ "base" (.index (.var "written") (.var "xc"))),
+        .mk 4766 (.let_ "child_meta" (.stackBuf 2)),
+        .mk 4767 (.hintWitness (.var "child_meta") "child_meta"),
+        .mk 4768 (.let_ "nsub_x_g" (.index (.var "child_meta") (.lit 0))),
+        .mk 4769 (.let_ "nsub_s_g" (.index (.var "child_meta") (.lit 1))),
+        .mk 4770 (.call "assert_gpow" [(.var "nsub_x_g")]),
+        .mk 4771 (.call "assert_gpow" [(.var "nsub_s_g")]),
+        .mk 4772 (.let_ "nsub_g" (.mul (.var "nsub_x_g") (.var "nsub_s_g"))),
+        .mk 4773 (.letTuple ["cx_0", "cx_1"] "child_claim_list_digest" [(.var "key"), (.var "lx_table"), (.var "cover"), (.var "base"), (.var "lx_slots_g"), (.var "nsub_x_g")]),
+        .mk 4774 (.letTuple ["cs_0", "cs_1"] "child_claim_list_digest" [(.var "key"), (.var "lean_sphincs_table"), (.var "sp_cover"), (.mul (.var "base") (.var "nsub_x_g")), (.var "lean_sphincs_slots_g"), (.var "nsub_s_g")]),
+        .mk 4775 (.let_ "carried" (.mul (.var "child_carried") (.pow (.var "xc") (.lit 24)))),
+        .mk 4776 (.hintWitness (.slice (.var "carried") (.lit 0) (.lit 24)) "child_defer"),
+        .mk 4777 (.let_ "child_da" (.mul (.var "da_digests") (.pow (.var "xc") (.lit 2)))),
+        .mk 4778 (.hintWitness (.slice (.var "child_da") (.lit 0) (.lit 2)) "child_da"),
+        .mk 4779 (.letTuple ["pi_0", "pi_1"] "statement_digest" [(.var "seed_0"), (.var "seed_1"), (.var "cx_0"), (.var "cx_1"), (.var "cs_0"), (.var "cs_1"), (.index (.var "child_da") (.lit 1)), (.index (.var "child_da") .gen), (.var "carried")]),
+        .mk 4780 (.let_ "pi" (.mul (.var "xc") (.var "xc"))),
+        .mk 4781 (.store (.var "child_pi") (.var "pi") (.var "pi_0")),
+        .mk 4782 (.store (.var "child_pi") (.mul (.var "pi") .gen) (.var "pi_1")),
+        .mk 4783 (.call "verify_sub" [(.var "pi_0"), (.var "pi_1"), (.var "seed_0"), (.var "seed_1"), (.var "g_squares"), (.mul (.var "child_fresh") (.pow (.var "xc") (.lit 24)))]),
+        .mk 4784 (.store (.var "written") (.mul (.var "xc") .gen) (.mul (.var "base") (.var "nsub_g")))]),
+      .mk 4785 (.assertEq (.index (.var "written") (.var "n_children_g")) (.var "n_total_g")),
+      .mk 4788 (.letHintWitness "da_pick" "da_pick"),
+      .mk 4789 (.assertLt (.var "da_pick") (.runtime (.mul (.var "n_children_g") .gen))),
+      .mk 4790 (.assertEq (.mul (.add (.var "da_pick") (.var "n_children_g")) (.add (.var "n_direct_da_g") (.lit 1))) (.lit 0)),
+      .mk 4791 (.let_ "da" (.mul (.var "da_digests") (.pow (.var "da_pick") (.lit 2)))),
+      .mk 4794 (.let_ "defer_stmt" (.heapBuf 24)),
+      .mk 4795 (.ite true (.var "n_children_g") (.lit 1) [
+        .mk 4800 (.letHintWitness "leaf_value" "leaf_defer"),
+        .mk 4801 (.unroll "k" (.lit 0) (.lit 23) [
+          .mk 4802 (.store (.var "defer_stmt") (.genPow (.var "k")) (.lit 0))]),
+        .mk 4803 (.store (.var "defer_stmt") (.gpow 23) (.var "leaf_value"))] [
+        .mk 4805 (.call "aggregate_claims" [(.var "seed_0"), (.var "seed_1"), (.var "n_children_g"), (.var "child_pi"), (.var "child_fresh"), (.var "child_carried"), (.var "defer_stmt")])] false),
+      .mk 4807 (.letTuple ["own_0", "own_1"] "statement_digest" [(.var "seed_0"), (.var "seed_1"), (.var "xd_0"), (.var "xd_1"), (.var "sd_0"), (.var "sd_1"), (.index (.var "da") (.lit 1)), (.index (.var "da") .gen), (.var "defer_stmt")]),
+      .mk 4808 (.assertEq (.index (.var "pub_ptr") (.lit 1)) (.var "own_0")),
+      .mk 4809 (.assertEq (.index (.var "pub_ptr") .gen) (.var "own_1")),
+      .mk 4810 (.ret [])] }
 
 /-- `aggregate_claims`. -/
 def fn_aggregate_claims : Func :=
   { name := "aggregate_claims", params := [⟨"seed_0", (.runtime .scalar)⟩, ⟨"seed_1", (.runtime .scalar)⟩, ⟨"n_children_g", (.runtime .scalar)⟩, ⟨"child_pi", (.runtime .scalar)⟩, ⟨"child_fresh", (.runtime .scalar)⟩, ⟨"child_carried", (.runtime .scalar)⟩, ⟨"defer_stmt", (.runtime .scalar)⟩], returnShapes := [],
     inline := false,
     body := [
-      .mk 4812 (.let_ "bc_msgs" (.heapBuf 46)),
-      .mk 4813 (.hintWitness (.slice (.var "bc_msgs") (.lit 0) (.mul (.lit 2) (.lit 23))) "bc_sumcheck_msgs"),
-      .mk 4814 (.letHintWitness "bytecode_star" "bc_star_hint"),
-      .mk 4821 (.let_ "fresh_row" (.heapBufDyn (.var "n_children_g"))),
-      .mk 4822 (.let_ "carried_row" (.heapBufDyn (.var "n_children_g"))),
-      .mk 4823 (.let_ "seeded" (.stackBuf 13)),
-      .mk 4824 (.call "keccak_cells" [(.list [(.var "seed_0"), (.var "seed_1"), (.lit 192591157984764427820445443475314425719), (.lit 52732202908187317887516766952550998383)]), (.var "seeded"), (.call "__kw_final" [(.lit 0)])]),
-      .mk 4825 (.let_ "seed" (.list [(.index (.var "seeded") (.lit 8)), (.index (.var "seeded") (.lit 9)), (.index (.var "seeded") (.lit 10)), (.index (.var "seeded") (.lit 11)), (.index (.var "seeded") (.lit 12))])),
-      .mk 4826 (.let_ "rate" (.stackBuf 8)),
-      .mk 4827 (.call "fs_pack" [(.var "rate"), (.lit 0), (.var "n_children_g"), (.lit 1)]),
-      .mk 4828 (.unroll "j" (.lit 1) (.lit 4) [
-        .mk 4829 (.call "fs_pack" [(.var "rate"), (.var "j"), (.lit 0), (.lit 1)])]),
-      .mk 4830 (.let_ "absorb" (.heapBufDyn (.pow (.mul (.var "n_children_g") .gen) (.lit 13)))),
-      .mk 4831 (.unroll "j" (.lit 0) (.lit 5) [
-        .mk 4832 (.store (.var "absorb") (.genPow (.var "j")) (.index (.var "seed") (.var "j")))]),
-      .mk 4833 (.unroll "j" (.lit 0) (.lit 8) [
-        .mk 4834 (.store (.var "absorb") (.genPow (.add (.lit 5) (.var "j"))) (.index (.var "rate") (.var "j")))]),
-      .mk 4835 (.for_ "xc" 0 (.runtime (.var "n_children_g")) [
-        .mk 4836 (.let_ "row" (.mul (.var "absorb") (.pow (.var "xc") (.lit 13)))),
-        .mk 4837 (.let_ "row_cap" (.call "fs_load" [(.var "row"), (.lit 0), (.lit 1)])),
-        .mk 4838 (.let_ "st" (.call "fs_perm_pending" [(.var "row_cap"), (.var "row"), (.lit 5)])),
-        .mk 4839 (.let_ "rate" (.stackBuf 8)),
-        .mk 4840 (.let_ "pi" (.mul (.var "xc") (.var "xc"))),
-        .mk 4841 (.let_ "fresh" (.mul (.var "child_fresh") (.pow (.var "xc") (.lit 24)))),
-        .mk 4842 (.store (.var "fresh_row") (.var "xc") (.var "fresh")),
-        .mk 4843 (.let_ "carried" (.mul (.var "child_carried") (.pow (.var "xc") (.lit 24)))),
-        .mk 4844 (.store (.var "carried_row") (.var "xc") (.var "carried")),
-        .mk 4845 (.unroll "pos" (.lit 0) (.add (.lit 50) (.lit 2)) [
-          .mk 4846 (.ite true (.mod (.var "pos") (.lit 4)) (.lit 0) [
-            .mk 4847 (.ite false (.var "pos") (.lit 0) [
-              .mk 4848 (.let_ "st" (.call "fs_perm" [(.var "st"), (.var "rate"), (.lit 4)])),
-              .mk 4849 (.let_ "rate" (.stackBuf 8))] [] false)] [] false),
-          .mk 4850 (.ite true (.div (.var "pos") (.lit 2)) (.lit 0) [
-            .mk 4851 (.call "fs_pack" [(.var "rate"), (.mod (.var "pos") (.lit 4)), (.index (.var "child_pi") (.mul (.var "pi") (.genPow (.var "pos")))), (.lit 1)])] [] true),
-          .mk 4852 (.ite false (.div (.var "pos") (.lit 2)) (.lit 0) [
-            .mk 4853 (.ite true (.div (.sub (.var "pos") (.lit 2)) (.lit 24)) (.lit 0) [
-              .mk 4854 (.call "fs_pack" [(.var "rate"), (.mod (.var "pos") (.lit 4)), (.index (.var "fresh") (.genPow (.sub (.var "pos") (.lit 2)))), (.lit 1)])] [] true),
-            .mk 4855 (.ite false (.div (.sub (.var "pos") (.lit 2)) (.lit 24)) (.lit 0) [
-              .mk 4856 (.ite true (.div (.sub (.sub (.var "pos") (.lit 2)) (.lit 24)) (.lit 24)) (.lit 0) [
-                .mk 4857 (.call "fs_pack" [(.var "rate"), (.mod (.var "pos") (.lit 4)), (.index (.var "carried") (.genPow (.sub (.sub (.var "pos") (.lit 2)) (.lit 24)))), (.lit 1)])] [] true),
-              .mk 4858 (.ite false (.div (.sub (.sub (.var "pos") (.lit 2)) (.lit 24)) (.lit 24)) (.lit 0) [
-                .mk 4859 (.call "fs_pack" [(.var "rate"), (.mod (.var "pos") (.lit 4)), (.lit 0), (.lit 1)])] [] true)] [] true)] [] true)]),
-        .mk 4860 (.let_ "nxt" (.mul (.var "row") (.gpow 13))),
-        .mk 4861 (.call "fs_store" [(.var "nxt"), (.lit 0), (.lit 1), (.var "st")]),
-        .mk 4862 (.unroll "j" (.lit 0) (.lit 8) [
-          .mk 4863 (.store (.var "nxt") (.genPow (.add (.lit 5) (.var "j"))) (.index (.var "rate") (.var "j")))])]),
-      .mk 4864 (.let_ "absorbed" (.mul (.var "absorb") (.pow (.var "n_children_g") (.lit 13)))),
-      .mk 4871 (.let_ "absorbed_cap" (.call "fs_load" [(.var "absorbed"), (.lit 0), (.lit 1)])),
-      .mk 4872 (.let_ "st" (.call "fs_perm_pending" [(.var "absorbed_cap"), (.var "absorbed"), (.lit 5)])),
-      .mk 4873 (.let_ "lam" (.call "challenge_from_state" [(.var "st")])),
-      .mk 4874 (.let_ "lam_sq" (.mul (.var "lam") (.var "lam"))),
-      .mk 4875 (.let_ "bc_chain" (.heapBufDyn (.pow (.mul (.var "n_children_g") .gen) (.lit 2)))),
-      .mk 4876 (.store (.var "bc_chain") (.gpow 0) (.lit 1)),
-      .mk 4877 (.store (.var "bc_chain") (.gpow 1) (.lit 0)),
-      .mk 4878 (.for_ "xc" 0 (.runtime (.var "n_children_g")) [
-        .mk 4879 (.let_ "row" (.mul (.var "bc_chain") (.pow (.var "xc") (.lit 2)))),
-        .mk 4880 (.let_ "lam_pow" (.index (.var "row") (.gpow 0))),
-        .mk 4881 (.let_ "fresh" (.index (.var "fresh_row") (.var "xc"))),
-        .mk 4882 (.let_ "carried" (.index (.var "carried_row") (.var "xc"))),
-        .mk 4883 (.let_ "nxt" (.mul (.var "row") (.gpow 2))),
-        .mk 4884 (.store (.var "nxt") (.gpow 0) (.mul (.var "lam_pow") (.var "lam_sq"))),
-        .mk 4885 (.store (.var "nxt") (.gpow 1) (.add (.index (.var "row") (.gpow 1)) (.mul (.var "lam_pow") (.add (.index (.var "fresh") (.gpow 23)) (.mul (.var "lam") (.index (.var "carried") (.gpow 23)))))))]),
-      .mk 4886 (.let_ "bc_end" (.mul (.var "bc_chain") (.pow (.var "n_children_g") (.lit 2)))),
-      .mk 4887 (.let_ "bc_running" (.index (.var "bc_end") (.gpow 1))),
-      .mk 4888 (.let_ "bc_point" (.heapBuf 23)),
-      .mk 4889 (.letTuple ["fs0", "fs1", "fs2", "fs3", "fs4", "bc_running"] "batch_sumcheck" [(.index (.var "st") (.lit 8)), (.index (.var "st") (.lit 9)), (.index (.var "st") (.lit 10)), (.index (.var "st") (.lit 11)), (.index (.var "st") (.lit 12)), (.var "bc_msgs"), (.var "bc_running"), (.var "bc_point"), (.lit 23)]),
-      .mk 4890 (.let_ "bc_point1" (.heapBuf 23)),
-      .mk 4891 (.unroll "k" (.lit 0) (.lit 23) [
-        .mk 4892 (.store (.var "bc_point1") (.genPow (.var "k")) (.add (.lit 1) (.index (.var "bc_point") (.genPow (.var "k")))))]),
-      .mk 4893 (.let_ "bc_wsum" (.heapBufDyn (.mul (.var "n_children_g") .gen))),
-      .mk 4894 (.store (.var "bc_wsum") (.gpow 0) (.lit 0)),
-      .mk 4895 (.for_ "xc" 0 (.runtime (.var "n_children_g")) [
-        .mk 4896 (.let_ "fresh" (.index (.var "fresh_row") (.var "xc"))),
-        .mk 4897 (.let_ "carried" (.index (.var "carried_row") (.var "xc"))),
-        .mk 4898 (.unroll "k" (.lit 0) (.lit 23) [
-          .mk 4899 (.let_ "rk1" (.index (.var "bc_point1") (.genPow (.var "k")))),
-          .mk 4900 (.ite true (.var "k") (.lit 0) [
-            .mk 4901 (.let_ "eq_fresh" (.add (.index (.var "fresh") (.genPow (.var "k"))) (.var "rk1"))),
-            .mk 4902 (.let_ "eq_carried" (.add (.index (.var "carried") (.genPow (.var "k"))) (.var "rk1")))] [
-            .mk 4904 (.let_ "eq_fresh" (.mul (.var "eq_fresh") (.add (.index (.var "fresh") (.genPow (.var "k"))) (.var "rk1")))),
-            .mk 4905 (.let_ "eq_carried" (.mul (.var "eq_carried") (.add (.index (.var "carried") (.genPow (.var "k"))) (.var "rk1"))))] true)]),
-        .mk 4906 (.let_ "row" (.mul (.var "bc_chain") (.pow (.var "xc") (.lit 2)))),
-        .mk 4907 (.store (.var "bc_wsum") (.mul (.var "xc") .gen) (.add (.index (.var "bc_wsum") (.var "xc")) (.mul (.index (.var "row") (.gpow 0)) (.add (.var "eq_fresh") (.mul (.var "lam") (.var "eq_carried"))))))]),
-      .mk 4908 (.assertEq (.var "bc_running") (.mul (.var "bytecode_star") (.index (.var "bc_wsum") (.var "n_children_g")))),
-      .mk 4910 (.unroll "k" (.lit 0) (.lit 23) [
-        .mk 4911 (.store (.var "defer_stmt") (.genPow (.var "k")) (.index (.var "bc_point") (.genPow (.var "k"))))]),
-      .mk 4912 (.store (.var "defer_stmt") (.gpow 23) (.var "bytecode_star")),
-      .mk 4913 (.ret [])] }
+      .mk 4819 (.let_ "bc_msgs" (.heapBuf 46)),
+      .mk 4820 (.hintWitness (.slice (.var "bc_msgs") (.lit 0) (.mul (.lit 2) (.lit 23))) "bc_sumcheck_msgs"),
+      .mk 4821 (.letHintWitness "bytecode_star" "bc_star_hint"),
+      .mk 4828 (.let_ "fresh_row" (.heapBufDyn (.var "n_children_g"))),
+      .mk 4829 (.let_ "carried_row" (.heapBufDyn (.var "n_children_g"))),
+      .mk 4830 (.let_ "seeded" (.stackBuf 13)),
+      .mk 4831 (.call "keccak_cells" [(.list [(.var "seed_0"), (.var "seed_1"), (.lit 192591157984764427820445443475314425719), (.lit 52732202908187317887516766952550998383)]), (.var "seeded"), (.call "__kw_final" [(.lit 0)])]),
+      .mk 4832 (.let_ "seed" (.list [(.index (.var "seeded") (.lit 8)), (.index (.var "seeded") (.lit 9)), (.index (.var "seeded") (.lit 10)), (.index (.var "seeded") (.lit 11)), (.index (.var "seeded") (.lit 12))])),
+      .mk 4833 (.let_ "rate" (.stackBuf 8)),
+      .mk 4834 (.call "fs_pack" [(.var "rate"), (.lit 0), (.var "n_children_g"), (.lit 1)]),
+      .mk 4835 (.unroll "j" (.lit 1) (.lit 4) [
+        .mk 4836 (.call "fs_pack" [(.var "rate"), (.var "j"), (.lit 0), (.lit 1)])]),
+      .mk 4837 (.let_ "absorb" (.heapBufDyn (.pow (.mul (.var "n_children_g") .gen) (.lit 13)))),
+      .mk 4838 (.unroll "j" (.lit 0) (.lit 5) [
+        .mk 4839 (.store (.var "absorb") (.genPow (.var "j")) (.index (.var "seed") (.var "j")))]),
+      .mk 4840 (.unroll "j" (.lit 0) (.lit 8) [
+        .mk 4841 (.store (.var "absorb") (.genPow (.add (.lit 5) (.var "j"))) (.index (.var "rate") (.var "j")))]),
+      .mk 4842 (.for_ "xc" 0 (.runtime (.var "n_children_g")) [
+        .mk 4843 (.let_ "row" (.mul (.var "absorb") (.pow (.var "xc") (.lit 13)))),
+        .mk 4844 (.let_ "row_cap" (.call "fs_load" [(.var "row"), (.lit 0), (.lit 1)])),
+        .mk 4845 (.let_ "st" (.call "fs_perm_pending" [(.var "row_cap"), (.var "row"), (.lit 5)])),
+        .mk 4846 (.let_ "rate" (.stackBuf 8)),
+        .mk 4847 (.let_ "pi" (.mul (.var "xc") (.var "xc"))),
+        .mk 4848 (.let_ "fresh" (.mul (.var "child_fresh") (.pow (.var "xc") (.lit 24)))),
+        .mk 4849 (.store (.var "fresh_row") (.var "xc") (.var "fresh")),
+        .mk 4850 (.let_ "carried" (.mul (.var "child_carried") (.pow (.var "xc") (.lit 24)))),
+        .mk 4851 (.store (.var "carried_row") (.var "xc") (.var "carried")),
+        .mk 4852 (.unroll "pos" (.lit 0) (.add (.lit 50) (.lit 2)) [
+          .mk 4853 (.ite true (.mod (.var "pos") (.lit 4)) (.lit 0) [
+            .mk 4854 (.ite false (.var "pos") (.lit 0) [
+              .mk 4855 (.let_ "st" (.call "fs_perm" [(.var "st"), (.var "rate"), (.lit 4)])),
+              .mk 4856 (.let_ "rate" (.stackBuf 8))] [] false)] [] false),
+          .mk 4857 (.ite true (.div (.var "pos") (.lit 2)) (.lit 0) [
+            .mk 4858 (.call "fs_pack" [(.var "rate"), (.mod (.var "pos") (.lit 4)), (.index (.var "child_pi") (.mul (.var "pi") (.genPow (.var "pos")))), (.lit 1)])] [] true),
+          .mk 4859 (.ite false (.div (.var "pos") (.lit 2)) (.lit 0) [
+            .mk 4860 (.ite true (.div (.sub (.var "pos") (.lit 2)) (.lit 24)) (.lit 0) [
+              .mk 4861 (.call "fs_pack" [(.var "rate"), (.mod (.var "pos") (.lit 4)), (.index (.var "fresh") (.genPow (.sub (.var "pos") (.lit 2)))), (.lit 1)])] [] true),
+            .mk 4862 (.ite false (.div (.sub (.var "pos") (.lit 2)) (.lit 24)) (.lit 0) [
+              .mk 4863 (.ite true (.div (.sub (.sub (.var "pos") (.lit 2)) (.lit 24)) (.lit 24)) (.lit 0) [
+                .mk 4864 (.call "fs_pack" [(.var "rate"), (.mod (.var "pos") (.lit 4)), (.index (.var "carried") (.genPow (.sub (.sub (.var "pos") (.lit 2)) (.lit 24)))), (.lit 1)])] [] true),
+              .mk 4865 (.ite false (.div (.sub (.sub (.var "pos") (.lit 2)) (.lit 24)) (.lit 24)) (.lit 0) [
+                .mk 4866 (.call "fs_pack" [(.var "rate"), (.mod (.var "pos") (.lit 4)), (.lit 0), (.lit 1)])] [] true)] [] true)] [] true)]),
+        .mk 4867 (.let_ "nxt" (.mul (.var "row") (.gpow 13))),
+        .mk 4868 (.call "fs_store" [(.var "nxt"), (.lit 0), (.lit 1), (.var "st")]),
+        .mk 4869 (.unroll "j" (.lit 0) (.lit 8) [
+          .mk 4870 (.store (.var "nxt") (.genPow (.add (.lit 5) (.var "j"))) (.index (.var "rate") (.var "j")))])]),
+      .mk 4871 (.let_ "absorbed" (.mul (.var "absorb") (.pow (.var "n_children_g") (.lit 13)))),
+      .mk 4878 (.let_ "absorbed_cap" (.call "fs_load" [(.var "absorbed"), (.lit 0), (.lit 1)])),
+      .mk 4879 (.let_ "st" (.call "fs_perm_pending" [(.var "absorbed_cap"), (.var "absorbed"), (.lit 5)])),
+      .mk 4880 (.let_ "lam" (.call "challenge_from_state" [(.var "st")])),
+      .mk 4881 (.let_ "lam_sq" (.mul (.var "lam") (.var "lam"))),
+      .mk 4882 (.let_ "bc_chain" (.heapBufDyn (.pow (.mul (.var "n_children_g") .gen) (.lit 2)))),
+      .mk 4883 (.store (.var "bc_chain") (.gpow 0) (.lit 1)),
+      .mk 4884 (.store (.var "bc_chain") (.gpow 1) (.lit 0)),
+      .mk 4885 (.for_ "xc" 0 (.runtime (.var "n_children_g")) [
+        .mk 4886 (.let_ "row" (.mul (.var "bc_chain") (.pow (.var "xc") (.lit 2)))),
+        .mk 4887 (.let_ "lam_pow" (.index (.var "row") (.gpow 0))),
+        .mk 4888 (.let_ "fresh" (.index (.var "fresh_row") (.var "xc"))),
+        .mk 4889 (.let_ "carried" (.index (.var "carried_row") (.var "xc"))),
+        .mk 4890 (.let_ "nxt" (.mul (.var "row") (.gpow 2))),
+        .mk 4891 (.store (.var "nxt") (.gpow 0) (.mul (.var "lam_pow") (.var "lam_sq"))),
+        .mk 4892 (.store (.var "nxt") (.gpow 1) (.add (.index (.var "row") (.gpow 1)) (.mul (.var "lam_pow") (.add (.index (.var "fresh") (.gpow 23)) (.mul (.var "lam") (.index (.var "carried") (.gpow 23)))))))]),
+      .mk 4893 (.let_ "bc_end" (.mul (.var "bc_chain") (.pow (.var "n_children_g") (.lit 2)))),
+      .mk 4894 (.let_ "bc_running" (.index (.var "bc_end") (.gpow 1))),
+      .mk 4895 (.let_ "bc_point" (.heapBuf 23)),
+      .mk 4896 (.letTuple ["fs0", "fs1", "fs2", "fs3", "fs4", "bc_running"] "batch_sumcheck" [(.index (.var "st") (.lit 8)), (.index (.var "st") (.lit 9)), (.index (.var "st") (.lit 10)), (.index (.var "st") (.lit 11)), (.index (.var "st") (.lit 12)), (.var "bc_msgs"), (.var "bc_running"), (.var "bc_point"), (.lit 23)]),
+      .mk 4897 (.let_ "bc_point1" (.heapBuf 23)),
+      .mk 4898 (.unroll "k" (.lit 0) (.lit 23) [
+        .mk 4899 (.store (.var "bc_point1") (.genPow (.var "k")) (.add (.lit 1) (.index (.var "bc_point") (.genPow (.var "k")))))]),
+      .mk 4900 (.let_ "bc_wsum" (.heapBufDyn (.mul (.var "n_children_g") .gen))),
+      .mk 4901 (.store (.var "bc_wsum") (.gpow 0) (.lit 0)),
+      .mk 4902 (.for_ "xc" 0 (.runtime (.var "n_children_g")) [
+        .mk 4903 (.let_ "fresh" (.index (.var "fresh_row") (.var "xc"))),
+        .mk 4904 (.let_ "carried" (.index (.var "carried_row") (.var "xc"))),
+        .mk 4905 (.unroll "k" (.lit 0) (.lit 23) [
+          .mk 4906 (.let_ "rk1" (.index (.var "bc_point1") (.genPow (.var "k")))),
+          .mk 4907 (.ite true (.var "k") (.lit 0) [
+            .mk 4908 (.let_ "eq_fresh" (.add (.index (.var "fresh") (.genPow (.var "k"))) (.var "rk1"))),
+            .mk 4909 (.let_ "eq_carried" (.add (.index (.var "carried") (.genPow (.var "k"))) (.var "rk1")))] [
+            .mk 4911 (.let_ "eq_fresh" (.mul (.var "eq_fresh") (.add (.index (.var "fresh") (.genPow (.var "k"))) (.var "rk1")))),
+            .mk 4912 (.let_ "eq_carried" (.mul (.var "eq_carried") (.add (.index (.var "carried") (.genPow (.var "k"))) (.var "rk1"))))] true)]),
+        .mk 4913 (.let_ "row" (.mul (.var "bc_chain") (.pow (.var "xc") (.lit 2)))),
+        .mk 4914 (.store (.var "bc_wsum") (.mul (.var "xc") .gen) (.add (.index (.var "bc_wsum") (.var "xc")) (.mul (.index (.var "row") (.gpow 0)) (.add (.var "eq_fresh") (.mul (.var "lam") (.var "eq_carried"))))))]),
+      .mk 4915 (.assertEq (.var "bc_running") (.mul (.var "bytecode_star") (.index (.var "bc_wsum") (.var "n_children_g")))),
+      .mk 4917 (.unroll "k" (.lit 0) (.lit 23) [
+        .mk 4918 (.store (.var "defer_stmt") (.genPow (.var "k")) (.index (.var "bc_point") (.genPow (.var "k"))))]),
+      .mk 4919 (.store (.var "defer_stmt") (.gpow 23) (.var "bytecode_star")),
+      .mk 4920 (.ret [])] }
 
 /-- The constant array `COORD_BASIS`. -/
 def arr_COORD_BASIS : List (Nat × Nat × Nat) :=

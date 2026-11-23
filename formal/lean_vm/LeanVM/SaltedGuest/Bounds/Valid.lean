@@ -21,9 +21,9 @@ On a valid execution of the salted guest for a public input of two digests, `mai
 * **`countsK_valid`** (`CountsK`): at most `16` children; the declared claims of both schemes
   together, the raw signatures of each scheme, and the slots of both regions together each below
   the memory's size `2^κ`, `κ ≤ 30` (`assert_gpow`: each is the exponent of an address of the
-  memory, and `n_total_g`'s exponent is the two regions' slots); and at most `2^20` slots of
-  both regions together (`main`'s cap `MAX_CLAIMS`), so at most `2^20` declared claims and at
-  most `2^20` raw signatures of both schemes together.
+  memory, and `n_total_g`'s exponent is the two regions' slots); and at most `2^20 - 1` slots
+  of both regions together (`main`'s cap `MAX_CLAIMS`), so at most `2^20 - 1` declared claims
+  and at most `2^20 - 1` raw signatures of both schemes together.
 
 The raw signatures are not capped by a check of their own: each writes its mark, distinct from
 every other's, into a slot of its scheme's region (`rawX_le`, `rawS_le`: two marks in one slot
@@ -46,9 +46,9 @@ structure CountsK (σ : Val) (κ : ℕ) : Prop where
   rawX : nRawX σ < 2 ^ κ
   rawS : nRawS σ < 2 ^ κ
   slots : lxSlots σ + lsSlots σ < 2 ^ κ
-  claimsCap : gLog (σ (.n 0)) + gLog (σ (.n 3)) ≤ 2 ^ 20
-  rawCap : nRawX σ + nRawS σ ≤ 2 ^ 20
-  slotsCap : lxSlots σ + lsSlots σ ≤ 2 ^ 20
+  claimsCap : gLog (σ (.n 0)) + gLog (σ (.n 3)) ≤ 2 ^ 20 - 1
+  rawCap : nRawX σ + nRawS σ ≤ 2 ^ 20 - 1
+  slotsCap : lxSlots σ + lsSlots σ ≤ 2 ^ 20 - 1
 
 /-- At most `m` items, when each has a slot below `m` holding its value, a slot holds one value at
 most, and the items' values are distinct. -/
@@ -109,7 +109,7 @@ theorem mainFactsK_valid {input : PublicInput₂} {t : Execution guestProgram}
     (hv : ValidExecution₂ guestProgram input t) :
     B1.Main.MainFactsK (Located.RLg t.memory) t.memory.read
       (B1.Main.mainVal (valG t.memory 1 (certOf 1))) (publicInputDigest input.second)
-      (valG t.memory 1 (certOf 1) (.n 38)) := by
+      (valG t.memory 1 (certOf 1) (.n 55)) := by
   obtain ⟨hb, -, -⟩ := mainBodyL_of b2SoundL hv.1
   obtain ⟨h2, h3⟩ := second_loads hv
   have hm : End.MemOk t.memory.read :=

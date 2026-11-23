@@ -78,7 +78,7 @@ noncomputable def decTopFramesK (D : DiscreteLogTables) (R : ReaderTabs) (W : Wh
     (locs : Array (Array ℕ)) (rd : Reader) (σs σd : Val)
     (table : Array (Guest.Located.CallKey × K)) : SeedStatementAndWitness :=
   decoderOutput D σd rd (decWitStaged D σd rd (xmssAtFrameTK R table locs rd)
-    (sphincsAtFrameTK R table locs rd (σd (.n 47))) (daAtFrameK D (frameAtAK table locs rd) (σs (.n 38)))
+    (sphincsAtFrameTK R table locs rd (σd (.n 47))) (daAtFrameK D (frameAtAK table locs rd) (σs (.n 55)))
     (proofAtFrameK W rd (frameAtAK table locs rd) (cursorLength D))
     (hintsAtFrameK rd (frameAtAK table locs rd) (σd (.n 26)) (σd (.n 27))))
 

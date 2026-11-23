@@ -56,8 +56,8 @@ structure MainFactsK (C : CallRel) (rd : Reader) (σ : Val) (S : Digest) (key : 
   lss : σ (.n 23) = gen ^ (lg σ 3 + lg σ 4)
   total : σ (.n 24) = gen ^ (lg σ 0 + lg σ 1 + (lg σ 3 + lg σ 4)) ∧
     lg σ 0 + lg σ 1 + (lg σ 3 + lg σ 4) < 2 ^ 32
-  /-- The two regions' slots are at most `MAX_CLAIMS = 2^20`. -/
-  cap : lg σ 0 + lg σ 1 + (lg σ 3 + lg σ 4) ≤ 2 ^ 20
+  /-- The two regions' slots are at most `MAX_CLAIMS = 2^20 - 1`. -/
+  cap : lg σ 0 + lg σ 1 + (lg σ 3 + lg σ 4) ≤ 2 ^ 20 - 1
   addr : ∀ v ∈ [0, 1, 2, 3, 4, 5, 24], ∃ t, LoadHolds rd (σ (.n v)) 0 t
   /-- The cells `fs_seed` are the seed's halves. -/
   seed : (σ (.n 26), σ (.n 27)) = digestHalves S
@@ -122,14 +122,28 @@ theorem noRet_mAggS : Stmt.noRetList mAggS = true := by decide +kernel
 
 set_option maxRecDepth 100000 in
 /-- The DA branch's `node_key` run. -/
-theorem da_nodeKeyOk : nodeKeyOk (atomsIn mDaS) (.n 38) mainKeyVl (.n 406) (.n 401) (.n 411)
-    (.n 410) = true := by decide +kernel
+theorem da_nodeKeyOk : nodeKeyOk (atomsIn mDaS) (.n 55) mainKeyVl (.n 423) (.n 418) (.n 428)
+    (.n 427) = true := by decide +kernel
 
-set_option maxRecDepth 100000 in
-/-- `g^(2^20)`, the cap's bound. -/
-theorem word_g2p20 : word 13470757684146121986 0 0 = gen ^ (2 ^ 20) := by
-  rw [word_eOfNat, gen_pow_eq_ofK, eOfNat, ← gpowK_eq (by unfold u128Bound; omega)]
-  congr 1
+/-- **Ten squarings**: the cells `c` to `c + 9`, the first the square of `x` and each next the
+square of the one before, hold `x ^ 2 ^ 1` to `x ^ 2 ^ 10`; the last is `d`. -/
+theorem sq_chain {rd : Reader} {σ : Val} {A : List Atom} {x : V} {c d : ℕ} (hd : c + 9 = d)
+    (h0 : isMul A (.n c) x x = true)
+    (hs : ∀ i < 9, isMul A (.n (c + 1 + i)) (.n (c + i)) (.n (c + i)) = true)
+    (hat : ∀ a ∈ A, a.Holds rd σ) : σ (.n d) = σ x ^ 2 ^ 10 := by
+  have key : ∀ i ≤ 9, σ (.n (c + i)) = σ x ^ 2 ^ (i + 1) := by
+    intro i hi
+    induction i with
+    | zero => rw [Nat.add_zero, isMul_sound h0 hat, ← pow_two, zero_add, pow_one]
+    | succ i ih =>
+      rw [show c + (i + 1) = c + 1 + i by omega, isMul_sound (hs i (by omega)) hat, ih (by omega),
+        ← pow_two, ← pow_mul, ← pow_succ]
+  rw [← hd]
+  exact key 9 le_rfl
+
+/-- **The cap's two digits**: `(g^a)^(2^10) · g^b = g^(2^10 a + b)`. -/
+theorem gen_pow_digits (a b : ℕ) : (gen ^ a) ^ 2 ^ 10 * gen ^ b = gen ^ (2 ^ 10 * a + b) := by
+  rw [← pow_mul, ← pow_add, mul_comm a]
 
 /-- A salted call of an unchanged function of the same deployed name. -/
 theorem relToD {rd : Reader} {f : String} (hf : Same.inS f = true) (hr : Same.rho f = f)
@@ -152,7 +166,7 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
     (hS2 : LoadHolds rd 1 2 (digestHalves S).1) (hS3 : LoadHolds rd 1 3 (digestHalves S).2)
     {σ : Val}
     (h : Stmt.HoldsList C rd σ (Fn.body LeanVM.SaltedGuest.Data.core0) False (fun rs => rs = [])) :
-    MainFactsK C rd (mainVal σ) S (σ (.n 38)) := by
+    MainFactsK C rd (mainVal σ) S (σ (.n 55)) := by
   have hVd := unfoldsV_toD hV
   have hCd := unfolds_of_V hVd
   have hX : ∀ args, toDC C "__loop2" args [] → ∃ sig, Loop2Out (toDC C) rd args sig := by
@@ -167,7 +181,7 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
   have g5 : lg (mainVal σ) 5 = lg σ 5 := lg_mainVal σ 5
   have g6 : lg (mainVal σ) 6 = lg σ 6 := lg_mainVal σ 6
   have g7 : lg (mainVal σ) 7 = lg σ 7 := lg_mainVal σ 7
-  have g406 : lg (mainVal σ) 406 = lg σ 439 := lg_mainVal σ 406
+  have g406 : lg (mainVal σ) 406 = lg σ 456 := lg_mainVal σ 406
   rw [core0_shapeS] at h
   simp only [List.append_assoc, holdsList_append] at h
   have hP := pre_okS
@@ -182,7 +196,7 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
   simp only [midOkS, Bool.and_eq_true, and_assoc] at hM
   simp only [leafOkS, Bool.and_eq_true, and_assoc, List.all_eq_true, List.mem_range] at hL
   simp only [postOkS, Bool.and_eq_true, and_assoc] at hQ
-  obtain ⟨pflat, prc, prc6, prc7, prc42, prcap, pm40, pm41, pm42, pexp, pc26, pc27, pm28, pl29, pc30,
+  obtain ⟨pflat, prc, prc6, prc7, prc42, prcH, prcL, psq0, psqs, pprod, pcapEq, pm40, pm41, pm42, pexp, pc26, pc27, pm28, pl29, pc30,
     pc31, pm32, pl33, pks, pxl, psl, pbytes, pm67, pl3, ptags, pl4, pm335, pm336, pa338, pc337⟩ := hP
   obtain ⟨dflat, dver, -, dadd, -, -, dcp403, dcp404, dcp405, -, -, dkec, dl408, dl409⟩ := hD
   obtain ⟨zflat, zc362, zl362, zc363, zl363⟩ := hZ
@@ -225,22 +239,27 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
   have h42' : σ (.n 24) = gen ^ (lg σ 0 + lg σ 1 + (lg σ 3 + lg σ 4)) := by
     rw [isMul_sound pm42 atP, h40, h41, ← pow_add]
   have hT := gen_pow_inj34 (by omega) (by omega) (h42.symm.trans h42')
-  obtain ⟨eC, heC, hC24⟩ := rcConst_sound hm (by norm_num) word_g2p20 prcap atP
-  have hcap := gen_pow_inj (by omega) (by omega) (hC24.symm.trans h42')
-  have h336 : σ (.n 377) = σ (.n 375) * gen ^ (2 * lg σ 6) := by
+  obtain ⟨eH, heH, hH⟩ := rcConst_sound hm (by norm_num) word_g1023 prcH atP
+  obtain ⟨eL, heL, hL⟩ := rcConst_sound hm (by norm_num) word_g1023 prcL atP
+  have hD : σ (.n 24) = gen ^ (2 ^ 10 * eH + eL) := by
+    rw [← assertEq_sound pcapEq atP, isMul_sound pprod atP,
+      sq_chain (c := 36) rfl psq0 (fun i hi => by rw [show 36 + 1 + i = 37 + i by omega]; exact psqs i hi) atP,
+      hH, hL, gen_pow_digits]
+  have hcap := gen_pow_inj (by omega) (by omega) (hD.symm.trans h42')
+  have h336 : σ (.n 394) = σ (.n 392) * gen ^ (2 * lg σ 6) := by
     rw [isMul_sound pm336 atP, isMul_sound pm335 atP, l6, ← pow_add, two_mul]
   -- the seed and its key
-  have hs29 : σ (.n 33) = (digestHalves S).1 := by
+  have hs29 : σ (.n 50) = (digestHalves S).1 := by
     have l := load_sound pl29 atP
     rw [isMul_sound pm28 atP, const_sound pc26 atP, const_sound pc27 atP, word_one,
       show word 4 0 0 = gen ^ 2 from word_two_pow (a := 2) (by norm_num)] at l
     exact loadHolds_unique ((loadHolds_mul_gen_pow rd 1 2 0 _).mp l) hS2
-  have hs33 : σ (.n 37) = (digestHalves S).2 := by
+  have hs33 : σ (.n 54) = (digestHalves S).2 := by
     have l := load_sound pl33 atP
     rw [isMul_sound pm32 atP, const_sound pc30 atP, const_sound pc31 atP, word_one,
       show word 8 0 0 = gen ^ 3 from word_two_pow (a := 3) (by norm_num)] at l
     exact loadHolds_unique ((loadHolds_mul_gen_pow rd 1 3 0 _).mp l) hS3
-  have hkey : KeyIs rd (σ (.n 38)) S :=
+  have hkey : KeyIs rd (σ (.n 55)) S :=
     key_of_seed_sound rd _ _ (hle _ _ _ (call_of_flat hpre pks)) S (by rw [hs29, hs33])
   -- the pick
   obtain ⟨p, hp, hbl⟩ := rcDir_sound hm mrc atM
@@ -251,12 +270,12 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
   -- the loops
   have hguard3 := guard_soundC pl3 hpre
   have hguard4 := guard_soundC pl4 hpre
-  have h67 : σ (.n 57) = σ (.n 56) * σ (.n 22) := isMul_sound pm67 atP
-  have hlx : ∀ j < 51, σ (.n (315 + j)) = mainVal σ (.n (304 + j)) := fun j hj => by
-    have e : mainRi (304 + j) = 315 + j := by unfold mainRi; split_ifs <;> omega
-    show σ (.n (315 + j)) = σ (.n (mainRi (304 + j)))
+  have h67 : σ (.n 74) = σ (.n 73) * σ (.n 22) := isMul_sound pm67 atP
+  have hlx : ∀ j < 51, σ (.n (332 + j)) = mainVal σ (.n (304 + j)) := fun j hj => by
+    have e : mainRi (304 + j) = 332 + j := by unfold mainRi; split_ifs <;> omega
+    show σ (.n (332 + j)) = σ (.n (mainRi (304 + j)))
     rw [e]
-  have hl2 : l2Args (mainVal σ) = [σ (.n 2), σ (.n 22), σ (.n 56), σ (.n 42)] ++
+  have hl2 : l2Args (mainVal σ) = [σ (.n 2), σ (.n 22), σ (.n 73), σ (.n 59)] ++
       lxTagsVS.map σ := by
     unfold l2Args lxTagsVS
     simp only [List.map_map]
@@ -279,9 +298,9 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
     all_goals first
       | exact ⟨_, touch_sound prc42 atP⟩
       | exact ⟨_, touch_sound (prc _ (by omega)) atP⟩
-  · show (σ (.n 33), σ (.n 37)) = _
+  · show (σ (.n 50), σ (.n 54)) = _
     rw [hs29, hs33]
-  · show LoadHolds rd 1 2 (σ (.n 33)) ∧ LoadHolds rd 1 3 (σ (.n 37))
+  · show LoadHolds rd 1 2 (σ (.n 50)) ∧ LoadHolds rd 1 3 (σ (.n 54))
     rw [hs29, hs33]; exact ⟨hS2, hS3⟩
   · exact hkey
   · -- the exponent tables
@@ -310,9 +329,9 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
   · -- raw leanXMSS
     rw [g2, hl2]
     refine loop_soundC (f := "__loop2") (C := toDC C)
-      (ps := [σ (.n 2), σ (.n 22), σ (.n 56), σ (.n 42)] ++ lxTagsVS.map σ)
-      (N := σ (.n 2)) (B := fun x => toDC C "__loop2" (x :: ([σ (.n 2), σ (.n 22), σ (.n 56),
-        σ (.n 42)] ++ lxTagsVS.map σ)) [] ∧ ∃ s, BelowLog (σ (.n 22)) s ∧ LoadHolds rd (σ (.n 56)) s x)
+      (ps := [σ (.n 2), σ (.n 22), σ (.n 73), σ (.n 59)] ++ lxTagsVS.map σ)
+      (N := σ (.n 2)) (B := fun x => toDC C "__loop2" (x :: ([σ (.n 2), σ (.n 22), σ (.n 73),
+        σ (.n 59)] ++ lxTagsVS.map σ)) [] ∧ ∃ s, BelowLog (σ (.n 22)) s ∧ LoadHolds rd (σ (.n 73)) s x)
       (by unfold ordG; omega) c2 (fun x hx => ?_)
       (fun hne => toDC_same (by decide +kernel) (by decide +kernel)
         (by simpa [lxTagsVS, Function.comp_def] using hguard3 hne))
@@ -337,10 +356,10 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
   · -- raw leanSPHINCS
     rw [g5]
     refine loop_soundC (f := "__loop3") (C := toDC C)
-      (ps := [σ (.n 5), σ (.n 23), σ (.n 57), σ (.n 2), σ (.n 45), σ (.n 58)])
+      (ps := [σ (.n 5), σ (.n 23), σ (.n 74), σ (.n 2), σ (.n 62), σ (.n 75)])
       (N := σ (.n 5))
-      (B := RawSStepC (toDC C) rd (σ (.n 23)) (σ (.n 56)) (σ (.n 22)) (σ (.n 2)) (σ (.n 45))
-        (σ (.n 58)))
+      (B := RawSStepC (toDC C) rd (σ (.n 23)) (σ (.n 73)) (σ (.n 22)) (σ (.n 2)) (σ (.n 62))
+        (σ (.n 75)))
       (by unfold ordG; omega) c5 (fun x hx => ?_)
       (fun hne => toDC_same (by decide +kernel) (by decide +kernel) (by simpa using hguard4 hne))
     obtain ⟨h1, h2⟩ := l4_stepC hCd hm hx
@@ -349,17 +368,17 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
   · -- the direct DA check
     intro h71
     rw [g7] at h71
-    have h338 : σ (.n 379) = 0 := by
+    have h338 : σ (.n 396) = 0 := by
       rw [add_sound pa338 atP, const_sound pc337 atP, word_gen, l7, h71, pow_one, e_add_self]
     obtain ⟨hdall, -⟩ := holdsList_flat mDaS (List.all_eq_true.mpr dflat) _ _ (hdz h338)
     have atD := atoms_of_flat hdall
     have hk := nodeKey_sound da_nodeKeyOk atD hkey rfl
     obtain ⟨-, -, O, hKC, hw⟩ := keccak_holds_full (keccak_sound dkec atD)
-    have hx' : ∀ i < 4, σ (.n (397 + i)) = σ (.n (384 + i)) + σ (.n (380 + i)) :=
+    have hx' : ∀ i < 4, σ (.n (414 + i)) = σ (.n (401 + i)) + σ (.n (397 + i)) :=
       fun i hi => add_sound (dadd i hi) atD
     have hin : mainDaIn.map σ =
-        [nodeKey S 0 + σ (.n 380), nodeKey S 1 + σ (.n 381), nodeKey S 2 + σ (.n 382),
-          nodeKey S 3 + σ (.n 383), nodeKey S 4, nodeKey S 5, nodeKey S 6, nodeKey S 7,
+        [nodeKey S 0 + σ (.n 397), nodeKey S 1 + σ (.n 398), nodeKey S 2 + σ (.n 399),
+          nodeKey S 3 + σ (.n 400), nodeKey S 4, nodeKey S 5, nodeKey S 6, nodeKey S 7,
           nodeKey S 8, nodeKey S 9, nodeKey S 10, nodeKey S 11, nodeKey S 12] := by
       simp only [mainDaIn, List.map_cons, List.map_nil]
       rw [hx' 0 (by omega), hx' 1 (by omega), hx' 2 (by omega), hx' 3 (by omega),
@@ -369,8 +388,8 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
       rfl
     rw [hin] at hKC
     obtain ⟨hcan, hd⟩ := keyed_node_kr (kr := nodeKey S) rfl hKC
-    have e0 : σ (.n 412) = O 0 := hw 0 (by simp)
-    have e1 : σ (.n 413) = O 1 := hw 1 (by simp)
+    have e0 : σ (.n 429) = O 0 := hw 0 (by simp)
+    have e1 : σ (.n 430) = O 1 := hw 1 (by simp)
     have l0 := load_sound dl408 atD
     have l1 := load_sound dl409 atD
     rw [e0] at l0
@@ -383,7 +402,7 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
   · -- no direct DA check: zeros
     intro h70
     rw [g7] at h70
-    have h338 : σ (.n 379) ≠ 0 := by
+    have h338 : σ (.n 396) ≠ 0 := by
       rw [add_sound pa338 atP, const_sound pc337 atP, word_gen, l7, h70, pow_zero, add_comm]
       exact gen_add_one_ne
     obtain ⟨hzall, -⟩ := holdsList_flat mDaZS zflat _ _ (hdn h338)
@@ -400,9 +419,9 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
     rw [g6]
     have hguard5 := guard_soundC ml5 hmid
     refine loop_soundC (f := "__loop4")
-      (ps := [σ (.n 6), σ (.n 432), σ (.n 38), σ (.n 42), σ (.n 56), σ (.n 22), σ (.n 45),
-        σ (.n 57), σ (.n 23), σ (.n 429), σ (.n 375), σ (.n 33), σ (.n 37), σ (.n 417), σ (.n 39),
-        σ (.n 423)])
+      (ps := [σ (.n 6), σ (.n 449), σ (.n 55), σ (.n 59), σ (.n 73), σ (.n 22), σ (.n 62),
+        σ (.n 74), σ (.n 23), σ (.n 446), σ (.n 392), σ (.n 50), σ (.n 54), σ (.n 434), σ (.n 56),
+        σ (.n 440)])
       (N := σ (.n 6)) (by unfold ordG; omega) l6 (fun x hx => ?_)
       (fun hne => by simpa using hguard5 hne)
     obtain ⟨h1, h2⟩ := l5_stepCK hV hle hm hx
@@ -416,7 +435,7 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
     refine ⟨lp, by omega, ?_⟩
     -- with a direct DA check, the node's own slot
     intro h71
-    have h398 : σ (.n 446) = 0 := by
+    have h398 : σ (.n 463) = 0 := by
       rw [assertEq_sound mae atM, const_sound mc399 atM, word_zero]
     rw [isMul_sound mm398 atM, add_sound ma395 atM, add_sound ma397 atM, const_sound mc396 atM,
       word_one, l7, h71, pow_one] at h398
@@ -429,7 +448,7 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
     rw [isMul_sound mm401 atM, isMul_sound mm400 atM, lp, ← pow_add, two_mul]
   · intro h60 k hk
     rw [g6] at h60
-    have h404 : σ (.n 452) = 0 := by
+    have h404 : σ (.n 469) = 0 := by
       rw [add_sound ma404 atM, const_sound mc403 atM, word_one, l6, h60, pow_zero, e_add_self]
     obtain ⟨hlall, -⟩ := holdsList_flat mLeafS (List.all_eq_true.mpr lflat) _ _ (hlz h404)
     have atL := atoms_of_flat hlall
@@ -438,7 +457,7 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
     rwa [const_sound hz atL, word_zero] at this
   · intro h60
     rw [g6] at h60
-    have h404 : σ (.n 452) ≠ 0 := by
+    have h404 : σ (.n 469) ≠ 0 := by
       rw [add_sound ma404 atM, const_sound mc403 atM, word_one, l6]
       intro he
       have h2 : gen ^ 0 = gen ^ lg σ 6 := (pow_zero gen).trans (e_add_eq_zero_iff.mp he).symm
@@ -455,7 +474,7 @@ theorem main_factsK {rd : Reader} {C : CallRel} {V : End.FrameMap} (hV : End.Unf
     rw [isMul_sound qm437 atQ, const_sound qc435 atQ, const_sound qc436 atQ, word_one, word_gen,
       one_mul, assertEq_sound qe2 atQ] at l2
     refine ⟨l1, ?_⟩
-    have l2' : LoadHolds rd (1 * gen ^ 1) 0 (σ (.n 480)) := by rwa [one_mul, pow_one]
+    have l2' : LoadHolds rd (1 * gen ^ 1) 0 (σ (.n 497)) := by rwa [one_mul, pow_one]
     have := (loadHolds_mul_gen_pow rd 1 1 0 _).mp l2'
     simpa using this
 

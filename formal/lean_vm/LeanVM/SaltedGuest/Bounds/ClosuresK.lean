@@ -100,7 +100,7 @@ theorem valS_cost (hP : Includes P decTopStatesKC.lam0.costDeps) (v : V) (hv : v
   omega
 
 omit hrd hR in
-theorem mainRiK_le (k : ℕ) : mainRiK k ≤ k + 33 := by
+theorem mainRiK_le (k : ℕ) : mainRiK k ≤ k + 50 := by
   unfold mainRiK; split_ifs <;> omega
 
 /-- **The salted `main`'s valuation at the deployed numbers** (`decTopStatesKC.lam1`,
@@ -117,8 +117,8 @@ theorem valD_cost (hP : Includes P decTopStatesKC.lam1.costDeps) (v : V) (hv : v
     _ (cellAtK_lt (locsTableK.getD 1 #[]) (mainRiK v.idx))
   unfold psAt at h2
   have l0 := limbs_of_lt hv
-  have l1 := limbs_le_two (show v.idx + 11 < 2 ^ 128 by omega)
-  have l2 := limbs_le_two (show v.idx + 33 < 2 ^ 128 by omega)
+  have l1 := limbs_le_two (show v.idx + 28 < 2 ^ 128 by omega)
+  have l2 := limbs_le_two (show v.idx + 50 < 2 ^ 128 by omega)
   simp only [List.length_cons, List.length_nil, l0, max_def]
   split_ifs <;> omega
 

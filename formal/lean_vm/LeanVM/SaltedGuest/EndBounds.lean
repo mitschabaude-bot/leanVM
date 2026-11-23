@@ -18,7 +18,7 @@ salted guest's decoder outputs, within its size bound and budget:
 
 * **`saltedGuest_claimsWithin`**: its statement and the statement of each of its children have at
   most `2^20` signature claims (`Bounds.stmtClaims_valid`, `Bounds.childClaims_valid`; `main` caps
-  the two regions of its coverage table at `MAX_CLAIMS = 2^20` slots together, and a claim it
+  the two regions of its coverage table at `MAX_CLAIMS = 2^20 - 1` slots together, and a claim it
   declares or a child's claim takes a slot);
 * **`saltedGuest_hintsWithinRounds`**: its batching hints have at most `log₂ |bytecode| = 23`
   sumcheck messages (`Bounds.hints_le`; the decoder reads `23` rounds, with or without children);

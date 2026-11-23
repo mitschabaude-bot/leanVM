@@ -197,9 +197,9 @@ def mainValK (locs : Array (Array ℕ)) (rd : Reader) (v : V) : E :=
 /-- The salted `main`'s value number of a deployed `main`'s value number (`B1.Main.mainRi`,
 `EntryTableEq.lean`). -/
 def mainRiK (k : ℕ) : ℕ :=
-  if k < 26 then k else if k = 26 then 33 else if k = 27 then 37 else if k < 369 then k + 11
-  else if k < 373 then k + 11 else if k = 379 then 412 else if k = 380 then 413
-  else if k < 381 then k + 11 else k + 33
+  if k < 26 then k else if k = 26 then 50 else if k = 27 then 54 else if k < 369 then k + 28
+  else if k < 373 then k + 28 else if k = 379 then 429 else if k = 380 then 430
+  else if k < 381 then k + 28 else k + 50
 
 /-- **The salted `main`'s valuation at the deployed `main`'s numbers** (`B1.Main.mainVal`): the
 word of the salted value `mainRiK v.idx`. -/

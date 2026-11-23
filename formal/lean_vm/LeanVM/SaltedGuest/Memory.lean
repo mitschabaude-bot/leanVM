@@ -32,12 +32,12 @@ def tableCells : List (ℕ × E) :=
     | _ => none
 
 set_option maxRecDepth 100000 in
-/-- The slots are `462, 463, …`, one per `SET`. -/
-theorem tableCells_offsets : tableCells.map Prod.fst = List.range' 462 13952 := by
+/-- The slots are `478, 479, …`, one per `SET`. -/
+theorem tableCells_offsets : tableCells.map Prod.fst = List.range' 478 13952 := by
   decide +kernel
 
-/-- The slots lie in `main`'s frame past its header, below `462 + 13952`. -/
-theorem tableCells_off {q : ℕ × E} (hq : q ∈ tableCells) : 2 ≤ q.1 ∧ q.1 < 462 + 13952 := by
+/-- The slots lie in `main`'s frame past its header, below `478 + 13952`. -/
+theorem tableCells_off {q : ℕ × E} (hq : q ∈ tableCells) : 2 ≤ q.1 ∧ q.1 < 478 + 13952 := by
   have := tableCells_offsets ▸ List.mem_map_of_mem (f := Prod.fst) hq
   rw [List.mem_range'_1] at this
   omega
