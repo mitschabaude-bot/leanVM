@@ -12,7 +12,7 @@ use super::hints::{Hints, lean_sphincs_hints, lean_xmss_hints};
 use super::proof::{EthereumClaims, EthereumProof, check_signer_set};
 use super::seed::Seed;
 use super::statement::{lean_sphincs_claim_cells, lean_xmss_claim_cells, list_split, statement_digest};
-use super::{LeanSphincsClaim, LeanXmssClaim, MAX_CLAIMS, MAX_RECURSIONS};
+use super::{CLAIMS_RADIX, LeanSphincsClaim, LeanXmssClaim, MAX_CLAIMS, MAX_RECURSIONS};
 use fiat_shamir::merkle::hash_to_scalars;
 use lean_da::{BLOB_SYMBOLS, CELL_SYMBOLS, CELLS_PER_ROW, CODEWORD_SYMBOLS};
 use leanvm_core::cpu::{from_scalar, prove, public_input_bytes, scalar_proof};
@@ -202,6 +202,14 @@ pub fn aggregate_with_stats(
             count(usize::from(!blobs.is_empty())),
         ],
     );
+    // The slot count's two digits in base CLAIMS_RADIX, each below it by the refusal above:
+    // the slots are exactly the claims made.
+    let slots = cover.xmss.signers.len()
+        + cover.xmss.dups.len()
+        + cover.lean_sphincs.signers.len()
+        + cover.lean_sphincs.dups.len();
+    hints.push("claims_hi", vec![count(slots / CLAIMS_RADIX)]);
+    hints.push("claims_lo", vec![count(slots % CLAIMS_RADIX)]);
     // Both lists in the guest's order, leanXMSS first: each one's split, its declared
     // claims, then its duplicates.
     let lean_xmss_cells: Vec<[F192; 4]> = cover.xmss.signers.iter().map(lean_xmss_claim_cells).collect();

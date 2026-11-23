@@ -72,7 +72,11 @@ pub type LeanSphincsClaim = (LeanSphincsPublicKey, lean_sphincs::Message);
 /// an aggregation tree.
 pub const MAX_RECURSIONS: usize = 16;
 
+/// The base of the two digits in which the guest's `main` reads its coverage table's
+/// slot count.
+const CLAIMS_RADIX: usize = 1 << 10;
+
 /// The most claims one [`aggregate`] call covers: its raw signatures and its children's
 /// claims together, each taking one slot of the guest's coverage table. It bounds the
 /// claims the aggregate declares as well.
-pub const MAX_CLAIMS: usize = 1 << 20;
+pub const MAX_CLAIMS: usize = CLAIMS_RADIX * CLAIMS_RADIX - 1;
