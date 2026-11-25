@@ -17,7 +17,10 @@ pub(super) fn node_count_cell(n: u64) -> F192 {
 /// [`COUNT_RADIX`], the most significant first, each in the exponent. The count is at least one
 /// and at most [`MAX_NODE_COUNT`](super::MAX_NODE_COUNT).
 pub(super) fn node_count_digits(n: u64) -> Vec<F192> {
-    assert!((1..=super::MAX_NODE_COUNT).contains(&n), "a node count is one more than four digits");
+    assert!(
+        (1..=super::MAX_NODE_COUNT).contains(&n),
+        "a node count is one more than four digits"
+    );
     (0..4)
         .rev()
         .map(|k| count((((n - 1) / COUNT_RADIX.pow(k)) % COUNT_RADIX) as usize))

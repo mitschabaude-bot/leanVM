@@ -138,7 +138,10 @@ pub fn aggregate_with_stats(
     if claims_made > MAX_CLAIMS {
         return Err(AggregationError::TooManyClaims);
     }
-    if children.iter().any(|child| !(1..=MAX_NODE_COUNT).contains(&child.node_count)) {
+    if children
+        .iter()
+        .any(|child| !(1..=MAX_NODE_COUNT).contains(&child.node_count))
+    {
         return Err(AggregationError::InvalidNodeCount);
     }
     // At least 1 and at most 16 * MAX_NODE_COUNT + 1, below 2^64.

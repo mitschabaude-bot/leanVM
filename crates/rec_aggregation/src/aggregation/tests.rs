@@ -291,7 +291,15 @@ fn a_child_count_of_zero_is_refused() {
         *hints.entry_mut("child_count", 0) = vec![count(top), count(top), count(top), count(top)];
     });
     FORGE.with(|forge| *forge.borrow_mut() = Some(forgery));
-    let forged = aggregate(seed(), std::slice::from_ref(&leaf), vec![], vec![], &[], None, LOG_INV_RATE);
+    let forged = aggregate(
+        seed(),
+        std::slice::from_ref(&leaf),
+        vec![],
+        vec![],
+        &[],
+        None,
+        LOG_INV_RATE,
+    );
     assert!(
         matches!(forged, Err(AggregationError::ProofError(_))),
         "{:?}",
