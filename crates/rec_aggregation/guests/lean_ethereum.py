@@ -509,9 +509,10 @@ SP_UNUSED_BYTES = 8 - SP_TAIL_BYTES
 # log is below the announced memory size, at most 2^30, and sums of a few never wrap.
 # MAX_RECURSIONS is the arity of an aggregation tree. A node's coverage table has at most
 # CLAIMS_RADIX^2 - 1 slots, its count written as two digits in base CLAIMS_RADIX.
-# A node count, the number of nodes of the tree below and at a node, is below
-# COUNT_RADIX^4 = 2^60, written as four digits in base COUNT_RADIX: one plus the sum of
-# MAX_RECURSIONS such counts is below 2^64 - 1, the order of g.
+# A node count, the number of nodes of the tree below and at a node, is one more than four
+# digits in base COUNT_RADIX, the most significant below COUNT_RADIX - 1: at least 1 and at
+# most (COUNT_RADIX - 1) * COUNT_RADIX^3 = 2^60 - 2^45. One plus the sum of MAX_RECURSIONS
+# such counts is below 2^64 - 1, the order of g.
 MAX_RECURSIONS = MAX_RECURSIONS_PLACEHOLDER
 CLAIMS_RADIX = CLAIMS_RADIX_PLACEHOLDER
 COUNT_RADIX = COUNT_RADIX_PLACEHOLDER
@@ -4788,19 +4789,20 @@ def main():
         hint_witness(carried[0:DEFER_STMT_CELLS], "child_defer")
         child_da = da_digests * xc ** 2
         hint_witness(child_da[0:2], "child_da")
-        # The child's node count, four hinted digits in base COUNT_RADIX in the exponent,
-        # the most significant first, each range checked, composed by squarings.
+        # The child's node count, one more than four hinted digits in base COUNT_RADIX in
+        # the exponent, the most significant first and below COUNT_RADIX - 1, each range
+        # checked, composed by squarings: a count is at least one.
         digits = StackBuf(4)
         hint_witness(digits, "child_count")
         d_3 = digits[0]
         d_2 = digits[1]
         d_1 = digits[2]
         d_0 = digits[3]
-        assert log(d_3) < COUNT_RADIX
+        assert log(d_3) < COUNT_RADIX - 1
         assert log(d_2) < COUNT_RADIX
         assert log(d_1) < COUNT_RADIX
         assert log(d_0) < COUNT_RADIX
-        count_g = ((d_3 ** COUNT_RADIX * d_2) ** COUNT_RADIX * d_1) ** COUNT_RADIX * d_0
+        count_g = (((d_3 ** COUNT_RADIX * d_2) ** COUNT_RADIX * d_1) ** COUNT_RADIX * d_0) * GEN
         child_count[xc] = count_g
         count_run[xc * GEN] = count_run[xc] * count_g
         pi_0, pi_1 = statement_digest(seed_0, seed_1, cx_0, cx_1, cs_0, cs_1, child_da[1], child_da[GEN], carried, count_g)

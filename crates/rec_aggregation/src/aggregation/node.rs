@@ -37,8 +37,8 @@ use signatures::{lean_sphincs, lean_xmss};
 ///   covered by the inputs above.
 /// - The raw signatures, after dropping repeated claims, and the children's claims together are at
 ///   most [`MAX_CLAIMS`].
-/// - Each child's node count is at most [`MAX_NODE_COUNT`]; the aggregate's is one more than the
-///   sum of its children's ([`EthereumProof::node_count`]).
+/// - Each child's node count is at least one and at most [`MAX_NODE_COUNT`]; the aggregate's is
+///   one more than the sum of its children's ([`EthereumProof::node_count`]).
 /// - `log_inv_rate`: PCS code rate `2^-log_inv_rate`, higher `log_inv_rate` means a smaller proof
 ///   but slower proving; in [`MIN_LOG_INV_RATE`](pcs::whir::MIN_LOG_INV_RATE)..=[`MAX_LOG_INV_RATE`](pcs::whir::MAX_LOG_INV_RATE).
 ///
@@ -138,10 +138,10 @@ pub fn aggregate_with_stats(
     if claims_made > MAX_CLAIMS {
         return Err(AggregationError::TooManyClaims);
     }
-    if children.iter().any(|child| child.node_count > MAX_NODE_COUNT) {
-        return Err(AggregationError::TooManyNodes);
+    if children.iter().any(|child| !(1..=MAX_NODE_COUNT).contains(&child.node_count)) {
+        return Err(AggregationError::InvalidNodeCount);
     }
-    // At most 16 * MAX_NODE_COUNT + 1, below 2^64.
+    // At least 1 and at most 16 * MAX_NODE_COUNT + 1, below 2^64.
     let node_count = 1 + children.iter().map(|child| child.node_count).sum::<u64>();
 
     // The children are assumed checked. Nothing here verifies one: the replay

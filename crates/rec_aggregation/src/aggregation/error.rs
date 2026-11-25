@@ -57,8 +57,8 @@ pub enum AggregationError {
     /// More than [`MAX_CLAIMS`](super::MAX_CLAIMS) claims made: raw signatures and
     /// children's claims together.
     TooManyClaims,
-    /// A child's node count above [`MAX_NODE_COUNT`](super::MAX_NODE_COUNT).
-    TooManyNodes,
+    /// A child's node count zero or above [`MAX_NODE_COUNT`](super::MAX_NODE_COUNT).
+    InvalidNodeCount,
     /// The payload has a partial row or exceeds [`DA_MAX_ROWS`].
     InvalidBlobSize { symbols: usize },
     /// The requested DA commitment is not a child's.
@@ -105,7 +105,7 @@ impl std::fmt::Display for AggregationError {
                 write!(f, "too many children")
             }
             Self::TooManyClaims => write!(f, "too many claims"),
-            Self::TooManyNodes => write!(f, "a child's tree has too many nodes"),
+            Self::InvalidNodeCount => write!(f, "a child's node count is zero or too large"),
             Self::InvalidBlobSize { symbols } => {
                 write!(
                     f,

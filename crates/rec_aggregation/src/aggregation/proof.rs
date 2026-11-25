@@ -118,8 +118,8 @@ impl EthereumProof {
 
     /// The number of nodes of the tree of proofs this aggregate stands for, itself included, as
     /// its statement carries it. [`Self::verify`] establishes it with the claims; a verifier
-    /// compares it with the largest tree it accepts. A child's count is at most
-    /// [`MAX_NODE_COUNT`](super::MAX_NODE_COUNT).
+    /// compares it with the largest tree it accepts. It is at least one, and a child's count is at
+    /// most [`MAX_NODE_COUNT`](super::MAX_NODE_COUNT).
     pub fn node_count(&self) -> u64 {
         self.node_count
     }

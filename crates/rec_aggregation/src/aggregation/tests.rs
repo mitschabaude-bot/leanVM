@@ -264,9 +264,38 @@ fn a_node_count_other_than_one_more_than_the_childrens_is_refused() {
     huge.node_count = MAX_NODE_COUNT + 1;
     let refused = aggregate(seed(), &[huge], vec![], vec![], &[], None, LOG_INV_RATE);
     assert!(
-        matches!(refused, Err(AggregationError::TooManyNodes)),
+        matches!(refused, Err(AggregationError::InvalidNodeCount)),
         "{:?}",
         refused.err()
+    );
+}
+
+/// A child's count is at least one: the prover refuses a child of count zero. The guest reads a
+/// child's count as one more than four hinted digits, the most significant below
+/// `COUNT_RADIX - 1`, so no hint reads as zero; a hint of four digits `COUNT_RADIX - 1` fails the
+/// guest's run.
+#[test]
+fn a_child_count_of_zero_is_refused() {
+    leanvm_core::init_prover();
+    let leaf = prove_leaf(&get_signers(1));
+    let mut empty = leaf.clone();
+    empty.node_count = 0;
+    let refused = aggregate(seed(), &[empty], vec![], vec![], &[], None, LOG_INV_RATE);
+    assert!(
+        matches!(refused, Err(AggregationError::InvalidNodeCount)),
+        "{:?}",
+        refused.err()
+    );
+    let top = (COUNT_RADIX - 1) as usize;
+    let forgery: Forgery = Box::new(move |hints: &mut Hints| {
+        *hints.entry_mut("child_count", 0) = vec![count(top), count(top), count(top), count(top)];
+    });
+    FORGE.with(|forge| *forge.borrow_mut() = Some(forgery));
+    let forged = aggregate(seed(), std::slice::from_ref(&leaf), vec![], vec![], &[], None, LOG_INV_RATE);
+    assert!(
+        matches!(forged, Err(AggregationError::ProofError(_))),
+        "{:?}",
+        forged.err()
     );
 }
 
