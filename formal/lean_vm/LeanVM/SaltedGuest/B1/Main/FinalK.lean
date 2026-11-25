@@ -8,6 +8,7 @@
 module
 
 public import LeanVM.SaltedGuest.B1.Main.HoldersK
+public import LeanVM.SaltedGuest.B1.Main.CountK
 
 /-!
 # The salted `main`, soundly
@@ -15,12 +16,14 @@ public import LeanVM.SaltedGuest.B1.Main.HoldersK
 `main_sound_CK`: on a memory image whose words `0`, `1` hold `D` and words `2`, `3` the seed `S`,
 under a call relation that unfolds at a frame map and lies below the salted core IR's, given the
 callees' contracts under `S` (`CalleesWCK`), a run of the salted `main`'s body gives, at the
-deployed decoders read at `mainVal σ`, the statement of digest `D` under `S`
-(`saltedStatementDigest`, `own_digestK`) and the salted node relation of the decoded witness: the
-signatures held (`signatures_heldK`), the DA digest under `S` (`da_relK`), every child proven by
-the deferring verifier with a second public digest (`kid_subK`), the deferred claim the leaf's zero
-point or the batching from the batching's seed call under `S` (`batchRun_batchFrom_iff`); and at
-most `16` children. As the deployed `Main.main_sound_C`.
+deployed decoders read at `mainVal σ`, the statement whose digest under `S` with the node's count
+(`nodeCountOf`) is `D` (`saltedStatementDigest`, `own_digestK`) and the salted node relation of the
+decoded witness and the children's counts (`childCountsOf`): the signatures held
+(`signatures_heldK`), the DA digest under `S` (`da_relK`), every child proven by the deferring
+verifier with a second public digest for its statement with its count (`kid_subK`), the deferred
+claim the leaf's zero point or the batching from the batching's seed call under `S`
+(`batchRun_batchFrom_iff`), the node's count one more than the children's, each below `2^60`
+(`counts_heldK`); and at most `16` children. As the deployed `Main.main_sound_C`.
 -/
 
 namespace LeanVM.SaltedGuest.B1.Main
@@ -47,8 +50,8 @@ theorem saltedDaHeld_of {s : NodeStatement} {w : NodeWitness}
   | some p => exact hsome p.1 p.2 hd
 
 /-- **A child's proof**: its fresh claim at `child_fresh · g^(24c)`, and the deferring verifier
-with a second public digest, the keyed hash under `S`, accepts its proof for the decoded child's
-statement's digest under `S`. -/
+with a second public digest, the keyed hash under `S`, accepts its proof for the digest under `S` of
+the decoded child's statement with its count. -/
 theorem kid_subK {bytecode : List K} {wX : List E → LeanXmss.Signature}
     {wS : E → Sphincs.Signature} {wD : List E → List E → LeanVM.Da.MatrixWitness}
     {wV : List E → Proof} {wA : List E → BatchingHints}
@@ -59,8 +62,8 @@ theorem kid_subK {bytecode : List K} {wX : List E → LeanXmss.Signature}
     (decKid rd σ wV c).freshClaim.bytecodePoint.length = bytecodeVars ∧
       ReadsAt rd (σ (.n 390) * gen ^ (24 * c)) (DeferredClaim.cells (decKid rd σ wV c).freshClaim) ∧
       Id.run (Recursion.SecondDigest.verifyDeferredWithHash₂ (m := Id) keccakF1600 (keyedHash S)
-        bytecode S (saltedStatementDigest S (kidStmt rd σ c)) S (decKid rd σ wV c).freshClaim
-        (decKid rd σ wV c).proof) = true := by
+        bytecode S (saltedStatementDigest S (kidStmt rd σ c) (kidCount rd σ c)) S
+        (decKid rd σ wV c).freshClaim (decKid rd σ wV c).proof) = true := by
   have k := hK c hc
   obtain ⟨pi0, pi1, s0, s1, gsq, out, hargs, seed, pi, fresh, hs, hp, hfl, hfr, hvd⟩ :=
     cw.sub _ _ _ _ _ _ k.sub MF.exp MF.seedLoads.1 MF.seedLoads.2
@@ -69,7 +72,7 @@ theorem kid_subK {bytecode : List K} {wX : List E → LeanXmss.Signature}
   have hseed : S = seed := by
     rw [← digestOfCells_scalars S, ← digestOfCells_scalars seed, ← MF.seed, ← hs]
   subst hseed
-  have hpi : pi = saltedStatementDigest S (kidStmt rd σ c) := by
+  have hpi : pi = saltedStatementDigest S (kidStmt rd σ c) (kidCount rd σ c) := by
     apply digestCells_inj
     rw [← kid_digestK MF hK hW hc, digestCells, ← hp]
   have hlen : (DeferredClaim.cells fresh).length = 24 := by
@@ -97,10 +100,15 @@ theorem kids_provenK {τ : Val} (hbl : bytecode.length = 2 ^ bytecodeVars)
     (cw : CalleesWCK bytecode C rd (τ (.n 47)) key S wX wS wD wV wA)
     (MF : MainFactsK C rd τ S key) (hK : ∀ c < lg τ 6, KidOkK C rd τ S c (Kr c))
     {rx rs : ℕ → ℕ} (hW : Writers rd (τ (.n 45)) (segsOf τ Kr) (LXS τ) (LSS τ) (slOf τ Kr rx rs)) :
-    SaltedChildrenProven bytecode S (decWit τ rd wX wS wD wV wA) := by
+    SaltedChildrenProven bytecode S (decWit τ rd wX wS wD wV wA) (childCountsOf rd τ) := by
   have hlog := log2_bytecode hbl
-  intro ch hch
-  obtain ⟨c, hc, rfl⟩ := List.mem_map.mp hch
+  intro ch n hch
+  have hz : (decWit τ rd wX wS wD wV wA).children.zip (childCountsOf rd τ) =
+      (List.range (nKids τ)).map fun c ↦ (decKid rd τ wV c, kidCount rd τ c) := List.zip_map'
+  rw [hz] at hch
+  obtain ⟨c, hc, he⟩ := List.mem_map.mp hch
+  simp only [Prod.mk.injEq] at he
+  obtain ⟨rfl, rfl⟩ := he
   rw [List.mem_range, nKids_eq] at hc
   refine ⟨?_, (kid_subK cw MF hK hW hc).2.2⟩
   show (deferOfCells (readCells rd (τ (.n 396) * gen ^ (24 * c)) 24)).bytecodePoint.length = _
@@ -111,7 +119,8 @@ theorem deferred_batchedK {τ : Val} (hbl : bytecode.length = 2 ^ bytecodeVars)
     (cw : CalleesWCK bytecode C rd (τ (.n 47)) key S wX wS wD wV wA)
     (MF : MainFactsK C rd τ S key) (hK : ∀ c < lg τ 6, KidOkK C rd τ S c (Kr c))
     {rx rs : ℕ → ℕ} (hW : Writers rd (τ (.n 45)) (segsOf τ Kr) (LXS τ) (LSS τ) (slOf τ Kr rx rs)) :
-    SaltedDeferredClaimBatched bytecode S (decStmt τ rd) (decWit τ rd wX wS wD wV wA) := by
+    SaltedDeferredClaimBatched bytecode S (decStmt τ rd) (decWit τ rd wX wS wD wV wA)
+      (childCountsOf rd τ) := by
   have hlog := log2_bytecode hbl
   unfold SaltedDeferredClaimBatched
   by_cases h6 : lg τ 6 = 0
@@ -145,17 +154,21 @@ theorem deferred_batchedK {τ : Val} (hbl : bytecode.length = 2 ^ bytecodeVars)
       show deferOfCells (readCells rd (τ (.n 417)) 24) = out
       rw [readCells_of_readsAt hor (by simp [DeferredClaim.cells, hol, bytecodeVars]),
         deferOfCells_of hol]
-    have hch : (decWit τ rd wX wS wD wV wA).children =
-        (List.range (lg τ 6)).map (decKid rd τ wV) := by
-      show (List.range (nKids τ)).map _ = _
-      rw [nKids_eq]
+    have hch : saltedChildClaims S (decWit τ rd wX wS wD wV wA).children (childCountsOf rd τ) =
+        (List.range (lg τ 6)).map fun c ↦ (⟨saltedStatementDigest S (kidStmt rd τ c)
+          (kidCount rd τ c), (decKid rd τ wV c).freshClaim,
+          (decKid rd τ wV c).statement.deferredClaim⟩ : ChildClaims) := by
+      have hc1 : (decWit τ rd wX wS wD wV wA).children =
+          (List.range (nKids τ)).map (decKid rd τ wV) := rfl
+      rw [saltedChildClaims, hc1, childCountsOf, List.zip_map', List.map_map, nKids_eq]
+      rfl
     have hshape : out.HasBytecodeShape bytecode := by
       rw [DeferredClaim.HasBytecodeShape, hol, hlog]
     dsimp only
     rw [hdef, batchRun_batchFrom_iff hshape, hch]
-    refine hb _ (by simp only [saltedChildClaims, List.length_map, List.length_range]) fun c hc => ?_
-    simp only [saltedChildClaims, List.length_map, List.length_range] at hc
-    simp only [saltedChildClaims, List.getElem_map, List.getElem_range]
+    refine hb _ (by simp only [List.length_map, List.length_range]) fun c hc => ?_
+    simp only [List.length_map, List.length_range] at hc
+    simp only [List.getElem_map, List.getElem_range]
     obtain ⟨hfl, hfr, -⟩ := kid_subK cw MF hK hW hc
     have k := hK c hc
     have hkd := kid_digestK MF hK hW hc
@@ -164,14 +177,27 @@ theorem deferred_batchedK {τ : Val} (hbl : bytecode.length = 2 ^ bytecodeVars)
     · show (deferOfCells (readCells rd (τ (.n 396) * gen ^ (24 * c)) 24)).bytecodePoint.length = _
       exact deferOfCells_point (length_readCells _ _ _)
     · show LoadHolds rd (τ (.n 384)) (2 * c)
-        (digestHalves (saltedStatementDigest S (kidStmt rd τ c))).1
+        (digestHalves (saltedStatementDigest S (kidStmt rd τ c) (kidCount rd τ c))).1
       rw [← hkd.1]; exact k.pi0
     · show LoadHolds rd (τ (.n 384)) (2 * c + 1)
-        (digestHalves (saltedStatementDigest S (kidStmt rd τ c))).2
+        (digestHalves (saltedStatementDigest S (kidStmt rd τ c) (kidCount rd τ c))).2
       rw [← hkd.2]; exact k.pi1
     · show ReadsAt rd _ (deferOfCells (readCells rd (τ (.n 396) * gen ^ (24 * c)) 24)).cells
       rw [readCells_of_readsAt k.defreads k.deflen, deferOfCells_cells k.deflen]
       exact k.defreads
+
+/-- **The decoded node count is held**: a count for each decoded child, each below `2^60`, and the
+node's one more than their sum. -/
+theorem counts_heldK {τ : Val} (MF : MainFactsK C rd τ S key)
+    (hK : ∀ c < lg τ 6, KidOkK C rd τ S c (Kr c)) :
+    NodeCountHeld (nodeCountOf τ) (decWit τ rd wX wS wD wV wA) (childCountsOf rd τ) := by
+  refine ⟨?_, fun n hn ↦ ?_, nodeCountOf_eqK MF hK⟩
+  · show ((List.range (nKids τ)).map (kidCount rd τ)).length =
+      ((List.range (nKids τ)).map (decKid rd τ wV)).length
+    simp only [List.length_map]
+  · obtain ⟨c, hc, rfl⟩ := List.mem_map.mp hn
+    rw [List.mem_range, nKids_eq] at hc
+    exact (hK c hc).count.1
 
 /-- **The salted `main`, soundly, its witness decoded, under a call relation `C`** that unfolds at
 a frame map and lies below the salted core IR's, given the callees' contracts under the seed `S`
@@ -186,9 +212,9 @@ theorem main_sound_CK {bytecode : List K} (hbl : bytecode.length = 2 ^ bytecodeV
     (cw : CalleesWCK bytecode C rd (mainVal σ (.n 47)) (σ (.n 55)) S wX wS wD wV wA) {D : Digest}
     (hp0 : LoadHolds rd 1 0 (digestHalves D).1) (hp1 : LoadHolds rd 1 1 (digestHalves D).2)
     (hb : Stmt.HoldsList C rd σ (Fn.body LeanVM.SaltedGuest.Data.core0) False (fun rs => rs = [])) :
-    saltedStatementDigest S (decStmt (mainVal σ) rd) = D ∧
-      SaltedNodeRelation bytecode S (decStmt (mainVal σ) rd)
-        (decWit (mainVal σ) rd wX wS wD wV wA) ∧
+    saltedStatementDigest S (decStmt (mainVal σ) rd) (nodeCountOf (mainVal σ)) = D ∧
+      SaltedNodeRelation bytecode S (decStmt (mainVal σ) rd) (nodeCountOf (mainVal σ))
+        (decWit (mainVal σ) rd wX wS wD wV wA) (childCountsOf rd (mainVal σ)) ∧
       (decWit (mainVal σ) rd wX wS wD wV wA).children.length ≤ 16 := by
   have MF := main_factsK hV hle hm hS2 hS3 hb
   generalize mainVal σ = τ at MF cw ⊢
@@ -198,14 +224,14 @@ theorem main_sound_CK {bytecode : List K} (hbl : bytecode.length = 2 ^ bytecodeV
     exact ⟨Kr, hK⟩
   obtain ⟨rx, rs, hrx, hrs⟩ := raw_slotsK MF
   have hW := writersK MF hK hrx hrs
-  have hown := own_digestK MF
+  have hown := own_digestK MF hK
   -- the statement's digest
-  have hdig : saltedStatementDigest S (decStmt τ rd) = D := by
+  have hdig : saltedStatementDigest S (decStmt τ rd) (nodeCountOf τ) = D := by
     apply digestCells_inj
     rw [← hown, loadHolds_unique MF.pub.1 hp0, loadHolds_unique MF.pub.2 hp1]
     rfl
   refine ⟨hdig, ⟨signatures_heldK MF hK hW hm cw, ?_, kids_provenK hbl cw MF hK hW,
-    deferred_batchedK hbl cw MF hK hW⟩, ?_⟩
+    deferred_batchedK hbl cw MF hK hW, counts_heldK MF hK⟩, ?_⟩
   · -- the DA digest
     obtain ⟨hsome, hnone⟩ := da_relK MF cw
     exact saltedDaHeld_of hsome hnone

@@ -68,7 +68,7 @@ theorem idx_verify_sub : nameIndex "verify_sub" = 19 := nameIndex_of rc18
 
 kernel_rfl sc16 : Same.closed[16]? = some ("sp_wots", 19, 19)
 kernel_rfl sc17 : Same.closed[17]? = some ("verify_sig_lean_sphincs", 20, 20)
-kernel_rfl sc25 : Same.closed[25]? = some ("__loop2", 38, 36)
+kernel_rfl sc24 : Same.closed[24]? = some ("__loop2", 38, 36)
 kernel_rfl dc19 : Guest.coreProgram[19]? = some LeanVM.Guest.Data.core19
 kernel_rfl dc20 : Guest.coreProgram[20]? = some LeanVM.Guest.Data.core20
 kernel_rfl dc36 : Guest.coreProgram[36]? = some LeanVM.Guest.Data.core36
@@ -80,7 +80,7 @@ theorem same_verify_sig_lean_sphincs :
       Same.rho "verify_sig_lean_sphincs" = "verify_sig_lean_sphincs" :=
   Whir.sameOf sc17 dc20 rfl
 theorem same_loop2 : Same.inS "__loop2" = true ∧ Same.rho "__loop2" = "__loop2" :=
-  Whir.sameOf sc25 dc36 rfl
+  Whir.sameOf sc24 dc36 rfl
 
 /-- An unchanged function kept by the renaming, read through `toDV`, is read at its own name. -/
 theorem toDV_same (V : End.FrameMap) {f : String} (h : Same.inS f = true ∧ Same.rho f = f) :

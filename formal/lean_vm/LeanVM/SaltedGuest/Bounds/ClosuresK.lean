@@ -100,8 +100,35 @@ theorem valS_cost (hP : Includes P decTopStatesKC.lam0.costDeps) (v : V) (hv : v
   omega
 
 omit hrd hR in
-theorem mainRiK_le (k : ℕ) : mainRiK k ≤ k + 50 := by
-  unfold mainRiK; split_ifs <;> omega
+theorem mainRiDK_le (k : ℕ) : mainRiDK k ≤ k + 57 := by
+  unfold mainRiDK; split_ifs <;> omega
+
+omit hrd hR in
+theorem mainRiK_le (k : ℕ) : mainRiK k ≤ k + 57 := by
+  unfold mainRiK; have := mainRiDK_le k; split_ifs <;> omega
+
+omit hrd hR in
+/-- The deployed value numbers' map (`mainRiDKC`), below `2^64`: at most `50`. -/
+theorem mainRiDK_cost (hP : Includes P mainRiDKC.costDeps) (k : ℕ) (hk : k < 2 ^ 64) :
+    machineCost P mainRiDKC.costIdx [encodeValue k] ≤ 50 := by
+  rw [mainRiDKC.costEq P hP]
+  have l0 := limbs_of_lt hk
+  have l1 := limbs_le_two (show k + 28 < 2 ^ 128 by omega)
+  have l2 := limbs_le_two (show k + 50 < 2 ^ 128 by omega)
+  have l3 := limbs_le_two (show k + 55 < 2 ^ 128 by omega)
+  have l4 := limbs_le_two (show k + 57 < 2 ^ 128 by omega)
+  simp only [l0, max_def]
+  split_ifs <;> omega
+
+omit hrd hR in
+/-- The value numbers' map (`mainRiKC`), below `2^64`: at most `80`. -/
+theorem mainRiK_cost (hP : Includes P mainRiKC.costDeps) (k : ℕ) (hk : k < 2 ^ 64) :
+    machineCost P mainRiKC.costIdx [encodeValue k] ≤ 80 := by
+  rw [mainRiKC.costEq P hP]
+  have := mainRiDK_cost P (by includes) k hk
+  have l0 := limbs_of_lt hk
+  simp only [l0]
+  split_ifs <;> omega
 
 /-- **The salted `main`'s valuation at the deployed numbers** (`decTopStatesKC.lam1`,
 `mainValDK`): `R + 1400`. -/
@@ -109,18 +136,15 @@ theorem valD_cost (hP : Includes P decTopStatesKC.lam1.costDeps) (v : V) (hv : v
     appCost P (.closure decTopStatesKC.lam1.costIdx [encodeValue locsTableK, rdV])
       [encodeValue v] ≤ R + 1400 := by
   rw [appCost_fn, List.cons_append, List.cons_append, List.nil_append,
-    decTopStatesKC.lam1.costEq P hP locsTableK rd rdV hrd, mainValDKC.costEq P (by includes) locsTableK rd rdV hrd,
-    mainRiKC.costEq P (by includes)]
+    decTopStatesKC.lam1.costEq P hP locsTableK rd rdV hrd, mainValDKC.costEq P (by includes) locsTableK rd rdV hrd]
   have hri := mainRiK_le v.idx
+  have hrc := mainRiK_cost P (by includes) v.idx hv
   have h1 := cellAtK_cost2 P (by includes) (locsTableK_lt 1) (i := mainRiK v.idx) (by omega)
   have h2 := wordWith_cost P rd rdV hrd R hR (W := 16) (by norm_num) (by norm_num) (by includes) 1
     _ (cellAtK_lt (locsTableK.getD 1 #[]) (mainRiK v.idx))
   unfold psAt at h2
-  have l0 := limbs_of_lt hv
-  have l1 := limbs_le_two (show v.idx + 28 < 2 ^ 128 by omega)
-  have l2 := limbs_le_two (show v.idx + 50 < 2 ^ 128 by omega)
-  simp only [List.length_cons, List.length_nil, l0, max_def]
-  split_ifs <;> omega
+  simp only [List.length_cons, List.length_nil]
+  omega
 
 /-! ## The frame map -/
 

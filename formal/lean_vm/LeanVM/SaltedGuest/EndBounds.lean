@@ -40,7 +40,7 @@ children have at most `2^20` signature claims. -/
 theorem saltedGuest_claimsWithin :
     ∀ input (execution : Execution saltedGuest.program),
       ValidExecution₂ saltedGuest.program input execution →
-      ∀ dec : SeedStatementAndWitness,
+      ∀ dec : Recursion.Salted.SaltedDecoding,
         outputWithin saltedGuest.decoder saltedGuest.decoderSizeBound
             (saltedGuest.decoderBudget execution)
             (encodeGuestWitnessDecoderInput saltedGuest.program execution) =
@@ -60,7 +60,7 @@ input of two digests, the batching hints of a decoding the decoder outputs have 
 theorem saltedGuest_hintsWithinRounds :
     ∀ input (execution : Execution saltedGuest.program),
       ValidExecution₂ saltedGuest.program input execution →
-      ∀ dec : SeedStatementAndWitness,
+      ∀ dec : Recursion.Salted.SaltedDecoding,
         outputWithin saltedGuest.decoder saltedGuest.decoderSizeBound
             (saltedGuest.decoderBudget execution)
             (encodeGuestWitnessDecoderInput saltedGuest.program execution) =
@@ -80,7 +80,7 @@ the DA matrix's rows. -/
 theorem saltedGuest_decodingsValid :
     ∀ input (execution : Execution saltedGuest.program),
       ValidExecution₂ saltedGuest.program input execution →
-      ∀ decoding : SeedStatementAndWitness,
+      ∀ decoding : Recursion.Salted.SaltedDecoding,
         outputWithin saltedGuest.decoder saltedGuest.decoderSizeBound
             (saltedGuest.decoderBudget execution)
             (encodeGuestWitnessDecoderInput saltedGuest.program execution) =
@@ -91,7 +91,7 @@ theorem saltedGuest_decodingsValid :
   intro input t hv dec h
   unfold saltedGuest at h
   dsimp only at h
-  exact ⟨Bounds.decodingSize_valid hv _ dec h (decodeDecoded_enc dec), Bounds.daRows_le t dec h⟩
+  exact ⟨Bounds.decodingSize_valid hv _ dec h (decodeValue_encodeValue dec), Bounds.daRows_le t dec h⟩
 
 /-- **The salted guest is knowledge sound, its decodings have at most `2^20` claims, and its
 batching hints at most `log₂ |bytecode|` rounds**, each over the valid executions for a public input
@@ -100,7 +100,7 @@ theorem saltedGuest_correct_claims_hints :
     saltedGuest.KnowledgeSound ∧
     (∀ input (execution : Execution saltedGuest.program),
       ValidExecution₂ saltedGuest.program input execution →
-      ∀ dec : SeedStatementAndWitness,
+      ∀ dec : Recursion.Salted.SaltedDecoding,
         outputWithin saltedGuest.decoder saltedGuest.decoderSizeBound
             (saltedGuest.decoderBudget execution)
             (encodeGuestWitnessDecoderInput saltedGuest.program execution) =
@@ -111,7 +111,7 @@ theorem saltedGuest_correct_claims_hints :
               2 ^ 20) ∧
     (∀ input (execution : Execution saltedGuest.program),
       ValidExecution₂ saltedGuest.program input execution →
-      ∀ dec : SeedStatementAndWitness,
+      ∀ dec : Recursion.Salted.SaltedDecoding,
         outputWithin saltedGuest.decoder saltedGuest.decoderSizeBound
             (saltedGuest.decoderBudget execution)
             (encodeGuestWitnessDecoderInput saltedGuest.program execution) =

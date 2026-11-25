@@ -26,14 +26,14 @@ numbers at `2^30` and `2^35` steps. The axiom footprint of each is Lean's three.
 #print axioms LeanVM.SaltedGuest.Bounds.saltedDecoderPrice_le_of_steps35
 
 /-- The price at `2^30` steps, about `2^50.87`. -/
-example : LeanVM.SaltedGuest.Bounds.saltedPrice30 = 2053965827132468 := by decide +kernel
+example : LeanVM.SaltedGuest.Bounds.saltedPrice30 = 2053965829417304 := by decide +kernel
 
 /-- The price at `2^35` steps, about `2^55.83`. -/
-example : LeanVM.SaltedGuest.Bounds.saltedPrice35 = 63883479202725087 := by decide +kernel
+example : LeanVM.SaltedGuest.Bounds.saltedPrice35 = 63883479205009923 := by decide +kernel
 
 /-- info: 'LeanVM.SaltedGuest.Decoder.saltedDecoder_bits_le' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms LeanVM.SaltedGuest.Decoder.saltedDecoder_bits_le
 
-/-- The bit length's bound evaluated: `57761973`. -/
-example : LeanVM.SaltedGuest.Decoder.saltedDecoderBitsBound = 57761973 := by decide +kernel
+/-- The bit length's bound evaluated: `57790849`. -/
+example : LeanVM.SaltedGuest.Decoder.saltedDecoderBitsBound = 57790849 := by decide +kernel

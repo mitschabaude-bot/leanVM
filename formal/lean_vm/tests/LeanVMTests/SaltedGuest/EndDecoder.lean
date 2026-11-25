@@ -27,5 +27,5 @@ example : (⟨LeanVM.SaltedGuest.guestProgram, LeanVM.SaltedGuest.Decoder.salted
 #guard_msgs in
 #print axioms LeanVM.SaltedGuest.End.saltedGuest_decodingsBounded
 
-/-- The bound is the number `8633083319170770143622`. -/
-example : LeanVM.SaltedGuest.Decoder.decodingSizeBoundK = 8633083319170770143622 := rfl
+/-- The bound is the number `8633083319205129881992`. -/
+example : LeanVM.SaltedGuest.Decoder.decodingSizeBoundK = 8633083319205129881992 := rfl

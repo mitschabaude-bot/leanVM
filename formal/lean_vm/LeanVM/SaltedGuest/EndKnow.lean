@@ -20,8 +20,9 @@ give, the per-function meanings of the core IR (B1), is named here as hypotheses
 * `MainSound dec`: **`main`'s obligation**. Over any call relation below the salted core IR's
   that unfolds along a frame map (`UnfoldsV`), on a memory whose words `0` and `1` hold a digest
   `D` and whose words `2` and `3` hold a digest `S`, a run of `main`'s body gives, read off its
-  frame by `dec`, the seed `S`, a statement whose salted digest under `S` is `D`, and a witness
-  that satisfies the salted node relation under `S` with at most `16` children. It rests on every
+  frame by `dec`, the seed `S`, a statement whose salted digest under `S` with its node count is
+  `D`, and a witness and children's counts that satisfy the salted node relation under `S`, with at
+  most `16` children. It rests on every
   callee's meaning (`…_sound_Spec` at the salted core IR), as the deployed guest's
   `B1.Main.main_sound_V_of_sub` does.
 * `DecoderComputes decoder sizeBound budget dec`: the decoder program of the cost machine
@@ -75,7 +76,7 @@ def MemOk (rd : Reader) : Prop := ∃ κ, 1 ≤ κ ∧ κ ≤ 32 ∧ ∃ L : Mem
 a frame map, on a memory whose words `0`, `1` hold the digest `D` and words `2`, `3` the digest
 `S`, a run of `main`'s body gives, read off by `dec`, the seed `S`, a statement of salted digest
 `D` under it, and a witness of the salted node relation under it, with at most `16` children. -/
-def MainSound (dec : Val → Reader → FrameMap → SeedStatementAndWitness) : Prop :=
+def MainSound (dec : Val → Reader → FrameMap → SaltedDecoding) : Prop :=
   ∀ (rd : Reader), MemOk rd → ∀ (C : CallRel) (V : FrameMap), UnfoldsV rd C V →
     CallRel.Le C (coreProgram.Rel rd) →
   ∀ (D S : Digest) (σ : Val), LoadHolds rd 1 0 (digestHalves D).1 →
@@ -83,22 +84,23 @@ def MainSound (dec : Val → Reader → FrameMap → SeedStatementAndWitness) : 
     LoadHolds rd 1 3 (digestHalves S).2 →
     Stmt.HoldsList C rd σ Data.core0.body False (fun rs => rs = []) →
       (dec σ rd V).seed = S ∧
-        saltedStatementDigest (dec σ rd V).seed (dec σ rd V).statement = D ∧
+        saltedStatementDigest (dec σ rd V).seed (dec σ rd V).statement (dec σ rd V).nodeCount = D ∧
         SaltedNodeRelation (bytecodeWords guestProgram) (dec σ rd V).seed
-          (dec σ rd V).statement (dec σ rd V).witness ∧
+          (dec σ rd V).statement (dec σ rd V).nodeCount (dec σ rd V).witness
+          (dec σ rd V).childCounts ∧
         (dec σ rd V).witness.children.length ≤ 16
 
 /-- **The decoding off a memory**: `dec` at `main`'s frame (`fp = 1`, the words of `main`'s
 certificate's cells), the memory, and the memory's frame map. -/
-noncomputable def decodeWith (dec : Val → Reader → FrameMap → SeedStatementAndWitness)
-    {κ : ℕ} (L : MemoryImage κ) : SeedStatementAndWitness :=
+noncomputable def decodeWith (dec : Val → Reader → FrameMap → SaltedDecoding)
+    {κ : ℕ} (L : MemoryImage κ) : SaltedDecoding :=
   dec (valG L 1 (certOf 1)) L.read (frameV L)
 
 /-- **The decoder program's obligation**: on every valid execution of the salted guest for a
 public input of two digests, the decoder, of size at most `sizeBound`, run on the encoded program
 and execution within `budget`, outputs the encoding of `dec`'s decoding off the memory. -/
 def DecoderComputes (decoder : Cost.MachineProgram) (sizeBound : ℕ)
-    (budget : Execution guestProgram → ℕ) (dec : Val → Reader → FrameMap → SeedStatementAndWitness) :
+    (budget : Execution guestProgram → ℕ) (dec : Val → Reader → FrameMap → SaltedDecoding) :
     Prop :=
   ∀ input (t : Execution guestProgram), ValidExecution₂ guestProgram input t →
     Cost.outputWithin decoder sizeBound (budget t) (Cost.encodeGuestWitnessDecoderInput guestProgram t) =
@@ -116,7 +118,7 @@ theorem second_loads {input : PublicInput₂} {t : Execution guestProgram}
   rw [EndToEnd.Complete.digestScalars_publicDigest input.second]
   exact ⟨loadHolds_one h2, loadHolds_one h3⟩
 
-variable {dec : Val → Reader → FrameMap → SeedStatementAndWitness}
+variable {dec : Val → Reader → FrameMap → SaltedDecoding}
 
 /-- **Every valid execution explains its public input under its second digest**, from B2 and
 `main`'s obligation: the decoding off the memory has the second digest for its seed, a statement
@@ -125,10 +127,11 @@ children. -/
 theorem explains_of (hb2 : B2SoundL) (hmain : MainSound dec) (input : PublicInput₂)
     (t : Execution guestProgram) (hv : ValidExecution₂ guestProgram input t) :
     (decodeWith dec t.memory).seed = publicInputDigest input.second ∧
-      saltedStatementDigest (decodeWith dec t.memory).seed (decodeWith dec t.memory).statement =
-        publicInputDigest input.first ∧
+      saltedStatementDigest (decodeWith dec t.memory).seed (decodeWith dec t.memory).statement
+          (decodeWith dec t.memory).nodeCount = publicInputDigest input.first ∧
       SaltedNodeRelation (bytecodeWords guestProgram) (decodeWith dec t.memory).seed
-        (decodeWith dec t.memory).statement (decodeWith dec t.memory).witness ∧
+        (decodeWith dec t.memory).statement (decodeWith dec t.memory).nodeCount
+        (decodeWith dec t.memory).witness (decodeWith dec t.memory).childCounts ∧
       (decodeWith dec t.memory).witness.children.length ≤ 16 := by
   obtain ⟨hb, h0, h1⟩ := mainBodyL_of hb2 hv.1
   obtain ⟨h2, h3⟩ := second_loads hv

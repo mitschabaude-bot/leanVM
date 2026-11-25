@@ -24,7 +24,7 @@ index (`sum_ofList_le`).
 **`saltedDecoder_bits_le : saltedDecoder.bits ≤ 2 ^ 64`**: the bound evaluated over the compiled top's
 bodies (`decTopKC.costDeps`) and the entry, by `decide +kernel` (`decoderBodiesB_le`, about 20 s and
 7 GB: the packed frame cells are `8221` literals of at most `1024` bits); the value is
-`saltedDecoderBitsBound = 57761973` (about `2^25.8`); the program has `1175` functions
+`saltedDecoderBitsBound = 57790849` (about `2^25.8`); the program has `1182` functions
 (`saltedDecoderLength_eq`).
 -/
 
@@ -282,8 +282,8 @@ theorem saltedDecoder_bits_le : saltedDecoder.bits ≤ 2 ^ 64 := by
   unfold decoderProgramBodiesOf at h2
   omega
 
-/-- The salted decoder program has `1175` functions. -/
-theorem saltedDecoderLength_eq : saltedDecoderLength = 1175 := by decide +kernel
+/-- The salted decoder program has `1182` functions. -/
+theorem saltedDecoderLength_eq : saltedDecoderLength = 1182 := by decide +kernel
 
 end
 

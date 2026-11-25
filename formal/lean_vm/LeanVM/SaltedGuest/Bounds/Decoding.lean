@@ -30,7 +30,8 @@ the decoding by replay off the memory (`output_valid`), whose counts `main`'s ch
   `LeanDa.maxRows = 1024` rows, on every execution (the decoder reads at most `1024` rows,
   `dvWitK_ok`); on a valid execution this also follows from the node relation (`OpensUnder`);
 * **`decodingSize_valid`**: every decoding its output decodes to has an encoding of size at most
-  `decodingSizeBoundValid = 346031412918` (about `2^38.33`): at most `16` children, the declared
+  `decodingSizeBoundValid = 346031412953` (about `2^38.33`): at most `16` children and as many
+  children's counts below `2^64`, the node's count below `2^128`, the declared
   claims of both schemes together, a child's claims and the raw signatures of each scheme at most
   `2^20`, a child's proof within `21475247062` (its stream's words at most `2^32 + 121`, the
   dispatch table's openings), the DA matrix within `1024` rows of `32768` symbols, the batching's
@@ -57,21 +58,21 @@ theorem decTopK_form (prog : LeanIsaProgram) (κ : ℕ) (mem : Vector E (2 ^ κ)
   exact ⟨_, _, _, rfl⟩
 
 /-- **A decoding the decoder outputs is its top's**, on every execution. -/
-theorem output_any (t : Execution guestProgram) {dec : SeedStatementAndWitness}
+theorem output_any (t : Execution guestProgram) {dec : SaltedDecoding}
     (h : outputWithin saltedDecoder saltedDecoder.size (saltedDecoderPrice t)
       (encodeGuestWitnessDecoderInput guestProgram t) = some (encodeValue dec)) :
     dec = decTopK guestProgram t.logMemorySize (memoryVector t.memory) := by
   rw [outputWithin_saltedDecoder_any] at h
-  exact (encodeValue_decoded_injective (Option.some.inj h)).symm
+  exact (encodeValue_saltedDecoding_injective (Option.some.inj h)).symm
 
 /-- **A decoding the decoder outputs on a valid execution is the decoding by replay.** -/
 theorem output_valid {input : PublicInput₂} {t : Execution guestProgram}
-    (hv : ValidExecution₂ guestProgram input t) {dec : SeedStatementAndWitness}
+    (hv : ValidExecution₂ guestProgram input t) {dec : SaltedDecoding}
     (h : outputWithin saltedDecoder saltedDecoder.size (saltedDecoderPrice t)
       (encodeGuestWitnessDecoderInput guestProgram t) = some (encodeValue dec)) :
     dec = decodeWithR (B1.Main.decK B1.VerifySub.vsPiOfK) t.memory := by
   rw [decoderComputesR_saltedDecoder input t hv] at h
-  exact (encodeValue_decoded_injective (Option.some.inj h)).symm
+  exact (encodeValue_saltedDecoding_injective (Option.some.inj h)).symm
 
 /-! ## The decoding's fields -/
 
@@ -96,6 +97,16 @@ theorem decK_sphincs_length :
       Main.nRawS (B1.Main.mainVal σ) := by
   show ((List.range _).map _).length = _
   rw [List.length_map, List.length_range]
+
+theorem decK_childCounts :
+    (B1.Main.decK B1.VerifySub.vsPiOfK σ rd V).childCounts =
+      B1.Main.childCountsOf rd (B1.Main.mainVal σ) :=
+  rfl
+
+theorem decK_nodeCount :
+    (B1.Main.decK B1.VerifySub.vsPiOfK σ rd V).nodeCount =
+      B1.Main.nodeCountOf (B1.Main.mainVal σ) :=
+  rfl
 
 theorem decK_statement :
     (B1.Main.decK B1.VerifySub.vsPiOfK σ rd V).statement = Main.decStmt (B1.Main.mainVal σ) rd :=
@@ -145,7 +156,7 @@ end Fields
 /-- **On a valid execution of the salted guest, every child of a decoding the decoder outputs has
 at most `2^20` signature claims.** -/
 theorem childClaims_valid {input : PublicInput₂} {t : Execution guestProgram}
-    (hv : ValidExecution₂ guestProgram input t) (dec : SeedStatementAndWitness)
+    (hv : ValidExecution₂ guestProgram input t) (dec : SaltedDecoding)
     (h : outputWithin saltedDecoder saltedDecoder.size (saltedDecoderPrice t)
       (encodeGuestWitnessDecoderInput guestProgram t) = some (encodeValue dec)) :
     ∀ child ∈ dec.witness.children,
@@ -163,7 +174,7 @@ theorem childClaims_valid {input : PublicInput₂} {t : Execution guestProgram}
 /-- **On a valid execution of the salted guest, the statement of a decoding the decoder outputs has
 at most `2^20` signature claims.** -/
 theorem stmtClaims_valid {input : PublicInput₂} {t : Execution guestProgram}
-    (hv : ValidExecution₂ guestProgram input t) (dec : SeedStatementAndWitness)
+    (hv : ValidExecution₂ guestProgram input t) (dec : SaltedDecoding)
     (h : outputWithin saltedDecoder saltedDecoder.size (saltedDecoderPrice t)
       (encodeGuestWitnessDecoderInput guestProgram t) = some (encodeValue dec)) :
     dec.statement.claims.xmss.length + dec.statement.claims.sphincs.length ≤ 2 ^ 20 := by
@@ -177,7 +188,7 @@ theorem stmtClaims_valid {input : PublicInput₂} {t : Execution guestProgram}
 
 /-- **The batching hints of every decoding the decoder outputs have at most `23` sumcheck
 messages**, on every execution (the decoder reads `23` rounds, with or without children). -/
-theorem hints_le (t : Execution guestProgram) (dec : SeedStatementAndWitness)
+theorem hints_le (t : Execution guestProgram) (dec : SaltedDecoding)
     (h : outputWithin saltedDecoder saltedDecoder.size (saltedDecoderPrice t)
       (encodeGuestWitnessDecoderInput guestProgram t) = some (encodeValue dec)) :
     dec.witness.batchingHints.sumcheckMessages.length ≤ 23 := by
@@ -190,7 +201,7 @@ theorem hints_le (t : Execution guestProgram) (dec : SeedStatementAndWitness)
 
 /-- **The DA matrix of every decoding the decoder outputs has at most `LeanDa.maxRows` rows**, on
 every execution. -/
-theorem daRows_le (t : Execution guestProgram) (dec : SeedStatementAndWitness)
+theorem daRows_le (t : Execution guestProgram) (dec : SaltedDecoding)
     (h : outputWithin saltedDecoder saltedDecoder.size (saltedDecoderPrice t)
       (encodeGuestWitnessDecoderInput guestProgram t) = some (encodeValue dec)) :
     ∀ claim matrix, dec.witness.daMatrix = some (claim, matrix) →
@@ -204,9 +215,12 @@ theorem daRows_le (t : Execution guestProgram) (dec : SeedStatementAndWitness)
 /-! ## The encoded size -/
 
 /-- **A decoding's size from its fields' bounds**: at most `n` claims in its statement, `k`
-children of at most `c` claims and of proofs of size at most `P`, at most `r` raw signatures of
-each scheme, the DA matrix within `1024` rows of `32768` symbols, `23` batching rounds. -/
-theorem size_decoding_le (d : SeedStatementAndWitness) {n k c P r : ℕ}
+children of at most `c` claims and of proofs of size at most `P`, as many children's counts below
+`2^64`, the node's count below `2^128`, at most `r` raw signatures of each scheme, the DA matrix
+within `1024` rows of `32768` symbols, `23` batching rounds. -/
+theorem size_decoding_le (d : SaltedDecoding) {n k c P r : ℕ}
+    (hn : d.nodeCount < 2 ^ 128) (hcl : d.childCounts.length ≤ k)
+    (hcb : ∀ x ∈ d.childCounts, x < 2 ^ 64)
     (hs : d.statement.claims.xmss.length + d.statement.claims.sphincs.length ≤ n)
     (hsd : d.statement.deferredClaim.bytecodePoint.length ≤ 23)
     (hk : d.witness.children.length ≤ k)
@@ -218,10 +232,14 @@ theorem size_decoding_le (d : SeedStatementAndWitness) {n k c P r : ℕ}
     (hd : ∀ cl m, d.witness.daMatrix = some (cl, m) →
       m.rows.length ≤ 1024 ∧ ∀ row ∈ m.rows, row.length ≤ 32768)
     (hh : d.witness.batchingHints.sumcheckMessages.length ≤ 23) :
-    (encodeValue d).size ≤ 5 + (14 * n + 130) + ((k * ((14 * c + 130) + 121 + P + 1 + 1) + 1) +
-      (r * 474 + 1) + (r * 1539 + 1) + 67110926 + 236 + 1) + 1 := by
+    (encodeValue d).size ≤ 5 + (14 * n + 130) + 2 + ((k * ((14 * c + 130) + 121 + P + 1 + 1) + 1) +
+      (r * 474 + 1) + (r * 1539 + 1) + 67110926 + 236 + 1) + (k * 2 + 1) + 1 := by
   rw [size_decoding, size_nodeWitness]
   have hseed := size_digest d.seed
+  have hnc := size_nat_le_two hn
+  have hcs := size_list_le d.childCounts hcl (b := 1) fun x hx ↦ by
+    show (MachineValue.nat x).size ≤ 1
+    simp only [MachineValue.size, limbs_of_lt (hcb x hx), le_refl]
   have hstmt := size_stmt d.statement hs hsd
   have h1 := size_list_le d.witness.children hk (b := (14 * c + 130) + 121 + P + 1)
     (fun child hch ↦ by
@@ -240,22 +258,22 @@ theorem size_decoding_le (d : SeedStatementAndWitness) {n k c P r : ℕ}
   have h5 := size_hints d.witness.batchingHints hh
   omega
 
-/-- **The salted decoding's size bound on a valid execution**: about `2^41.33`. -/
-def decodingSizeBoundValid : ℕ := 346031412918
+/-- **The salted decoding's size bound on a valid execution**: about `2^38.33`. -/
+def decodingSizeBoundValid : ℕ := 346031412953
 
 /-- **On a valid execution of the salted guest, every decoding the decoder's output decodes to
 has an encoding of size at most `decodingSizeBoundValid`.** -/
 theorem decodingSize_valid {input : PublicInput₂} {t : Execution guestProgram}
     (hv : ValidExecution₂ guestProgram input t) (output : MachineValue)
-    (dec : SeedStatementAndWitness)
+    (dec : SaltedDecoding)
     (h : outputWithin saltedDecoder saltedDecoder.size (saltedDecoderPrice t)
       (encodeGuestWitnessDecoderInput guestProgram t) = some output)
-    (hd : decodeDecoded output = some dec) :
+    (hd : MachineDecoding.decodeValue output = some dec) :
     (encodeValue dec).size ≤ decodingSizeBoundValid := by
   have ho : output = encodeValue dec := by
     rw [outputWithin_saltedDecoder_any] at h
     obtain rfl := Option.some.inj h
-    rw [decodeDecoded_enc] at hd
+    rw [decodeValue_encodeValue] at hd
     obtain rfl := Option.some.inj hd
     rfl
   subst ho
@@ -267,7 +285,15 @@ theorem decodingSize_valid {input : PublicInput₂} {t : Execution guestProgram}
   have hC := countsK_valid hv
   unfold decodeWithR at eV
   refine (size_decoding_le dec (n := 2 ^ 20) (k := 16) (c := 2 ^ 20) (P := 21475247062)
-    (r := 2 ^ 20) ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_).trans (by unfold decodingSizeBoundValid; norm_num)
+    (r := 2 ^ 20) ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_).trans (by unfold decodingSizeBoundValid; norm_num)
+  · rw [eV, decK_nodeCount]; exact (B1.Main.nodeCountOf_lt _).trans (by norm_num)
+  · rw [eV, decK_childCounts]
+    simp only [B1.Main.childCountsOf, List.length_map, List.length_range]
+    exact hC.kids
+  · intro x hx
+    rw [eV, decK_childCounts] at hx
+    obtain ⟨c, -, rfl⟩ := List.mem_map.mp hx
+    exact B1.Main.kidCount_lt _ _ _
   · rw [eV, decK_stmt_claims]; have := hC.claimsCap; omega
   · rw [eV, decK_statement]; exact deferOfCells_len _
   · rw [eV, decK_children, List.length_map, List.length_range]; exact hC.kids

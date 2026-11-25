@@ -33,10 +33,11 @@ adversary chooses:
 * **the membership challenge** of a DA root (`membershipChallenge`) is squeezed once from
   Keccak-f[1600] of the seed's four words, the root's four and the four words of the digest of
   leanDA's membership label;
-* **the statement digest** under a seed (`saltedStatementDigest`) is leanVM's statement digest with
-  the two claim-list digests keyed: Keccak-256 of the seed, the keyed digests of the two claim
-  lists, the DA digest and the deferred claim's cells. The DA digest of a claim is the keyed digest
-  of its preimage (`saltedDaClaimDigest`).
+* **the statement digest** under a seed of a statement with a node count (`saltedStatementDigest`)
+  is leanVM's statement digest with the two claim-list digests keyed and the node count appended:
+  Keccak-256 of the seed, the keyed digests of the two claim lists, the DA digest, the deferred
+  claim's cells and the cell `g^n` of the node count `n` (`nodeCountBytes`). The DA digest of a
+  claim is the keyed digest of its preimage (`saltedDaClaimDigest`).
 
 Every string these functions hash, except the seed's own input, starts with the seed's `32` bytes.
 -/
@@ -125,31 +126,38 @@ def membershipChallenge (seed root : Digest) : E :=
 
 /-! ## The salted digests -/
 
+/-- **The bytes of a node count** `n`: the cell `g^n` (`g` the generator of `K^×`), its two low
+limbs, `16` bytes. -/
+def nodeCountBytes (nodeCount : ℕ) : Bytes := K.toBytes (g ^ nodeCount) ++ K.toBytes 0
+
 /-- **The preimage of a statement's digest under `seed`, from its claim lists' digests**: the seed's
-`32` bytes, the digests `xmssDigest` and `sphincsDigest`, the DA digest, then the padded deferred
-cells. -/
-def statementPreimageFrom (seed xmssDigest sphincsDigest : Digest) (statement : NodeStatement) :
-    Bytes :=
+`32` bytes, the digests `xmssDigest` and `sphincsDigest`, the DA digest, the padded deferred cells,
+then the node count's bytes. -/
+def statementPreimageFrom (seed xmssDigest sphincsDigest : Digest) (statement : NodeStatement)
+    (nodeCount : ℕ) : Bytes :=
   let cells := (paddedDeferredClaimCells statement.deferredClaim).flatMap E.toBytes
   digestBytes seed ++ digestBytes xmssDigest ++ digestBytes sphincsDigest ++
-    digestBytes statement.claims.daDigest ++ cells
+    digestBytes statement.claims.daDigest ++ cells ++ nodeCountBytes nodeCount
 
-/-- **The preimage of a statement's digest under `seed`**: the seed's `32` bytes, the keyed digests
-of the leanXMSS and the leanSPHINCS claim lists, the DA digest, then the padded deferred cells. -/
-def saltedStatementPreimage (seed : Digest) (statement : NodeStatement) : Bytes :=
+/-- **The preimage of a statement's digest under `seed`**, its node count `nodeCount`: the seed's
+`32` bytes, the keyed digests of the leanXMSS and the leanSPHINCS claim lists, the DA digest, the
+padded deferred cells, then the node count's bytes. -/
+def saltedStatementPreimage (seed : Digest) (statement : NodeStatement) (nodeCount : ℕ) : Bytes :=
   let xmssDigest := keyedHash seed (claimListPreimage xmssPublicKeyBytes statement.claims.xmss)
   let sphincsDigest :=
     keyedHash seed (claimListPreimage Sphincs.PublicKey.toBytes statement.claims.sphincs)
-  statementPreimageFrom seed xmssDigest sphincsDigest statement
+  statementPreimageFrom seed xmssDigest sphincsDigest statement nodeCount
 
-/-- **A statement's digest under `seed`**: Keccak-256 of its preimage. -/
-def saltedStatementDigest (seed : Digest) (statement : NodeStatement) : Digest :=
-  keccak256 (saltedStatementPreimage seed statement)
+/-- **A statement's digest under `seed`**, its node count `nodeCount`: Keccak-256 of its
+preimage. -/
+def saltedStatementDigest (seed : Digest) (statement : NodeStatement) (nodeCount : ℕ) : Digest :=
+  keccak256 (saltedStatementPreimage seed statement nodeCount)
 
-/-- **A node's public input under `seed`**: its statement's digest under `seed` in memory words
-`0` and `1`, and `seed` in memory words `2` and `3`. -/
-def nodeInputAt (seed : Digest) (statement : NodeStatement) : SecondDigest.PublicInput₂ :=
-  ⟨PublicInput.ofDigest (saltedStatementDigest seed statement), PublicInput.ofDigest seed⟩
+/-- **A node's public input under `seed`**: the digest under `seed` of its statement with its node
+count in memory words `0` and `1`, and `seed` in memory words `2` and `3`. -/
+def nodeInputAt (seed : Digest) (statement : NodeStatement) (nodeCount : ℕ) :
+    SecondDigest.PublicInput₂ :=
+  ⟨PublicInput.ofDigest (saltedStatementDigest seed statement nodeCount), PublicInput.ofDigest seed⟩
 
 /-- **A DA claim's digest under `seed`**: the keyed digest of the root, the challenge's three limbs
 and a zero word. -/

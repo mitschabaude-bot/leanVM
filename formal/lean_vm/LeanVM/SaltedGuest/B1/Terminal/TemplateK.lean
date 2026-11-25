@@ -148,7 +148,7 @@ kernel_rfl tcl_13 : Same.closed[13]? = some ("ring_switch_weight", 14, 14)
 kernel_rfl tdg_14 : Guest.coreProgram[14]? = some LeanVM.Guest.Data.core14
 kernel_rfl tcl_15 : Same.closed[15]? = some ("selector_tables", 16, 16)
 kernel_rfl tdg_16 : Guest.coreProgram[16]? = some LeanVM.Guest.Data.core16
-kernel_rfl tcl_260 : Same.closed[260]? = some ("__loop14", 274, 272)
+kernel_rfl tcl_259 : Same.closed[259]? = some ("__loop14", 274, 272)
 kernel_rfl tdg_272 : Guest.coreProgram[272]? = some LeanVM.Guest.Data.core272
 
 theorem same_eq_prefix_chain :
@@ -164,69 +164,69 @@ theorem same_selector_tables :
   Whir.sameOf tcl_15 tdg_16 rfl
 
 theorem same_loop14 : Same.inS "__loop14" = true ∧ Same.rho "__loop14" = "__loop14" :=
-  Whir.sameOf tcl_260 tdg_272 rfl
+  Whir.sameOf tcl_259 tdg_272 rfl
 
-kernel_rfl tcl_261 : Same.closed[261]? = some ("column_selector__L0", 276, 273)
+kernel_rfl tcl_260 : Same.closed[260]? = some ("column_selector__L0", 276, 273)
 kernel_rfl tdg_273 : Guest.coreProgram[273]? = some LeanVM.Guest.Data.core273
-kernel_rfl tcl_262 : Same.closed[262]? = some ("column_selector__L1", 277, 274)
+kernel_rfl tcl_261 : Same.closed[261]? = some ("column_selector__L1", 277, 274)
 kernel_rfl tdg_274 : Guest.coreProgram[274]? = some LeanVM.Guest.Data.core274
-kernel_rfl tcl_263 : Same.closed[263]? = some ("column_selector__L2", 278, 275)
+kernel_rfl tcl_262 : Same.closed[262]? = some ("column_selector__L2", 278, 275)
 kernel_rfl tdg_275 : Guest.coreProgram[275]? = some LeanVM.Guest.Data.core275
-kernel_rfl tcl_264 : Same.closed[264]? = some ("column_selector__L3", 279, 276)
+kernel_rfl tcl_263 : Same.closed[263]? = some ("column_selector__L3", 279, 276)
 kernel_rfl tdg_276 : Guest.coreProgram[276]? = some LeanVM.Guest.Data.core276
-kernel_rfl tcl_265 : Same.closed[265]? = some ("column_selector__L4", 280, 277)
+kernel_rfl tcl_264 : Same.closed[264]? = some ("column_selector__L4", 280, 277)
 kernel_rfl tdg_277 : Guest.coreProgram[277]? = some LeanVM.Guest.Data.core277
-kernel_rfl tcl_266 : Same.closed[266]? = some ("column_selector__L5", 281, 278)
+kernel_rfl tcl_265 : Same.closed[265]? = some ("column_selector__L5", 281, 278)
 kernel_rfl tdg_278 : Guest.coreProgram[278]? = some LeanVM.Guest.Data.core278
-kernel_rfl tcl_267 : Same.closed[267]? = some ("column_selector__L6", 282, 279)
+kernel_rfl tcl_266 : Same.closed[266]? = some ("column_selector__L6", 282, 279)
 kernel_rfl tdg_279 : Guest.coreProgram[279]? = some LeanVM.Guest.Data.core279
-kernel_rfl tcl_268 : Same.closed[268]? = some ("column_selector__L7", 283, 280)
+kernel_rfl tcl_267 : Same.closed[267]? = some ("column_selector__L7", 283, 280)
 kernel_rfl tdg_280 : Guest.coreProgram[280]? = some LeanVM.Guest.Data.core280
-kernel_rfl tcl_269 : Same.closed[269]? = some ("column_selector__L8", 284, 281)
+kernel_rfl tcl_268 : Same.closed[268]? = some ("column_selector__L8", 284, 281)
 kernel_rfl tdg_281 : Guest.coreProgram[281]? = some LeanVM.Guest.Data.core281
-kernel_rfl tcl_270 : Same.closed[270]? = some ("column_selector__L9", 285, 282)
+kernel_rfl tcl_269 : Same.closed[269]? = some ("column_selector__L9", 285, 282)
 kernel_rfl tdg_282 : Guest.coreProgram[282]? = some LeanVM.Guest.Data.core282
-kernel_rfl tcl_271 : Same.closed[271]? = some ("column_selector__L10", 286, 283)
+kernel_rfl tcl_270 : Same.closed[270]? = some ("column_selector__L10", 286, 283)
 kernel_rfl tdg_283 : Guest.coreProgram[283]? = some LeanVM.Guest.Data.core283
-kernel_rfl tcl_272 : Same.closed[272]? = some ("column_selector__L11", 287, 284)
+kernel_rfl tcl_271 : Same.closed[271]? = some ("column_selector__L11", 287, 284)
 kernel_rfl tdg_284 : Guest.coreProgram[284]? = some LeanVM.Guest.Data.core284
-kernel_rfl tcl_273 : Same.closed[273]? = some ("column_selector__L12", 288, 285)
+kernel_rfl tcl_272 : Same.closed[272]? = some ("column_selector__L12", 288, 285)
 kernel_rfl tdg_285 : Guest.coreProgram[285]? = some LeanVM.Guest.Data.core285
-kernel_rfl tcl_274 : Same.closed[274]? = some ("column_selector__L13", 289, 286)
+kernel_rfl tcl_273 : Same.closed[273]? = some ("column_selector__L13", 289, 286)
 kernel_rfl tdg_286 : Guest.coreProgram[286]? = some LeanVM.Guest.Data.core286
-kernel_rfl tcl_275 : Same.closed[275]? = some ("column_selector__L14", 290, 287)
+kernel_rfl tcl_274 : Same.closed[274]? = some ("column_selector__L14", 290, 287)
 kernel_rfl tdg_287 : Guest.coreProgram[287]? = some LeanVM.Guest.Data.core287
-kernel_rfl tcl_276 : Same.closed[276]? = some ("column_selector__L15", 291, 288)
+kernel_rfl tcl_275 : Same.closed[275]? = some ("column_selector__L15", 291, 288)
 kernel_rfl tdg_288 : Guest.coreProgram[288]? = some LeanVM.Guest.Data.core288
-kernel_rfl tcl_277 : Same.closed[277]? = some ("column_selector__L16", 292, 289)
+kernel_rfl tcl_276 : Same.closed[276]? = some ("column_selector__L16", 292, 289)
 kernel_rfl tdg_289 : Guest.coreProgram[289]? = some LeanVM.Guest.Data.core289
-kernel_rfl tcl_278 : Same.closed[278]? = some ("column_selector__L17", 293, 290)
+kernel_rfl tcl_277 : Same.closed[277]? = some ("column_selector__L17", 293, 290)
 kernel_rfl tdg_290 : Guest.coreProgram[290]? = some LeanVM.Guest.Data.core290
-kernel_rfl tcl_279 : Same.closed[279]? = some ("column_selector__L18", 294, 291)
+kernel_rfl tcl_278 : Same.closed[278]? = some ("column_selector__L18", 294, 291)
 kernel_rfl tdg_291 : Guest.coreProgram[291]? = some LeanVM.Guest.Data.core291
-kernel_rfl tcl_280 : Same.closed[280]? = some ("column_selector__L19", 295, 292)
+kernel_rfl tcl_279 : Same.closed[279]? = some ("column_selector__L19", 295, 292)
 kernel_rfl tdg_292 : Guest.coreProgram[292]? = some LeanVM.Guest.Data.core292
-kernel_rfl tcl_281 : Same.closed[281]? = some ("column_selector__L20", 296, 293)
+kernel_rfl tcl_280 : Same.closed[280]? = some ("column_selector__L20", 296, 293)
 kernel_rfl tdg_293 : Guest.coreProgram[293]? = some LeanVM.Guest.Data.core293
-kernel_rfl tcl_282 : Same.closed[282]? = some ("column_selector__L21", 297, 294)
+kernel_rfl tcl_281 : Same.closed[281]? = some ("column_selector__L21", 297, 294)
 kernel_rfl tdg_294 : Guest.coreProgram[294]? = some LeanVM.Guest.Data.core294
-kernel_rfl tcl_283 : Same.closed[283]? = some ("column_selector__L22", 298, 295)
+kernel_rfl tcl_282 : Same.closed[282]? = some ("column_selector__L22", 298, 295)
 kernel_rfl tdg_295 : Guest.coreProgram[295]? = some LeanVM.Guest.Data.core295
-kernel_rfl tcl_284 : Same.closed[284]? = some ("column_selector__L23", 299, 296)
+kernel_rfl tcl_283 : Same.closed[283]? = some ("column_selector__L23", 299, 296)
 kernel_rfl tdg_296 : Guest.coreProgram[296]? = some LeanVM.Guest.Data.core296
-kernel_rfl tcl_285 : Same.closed[285]? = some ("column_selector__L24", 300, 297)
+kernel_rfl tcl_284 : Same.closed[284]? = some ("column_selector__L24", 300, 297)
 kernel_rfl tdg_297 : Guest.coreProgram[297]? = some LeanVM.Guest.Data.core297
-kernel_rfl tcl_286 : Same.closed[286]? = some ("column_selector__L25", 301, 298)
+kernel_rfl tcl_285 : Same.closed[285]? = some ("column_selector__L25", 301, 298)
 kernel_rfl tdg_298 : Guest.coreProgram[298]? = some LeanVM.Guest.Data.core298
-kernel_rfl tcl_287 : Same.closed[287]? = some ("column_selector__L26", 302, 299)
+kernel_rfl tcl_286 : Same.closed[286]? = some ("column_selector__L26", 302, 299)
 kernel_rfl tdg_299 : Guest.coreProgram[299]? = some LeanVM.Guest.Data.core299
-kernel_rfl tcl_288 : Same.closed[288]? = some ("column_selector__L27", 303, 300)
+kernel_rfl tcl_287 : Same.closed[287]? = some ("column_selector__L27", 303, 300)
 kernel_rfl tdg_300 : Guest.coreProgram[300]? = some LeanVM.Guest.Data.core300
-kernel_rfl tcl_289 : Same.closed[289]? = some ("column_selector__L28", 304, 301)
+kernel_rfl tcl_288 : Same.closed[288]? = some ("column_selector__L28", 304, 301)
 kernel_rfl tdg_301 : Guest.coreProgram[301]? = some LeanVM.Guest.Data.core301
-kernel_rfl tcl_290 : Same.closed[290]? = some ("column_selector__L29", 305, 302)
+kernel_rfl tcl_289 : Same.closed[289]? = some ("column_selector__L29", 305, 302)
 kernel_rfl tdg_302 : Guest.coreProgram[302]? = some LeanVM.Guest.Data.core302
-kernel_rfl tcl_291 : Same.closed[291]? = some ("column_selector__L30", 306, 303)
+kernel_rfl tcl_290 : Same.closed[290]? = some ("column_selector__L30", 306, 303)
 kernel_rfl tdg_303 : Guest.coreProgram[303]? = some LeanVM.Guest.Data.core303
 
 /-- The selectors' specializations are in the closed set and kept by the renaming. -/
@@ -235,67 +235,67 @@ theorem colSel_same : ∀ κ < 31, Same.inS (Tables.lName "column_selector" κ) 
   intro κ hκ
   interval_cases κ
   · rw [show Tables.lName "column_selector" 0 = "column_selector__L0" by decide +kernel]
-    exact Whir.sameOf tcl_261 tdg_273 rfl
+    exact Whir.sameOf tcl_260 tdg_273 rfl
   · rw [show Tables.lName "column_selector" 1 = "column_selector__L1" by decide +kernel]
-    exact Whir.sameOf tcl_262 tdg_274 rfl
+    exact Whir.sameOf tcl_261 tdg_274 rfl
   · rw [show Tables.lName "column_selector" 2 = "column_selector__L2" by decide +kernel]
-    exact Whir.sameOf tcl_263 tdg_275 rfl
+    exact Whir.sameOf tcl_262 tdg_275 rfl
   · rw [show Tables.lName "column_selector" 3 = "column_selector__L3" by decide +kernel]
-    exact Whir.sameOf tcl_264 tdg_276 rfl
+    exact Whir.sameOf tcl_263 tdg_276 rfl
   · rw [show Tables.lName "column_selector" 4 = "column_selector__L4" by decide +kernel]
-    exact Whir.sameOf tcl_265 tdg_277 rfl
+    exact Whir.sameOf tcl_264 tdg_277 rfl
   · rw [show Tables.lName "column_selector" 5 = "column_selector__L5" by decide +kernel]
-    exact Whir.sameOf tcl_266 tdg_278 rfl
+    exact Whir.sameOf tcl_265 tdg_278 rfl
   · rw [show Tables.lName "column_selector" 6 = "column_selector__L6" by decide +kernel]
-    exact Whir.sameOf tcl_267 tdg_279 rfl
+    exact Whir.sameOf tcl_266 tdg_279 rfl
   · rw [show Tables.lName "column_selector" 7 = "column_selector__L7" by decide +kernel]
-    exact Whir.sameOf tcl_268 tdg_280 rfl
+    exact Whir.sameOf tcl_267 tdg_280 rfl
   · rw [show Tables.lName "column_selector" 8 = "column_selector__L8" by decide +kernel]
-    exact Whir.sameOf tcl_269 tdg_281 rfl
+    exact Whir.sameOf tcl_268 tdg_281 rfl
   · rw [show Tables.lName "column_selector" 9 = "column_selector__L9" by decide +kernel]
-    exact Whir.sameOf tcl_270 tdg_282 rfl
+    exact Whir.sameOf tcl_269 tdg_282 rfl
   · rw [show Tables.lName "column_selector" 10 = "column_selector__L10" by decide +kernel]
-    exact Whir.sameOf tcl_271 tdg_283 rfl
+    exact Whir.sameOf tcl_270 tdg_283 rfl
   · rw [show Tables.lName "column_selector" 11 = "column_selector__L11" by decide +kernel]
-    exact Whir.sameOf tcl_272 tdg_284 rfl
+    exact Whir.sameOf tcl_271 tdg_284 rfl
   · rw [show Tables.lName "column_selector" 12 = "column_selector__L12" by decide +kernel]
-    exact Whir.sameOf tcl_273 tdg_285 rfl
+    exact Whir.sameOf tcl_272 tdg_285 rfl
   · rw [show Tables.lName "column_selector" 13 = "column_selector__L13" by decide +kernel]
-    exact Whir.sameOf tcl_274 tdg_286 rfl
+    exact Whir.sameOf tcl_273 tdg_286 rfl
   · rw [show Tables.lName "column_selector" 14 = "column_selector__L14" by decide +kernel]
-    exact Whir.sameOf tcl_275 tdg_287 rfl
+    exact Whir.sameOf tcl_274 tdg_287 rfl
   · rw [show Tables.lName "column_selector" 15 = "column_selector__L15" by decide +kernel]
-    exact Whir.sameOf tcl_276 tdg_288 rfl
+    exact Whir.sameOf tcl_275 tdg_288 rfl
   · rw [show Tables.lName "column_selector" 16 = "column_selector__L16" by decide +kernel]
-    exact Whir.sameOf tcl_277 tdg_289 rfl
+    exact Whir.sameOf tcl_276 tdg_289 rfl
   · rw [show Tables.lName "column_selector" 17 = "column_selector__L17" by decide +kernel]
-    exact Whir.sameOf tcl_278 tdg_290 rfl
+    exact Whir.sameOf tcl_277 tdg_290 rfl
   · rw [show Tables.lName "column_selector" 18 = "column_selector__L18" by decide +kernel]
-    exact Whir.sameOf tcl_279 tdg_291 rfl
+    exact Whir.sameOf tcl_278 tdg_291 rfl
   · rw [show Tables.lName "column_selector" 19 = "column_selector__L19" by decide +kernel]
-    exact Whir.sameOf tcl_280 tdg_292 rfl
+    exact Whir.sameOf tcl_279 tdg_292 rfl
   · rw [show Tables.lName "column_selector" 20 = "column_selector__L20" by decide +kernel]
-    exact Whir.sameOf tcl_281 tdg_293 rfl
+    exact Whir.sameOf tcl_280 tdg_293 rfl
   · rw [show Tables.lName "column_selector" 21 = "column_selector__L21" by decide +kernel]
-    exact Whir.sameOf tcl_282 tdg_294 rfl
+    exact Whir.sameOf tcl_281 tdg_294 rfl
   · rw [show Tables.lName "column_selector" 22 = "column_selector__L22" by decide +kernel]
-    exact Whir.sameOf tcl_283 tdg_295 rfl
+    exact Whir.sameOf tcl_282 tdg_295 rfl
   · rw [show Tables.lName "column_selector" 23 = "column_selector__L23" by decide +kernel]
-    exact Whir.sameOf tcl_284 tdg_296 rfl
+    exact Whir.sameOf tcl_283 tdg_296 rfl
   · rw [show Tables.lName "column_selector" 24 = "column_selector__L24" by decide +kernel]
-    exact Whir.sameOf tcl_285 tdg_297 rfl
+    exact Whir.sameOf tcl_284 tdg_297 rfl
   · rw [show Tables.lName "column_selector" 25 = "column_selector__L25" by decide +kernel]
-    exact Whir.sameOf tcl_286 tdg_298 rfl
+    exact Whir.sameOf tcl_285 tdg_298 rfl
   · rw [show Tables.lName "column_selector" 26 = "column_selector__L26" by decide +kernel]
-    exact Whir.sameOf tcl_287 tdg_299 rfl
+    exact Whir.sameOf tcl_286 tdg_299 rfl
   · rw [show Tables.lName "column_selector" 27 = "column_selector__L27" by decide +kernel]
-    exact Whir.sameOf tcl_288 tdg_300 rfl
+    exact Whir.sameOf tcl_287 tdg_300 rfl
   · rw [show Tables.lName "column_selector" 28 = "column_selector__L28" by decide +kernel]
-    exact Whir.sameOf tcl_289 tdg_301 rfl
+    exact Whir.sameOf tcl_288 tdg_301 rfl
   · rw [show Tables.lName "column_selector" 29 = "column_selector__L29" by decide +kernel]
-    exact Whir.sameOf tcl_290 tdg_302 rfl
+    exact Whir.sameOf tcl_289 tdg_302 rfl
   · rw [show Tables.lName "column_selector" 30 = "column_selector__L30" by decide +kernel]
-    exact Whir.sameOf tcl_291 tdg_303 rfl
+    exact Whir.sameOf tcl_290 tdg_303 rfl
 
 end
 

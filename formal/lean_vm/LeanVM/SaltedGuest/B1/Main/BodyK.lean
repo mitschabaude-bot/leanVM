@@ -23,9 +23,12 @@ squarings (`.n 36` to `.n 45`) times the second (`.n 46`) asserted equal to `.n 
 cells loaded from memory words `2` and `3` (`.n 50`, `.n 54`) in place of the `fs_seed` hint, the
 key computed from them (`key_of_seed`, `.n 55`), the claim lists' digests under the key, the DA
 branch's digest the keyed hash of the DA claim's four cells (one `KECCAK` on the key's cells,
-`keyed_node`), the children's loop `__loop4` and the batching taking the key and the seed's cells.
-The blocks are at the deployed positions moved by `26` (the cap, the seed's loads and the key) and
-by `48` in the DA branch.
+`keyed_node`), the children's loop `__loop4` and the batching taking the key and the seed's cells; and the node
+count: the buffers `child_count` (`.n 451`) and `count_run` (`.n 454`, its first cell `g`, `.n 455`)
+passed to `__loop4`, and the node's count `count_run[n_children]` (`.n 500`) hashed into its
+statement. The blocks are at the deployed positions moved by `26` (the cap, the seed's loads and
+the key) and by `48` in the DA branch. The node count's three values have no deployed counterpart:
+`mainR` takes them at the numbers `1000`, `1001`, `1002`.
 -/
 
 namespace LeanVM.SaltedGuest.B1.Main
@@ -39,11 +42,16 @@ open LeanVM.Node LeanVM.Guest.B1.Main LeanVM.SaltedGuest.B1 Recursion.Salted Lea
 
 /-! ## The value map -/
 
-/-- The salted value of the deployed `main`'s value `k`. -/
+/-- The salted value of a deployed `main`'s value `k`. -/
+def mainRiD (k : ℕ) : ℕ :=
+  if k < 26 then k else if k = 26 then 50 else if k = 27 then 54 else if k = 379 then 429
+  else if k = 380 then 430 else if k < 381 then k + 28 else if k < 401 then k + 50
+  else if k < 444 then k + 55 else k + 57
+
+/-- The salted value of `main`'s value `k` at the deployed numbering: a deployed value's
+(`mainRiD`), and the node count's three values at `1000`, `1001`, `1002`. -/
 def mainRi (k : ℕ) : ℕ :=
-  if k < 26 then k else if k = 26 then 50 else if k = 27 then 54 else if k < 369 then k + 28
-  else if k < 373 then k + 28 else if k = 379 then 429 else if k = 380 then 430
-  else if k < 381 then k + 28 else k + 50
+  if k < 1000 then mainRiD k else if k = 1000 then 451 else if k = 1001 then 454 else 500
 
 /-- The salted value of a deployed `main`'s value. -/
 def mainR (v : V) : V := ⟨v.path, v.tag, mainRi v.idx⟩
@@ -57,18 +65,18 @@ noncomputable def mDaS : List Stmt := match (Fn.body LeanVM.SaltedGuest.Data.cor
 noncomputable def mDaZS : List Stmt := match (Fn.body LeanVM.SaltedGuest.Data.core0).getD 641 default with
   | .ite _ _ n => n
   | _ => []
-noncomputable def mMidS : List Stmt := ((Fn.body LeanVM.SaltedGuest.Data.core0).drop 642).take 39
-noncomputable def mLeafS : List Stmt := match (Fn.body LeanVM.SaltedGuest.Data.core0).getD 681 default with
+noncomputable def mMidS : List Stmt := ((Fn.body LeanVM.SaltedGuest.Data.core0).drop 642).take 45
+noncomputable def mLeafS : List Stmt := match (Fn.body LeanVM.SaltedGuest.Data.core0).getD 687 default with
   | .ite _ z _ => z
   | _ => []
-noncomputable def mAggS : List Stmt := match (Fn.body LeanVM.SaltedGuest.Data.core0).getD 681 default with
+noncomputable def mAggS : List Stmt := match (Fn.body LeanVM.SaltedGuest.Data.core0).getD 687 default with
   | .ite _ _ n => n
   | _ => []
-noncomputable def mPostS : List Stmt := ((Fn.body LeanVM.SaltedGuest.Data.core0).drop 682).take 11
+noncomputable def mPostS : List Stmt := ((Fn.body LeanVM.SaltedGuest.Data.core0).drop 688).take 13
 
 set_option maxRecDepth 100000 in
 theorem core0_shapeS : Fn.body LeanVM.SaltedGuest.Data.core0 =
-    mPreS ++ [.ite (.n 396) mDaS mDaZS] ++ mMidS ++ [.ite (.n 469) mLeafS mAggS] ++ mPostS ++
+    mPreS ++ [.ite (.n 396) mDaS mDaZS] ++ mMidS ++ [.ite (.n 474) mLeafS mAggS] ++ mPostS ++
       [.ret []] :=
   stmtsEqb_sound (by decide +kernel)
 
@@ -139,36 +147,38 @@ noncomputable def midOkS : Bool :=
   let A := atomsIn mMidS
   M.all Stmt.flat &&
   isMul A (.n 450) (.n 2) (.n 5) && isLoad A (.n 450) (.n 449) 0 &&
-  guardOk M (.n 452) "__loop4" (.n 453) (.n 6) [.n 449, .n 55, .n 59, .n 73, .n 22, .n 62, .n 74,
-    .n 23, .n 446, .n 392, .n 50, .n 54, .n 434, .n 56, .n 440] &&
-  isMul A (.n 454) (.n 449) (.n 6) && isLoad A (.n 455) (.n 454) 0 &&
-  A.any (isAssertEqAt (.n 455) (.n 24)) &&
-  decide (rcOf A (.n 456) = some (.n 6)) &&
-  A.any (isAddAt (.n 460) (.n 456) (.n 6)) && A.any (isAddAt (.n 462) (.n 7) (.n 461)) &&
-  A.any (isConstAt (.n 461) 1 0) && isMul A (.n 463) (.n 460) (.n 462) &&
-  A.any (isConstAt (.n 464) 0 0) && A.any (isAssertEqAt (.n 463) (.n 464)) &&
-  isMul A (.n 465) (.n 456) (.n 456) && isMul A (.n 466) (.n 392) (.n 465) &&
-  A.any (isAddAt (.n 469) (.n 6) (.n 468)) && A.any (isConstAt (.n 468) 1 0)
+  A.any (isConstAt (.n 455) 2 0) && isLoad A (.n 455) (.n 454) 0 &&
+  guardOk M (.n 457) "__loop4" (.n 458) (.n 6) [.n 449, .n 55, .n 59, .n 73, .n 22, .n 62, .n 74,
+    .n 23, .n 446, .n 392, .n 451, .n 454, .n 50, .n 54, .n 434, .n 56, .n 440] &&
+  isMul A (.n 459) (.n 449) (.n 6) && isLoad A (.n 460) (.n 459) 0 &&
+  A.any (isAssertEqAt (.n 460) (.n 24)) &&
+  decide (rcOf A (.n 461) = some (.n 6)) &&
+  A.any (isAddAt (.n 465) (.n 461) (.n 6)) && A.any (isAddAt (.n 467) (.n 7) (.n 466)) &&
+  A.any (isConstAt (.n 466) 1 0) && isMul A (.n 468) (.n 465) (.n 467) &&
+  A.any (isConstAt (.n 469) 0 0) && A.any (isAssertEqAt (.n 468) (.n 469)) &&
+  isMul A (.n 470) (.n 461) (.n 461) && isMul A (.n 471) (.n 392) (.n 470) &&
+  A.any (isAddAt (.n 474) (.n 6) (.n 473)) && A.any (isConstAt (.n 473) 1 0)
 
 noncomputable def leafOkS : Bool :=
   mLeafS.all Stmt.flat &&
-  ((List.range 23).all fun k => (atomsIn mLeafS).any (isConstAt (.n (471 + k)) 0 0) &&
-    isLoad (atomsIn mLeafS) (.n (471 + k)) (.n 467) k) &&
-  isLoad (atomsIn mLeafS) (.n 470) (.n 467) 23 &&
+  ((List.range 23).all fun k => (atomsIn mLeafS).any (isConstAt (.n (476 + k)) 0 0) &&
+    isLoad (atomsIn mLeafS) (.n (476 + k)) (.n 472) k) &&
+  isLoad (atomsIn mLeafS) (.n 475) (.n 472) 23 &&
   mAggS.all Stmt.flat &&
-  hasCall mAggS "aggregate_claims" [.n 50, .n 54, .n 6, .n 434, .n 440, .n 446, .n 467] []
+  hasCall mAggS "aggregate_claims" [.n 50, .n 54, .n 6, .n 434, .n 440, .n 446, .n 472] []
 
 noncomputable def postOkS : Bool :=
   let A := atomsIn mPostS
   mPostS.all Stmt.flat &&
-  isLoad A (.n 494) (.n 466) 0 && isLoad A (.n 495) (.n 466) 1 &&
-  hasCall mPostS "statement_digest" [.n 50, .n 54, .n 63, .n 64, .n 65, .n 66, .n 494, .n 495, .n 467]
-    [.n 496, .n 497] &&
-  A.any (isConstAt (.n 498) 1 0) && isLoad A (.n 499) (.n 498) 0 &&
-  A.any (isAssertEqAt (.n 499) (.n 496)) &&
-  A.any (isConstAt (.n 500) 1 0) && A.any (isConstAt (.n 501) 2 0) &&
-  isMul A (.n 502) (.n 500) (.n 501) && isLoad A (.n 503) (.n 502) 0 &&
-  A.any (isAssertEqAt (.n 503) (.n 497))
+  isMul A (.n 499) (.n 454) (.n 6) && isLoad A (.n 500) (.n 499) 0 &&
+  isLoad A (.n 501) (.n 471) 0 && isLoad A (.n 502) (.n 471) 1 &&
+  hasCall mPostS "statement_digest" [.n 50, .n 54, .n 63, .n 64, .n 65, .n 66, .n 501, .n 502,
+    .n 472, .n 500] [.n 503, .n 504] &&
+  A.any (isConstAt (.n 505) 1 0) && isLoad A (.n 506) (.n 505) 0 &&
+  A.any (isAssertEqAt (.n 506) (.n 503)) &&
+  A.any (isConstAt (.n 507) 1 0) && A.any (isConstAt (.n 508) 2 0) &&
+  isMul A (.n 509) (.n 507) (.n 508) && isLoad A (.n 510) (.n 509) 0 &&
+  A.any (isAssertEqAt (.n 510) (.n 504))
 
 set_option maxRecDepth 100000 in
 theorem pre_okS : preOkS = true := by decide +kernel

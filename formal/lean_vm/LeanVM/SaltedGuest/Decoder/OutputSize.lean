@@ -10,6 +10,9 @@ public import LeanVM.SaltedGuest.Decoder.Program
 public import LeanVM.Cost.GuestDecoding
 public import LeanVM.Cost.FieldMul
 public import LeanVM.SaltedGuest.B1.Main.ChildClaims
+public import LeanVM.SaltedGuest.B1.Main.CountK
+public import LeanVM.Salted.Decoding
+public import LeanVM.Cost.Bounds.Basic
 import all LeanVM.Guest.B1.Main.Interface
 
 /-!
@@ -29,11 +32,12 @@ is that of a decoding, bounded on every input (`decK_size`):
   (`Main.decK_child_claims`), a child's proof's stream at most `2^32 + 121` words, its openings at
   most `6` levels of at most `227` queries, a query's row at most `64` symbols and its path at
   most `28` digests (the salted dispatches' table, `osCallsTabK`), the DA matrix at most `1024`
-  rows of `128 · 256` symbols, the batching's `23` rounds.
+  rows of `128 · 256` symbols, the batching's `23` rounds; the node's count and the children's,
+  each below `2^64` (a logarithm).
 
 **`saltedDecoder_output_size`**: the output's size is at most `decodingSizeBoundK`, a number
-(about `2^72.9`: the children's claims dominate); **`saltedDecoder_decodings_bounded`**: the form
-of `SaltedGuest.DecodingsBounded`, every decoding the output decodes to.
+(about `2^72.9`: the children's claims dominate); **`saltedDecoder_decodings_bounded`**: every
+salted decoding the output decodes to.
 -/
 
 namespace LeanVM.SaltedGuest.Decoder
@@ -400,7 +404,7 @@ theorem size_vsPiOfNK (rd : Reader) (σ : Val) (Vn : NFrames) :
 /-! ## The decoding -/
 
 /-- **The salted decoding's size bound**: about `2^72.9`. -/
-def decodingSizeBoundK : ℕ := 8633083319170770143622
+def decodingSizeBoundK : ℕ := 8633083319205129881992
 
 theorem size_claims (c : NodeClaims) {n : ℕ} (h : c.xmss.length + c.sphincs.length ≤ n) :
     (encodeValue c).size ≤ 14 * n + 8 := by
@@ -475,12 +479,33 @@ theorem size_nodeWitness (w : NodeWitness) :
     encodeValue w.sphincsSignatures, encodeValue w.daMatrix, encodeValue w.batchingHints]).size = _
   rw [size_ctor5]
 
-theorem size_decoding (d : SeedStatementAndWitness) :
+theorem size_decoding (d : Recursion.Salted.SaltedDecoding) :
     (encodeValue d).size = (encodeValue d.seed).size + (encodeValue d.statement).size +
-      (encodeValue d.witness).size + 1 := by
+      (encodeValue d.nodeCount).size + (encodeValue d.witness).size +
+      (encodeValue d.childCounts).size + 1 := by
   show (MachineValue.constructor 0 [encodeValue d.seed, encodeValue d.statement,
-    encodeValue d.witness]).size = _
-  rw [size_ctor3]
+    encodeValue d.nodeCount, encodeValue d.witness, encodeValue d.childCounts]).size = _
+  rw [size_ctor5]
+
+theorem size_nat_le_two {n : ℕ} (h : n < 2 ^ 128) : (encodeValue n).size ≤ 2 := by
+  show (MachineValue.nat n).size ≤ 2
+  simp only [MachineValue.size]
+  exact LeanVM.Cost.Bounds.limbs_le_two h
+
+/-- **The children's counts' size**: at most `2^34` counts, each below `2^64`. -/
+theorem size_childCounts (rd : Reader) (σ : Val) :
+    (encodeValue (Main.childCountsOf rd σ)).size ≤ 2 ^ 34 * 2 + 1 := by
+  refine size_list_le _ (b := 1) ?_ fun c hc ↦ ?_
+  · simp only [Main.childCountsOf, List.length_map, List.length_range, LeanVM.Guest.B1.Main.nKids]
+    exact (Main.gLog_lt _).le
+  · obtain ⟨k, -, rfl⟩ := List.mem_map.mp hc
+    show (MachineValue.nat _).size ≤ 1
+    simp only [MachineValue.size, limbs_of_lt (Main.kidCount_lt rd σ k), le_refl]
+
+/-- **The node's count's size**: below `2^64`. -/
+theorem size_nodeCount (σ : Val) : (encodeValue (Main.nodeCountOf σ)).size ≤ 1 := by
+  show (MachineValue.nat _).size ≤ 1
+  simp only [MachineValue.size, limbs_of_lt (Main.nodeCountOf_lt σ), le_refl]
 
 theorem size_daOption (o : Option (DaClaim × LeanVM.Da.MatrixWitness))
     (h : ∀ c m, o = some (c, m) → m.rows.length ≤ 1024 ∧ ∀ row ∈ m.rows, row.length ≤ 32768) :
@@ -589,6 +614,12 @@ theorem size_decK (σ : Val) (rd : Reader) (Vn : NFrames) :
   have e1 : D.seed = LeanVM.Guest.B1.Main.decSeed (Main.mainVal σ) := by rw [← hDd]; rfl
   have e2 : D.statement = LeanVM.Guest.B1.Main.decStmt (Main.mainVal σ) rd := by rw [← hDd]; rfl
   have e3 : D.witness = Main.decWitK VerifySub.vsPiOfK σ rd (byName Vn) := by rw [← hDd]; rfl
+  have e4 : D.nodeCount = Main.nodeCountOf (Main.mainVal σ) := by rw [← hDd]; rfl
+  have e5 : D.childCounts = Main.childCountsOf rd (Main.mainVal σ) := by rw [← hDd]; rfl
+  have hn := size_nodeCount (Main.mainVal σ)
+  have hcs := size_childCounts rd (Main.mainVal σ)
+  rw [← e4] at hn
+  rw [← e5] at hcs
   have hseed := size_digest D.seed
   have hstmt : (encodeValue D.statement).size ≤ 14 * (2 ^ 34 + 2 ^ 34) + 130 := by
     rw [e2]
@@ -645,14 +676,14 @@ theorem saltedDecoder_output_size (t : Execution guestProgram) {output : Machine
 on every execution, every decoding its output decodes to has an encoding of size at most
 `decodingSizeBoundK`. -/
 theorem saltedDecoder_decodings_bounded (t : Execution guestProgram) (output : MachineValue)
-    (decoding : SeedStatementAndWitness)
+    (decoding : Recursion.Salted.SaltedDecoding)
     (h : outputWithin saltedDecoder saltedDecoder.size (saltedDecoderPrice t)
       (encodeGuestWitnessDecoderInput guestProgram t) = some output)
-    (hd : decodeDecoded output = some decoding) :
+    (hd : MachineDecoding.decodeValue output = some decoding) :
     (encodeValue decoding).size ≤ decodingSizeBoundK := by
   rw [outputWithin_saltedDecoder_any] at h
   obtain rfl := Option.some.inj h
-  rw [decodeDecoded_enc] at hd
+  rw [decodeValue_encodeValue] at hd
   obtain rfl := Option.some.inj hd
   exact size_decTopK _ _ _
 

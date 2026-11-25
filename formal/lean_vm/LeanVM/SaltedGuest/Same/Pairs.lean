@@ -478,7 +478,6 @@ def block0 : List (String × Nat × Nat) := [
   ("selector_tables", 16, 16),
   ("sp_wots", 19, 19),
   ("verify_sig_lean_sphincs", 20, 20),
-  ("statement_digest", 21, 21),
   ("list_split", 22, 22),
   ("da_row_shape", 29, 28),
   ("da_vector", 32, 31),
@@ -507,12 +506,12 @@ def block0 : List (String × Nat × Nat) := [
   ("eq_prefix_run__L17", 58, 56),
   ("eq_prefix_run__L18", 59, 57),
   ("eq_prefix_run__L19", 60, 58),
-  ("eq_prefix_run__L20", 61, 59)
+  ("eq_prefix_run__L20", 61, 59),
+  ("eq_prefix_run__L21", 62, 60)
 ]
 
 /-- Block 1 of the closed set. -/
 def block1 : List (String × Nat × Nat) := [
-  ("eq_prefix_run__L21", 62, 60),
   ("eq_prefix_run__L22", 63, 61),
   ("eq_prefix_run__L23", 64, 62),
   ("eq_prefix_run__L24", 65, 63),
@@ -559,12 +558,12 @@ def block1 : List (String × Nat × Nat) := [
   ("padding_weight__L8", 106, 104),
   ("padding_weight__L9", 107, 105),
   ("padding_weight__L10", 108, 106),
-  ("padding_weight__L11", 109, 107)
+  ("padding_weight__L11", 109, 107),
+  ("padding_weight__L12", 110, 108)
 ]
 
 /-- Block 2 of the closed set. -/
 def block2 : List (String × Nat × Nat) := [
-  ("padding_weight__L12", 110, 108),
   ("padding_weight__L13", 111, 109),
   ("padding_weight__L14", 112, 110),
   ("padding_weight__L15", 113, 111),
@@ -611,12 +610,12 @@ def block2 : List (String × Nat × Nat) := [
   ("plus_one_run__L25", 154, 152),
   ("plus_one_run__L26", 155, 153),
   ("plus_one_run__L27", 156, 154),
-  ("plus_one_run__L28", 157, 155)
+  ("plus_one_run__L28", 157, 155),
+  ("plus_one_run__L29", 158, 156)
 ]
 
 /-- Block 3 of the closed set. -/
 def block3 : List (String × Nat × Nat) := [
-  ("plus_one_run__L29", 158, 156),
   ("plus_one_run__L30", 159, 157),
   ("plus_one_run__L31", 160, 158),
   ("plus_one_run__L32", 161, 159),
@@ -663,12 +662,12 @@ def block3 : List (String × Nat × Nat) := [
   ("index_mle__L5", 202, 200),
   ("index_mle__L6", 203, 201),
   ("index_mle__L7", 204, 202),
-  ("index_mle__L8", 205, 203)
+  ("index_mle__L8", 205, 203),
+  ("index_mle__L9", 206, 204)
 ]
 
 /-- Block 4 of the closed set. -/
 def block4 : List (String × Nat × Nat) := [
-  ("index_mle__L9", 206, 204),
   ("index_mle__L10", 207, 205),
   ("index_mle__L11", 208, 206),
   ("index_mle__L12", 209, 207),
@@ -715,12 +714,12 @@ def block4 : List (String × Nat × Nat) := [
   ("block_selector_tab__L19", 250, 248),
   ("block_selector_tab__L20", 251, 249),
   ("block_selector_tab__L21", 252, 250),
-  ("block_selector_tab__L22", 253, 251)
+  ("block_selector_tab__L22", 253, 251),
+  ("block_selector_tab__L23", 254, 252)
 ]
 
 /-- Block 5 of the closed set. -/
 def block5 : List (String × Nat × Nat) := [
-  ("block_selector_tab__L23", 254, 252),
   ("block_selector_tab__L24", 255, 253),
   ("block_selector_tab__L25", 256, 254),
   ("block_selector_tab__L26", 257, 255),
@@ -767,12 +766,12 @@ def block5 : List (String × Nat × Nat) := [
   ("column_selector__L23", 299, 296),
   ("column_selector__L24", 300, 297),
   ("column_selector__L25", 301, 298),
-  ("column_selector__L26", 302, 299)
+  ("column_selector__L26", 302, 299),
+  ("column_selector__L27", 303, 300)
 ]
 
 /-- Block 6 of the closed set. -/
 def block6 : List (String × Nat × Nat) := [
-  ("column_selector__L27", 303, 300),
   ("column_selector__L28", 304, 301),
   ("column_selector__L29", 305, 302),
   ("column_selector__L30", 306, 303),
@@ -819,12 +818,12 @@ def block6 : List (String × Nat × Nat) := [
   ("__loop20", 358, 355),
   ("__loop21", 359, 356),
   ("child_claim_list_mono_last__L0", 360, 357),
-  ("child_claim_list_mono_last__L1", 361, 358)
+  ("child_claim_list_mono_last__L1", 361, 358),
+  ("child_claim_list_mono_last__L2", 362, 359)
 ]
 
 /-- Block 7 of the closed set. -/
 def block7 : List (String × Nat × Nat) := [
-  ("child_claim_list_mono_last__L2", 362, 359),
   ("child_claim_list_mono_last__L3", 363, 360),
   ("child_claim_list_mono_last__L4", 364, 361),
   ("child_claim_list_mono_last__L5", 365, 362),
@@ -871,12 +870,12 @@ def block7 : List (String × Nat × Nat) := [
   ("level_positions__L19_L15_L3", 421, 418),
   ("level_positions__L10_L16_L4", 422, 419),
   ("level_positions__L7_L17_L5", 423, 420),
-  ("level_positions__L6_L18_L6", 424, 421)
+  ("level_positions__L6_L18_L6", 424, 421),
+  ("opening_row_weights__L6_L1", 425, 422)
 ]
 
 /-- Block 8 of the closed set. -/
 def block8 : List (String × Nat × Nat) := [
-  ("opening_row_weights__L6_L1", 425, 422),
   ("opening_ood_point__L10", 430, 427),
   ("level_positions__L5_L14_L2", 431, 428),
   ("level_positions__L4_L15_L3", 432, 429),
@@ -923,12 +922,12 @@ def block8 : List (String × Nat × Nat) := [
   ("level_positions__L3_L16_L4", 493, 490),
   ("opening_final_message__L8", 498, 495),
   ("fold_final_msg__L3", 503, 500),
-  ("level_residual__L223_L15", 504, 501)
+  ("level_residual__L223_L15", 504, 501),
+  ("level_residual__L112_L15", 505, 502)
 ]
 
 /-- Block 9 of the closed set. -/
 def block9 : List (String × Nat × Nat) := [
-  ("level_residual__L112_L15", 505, 502),
   ("level_residual__L75_L15", 506, 503),
   ("level_residual__L56_L15", 507, 504),
   ("level_residual__L56_L11", 508, 505),
@@ -975,12 +974,12 @@ def block9 : List (String × Nat × Nat) := [
   ("level_residual__L18_L4", 565, 562),
   ("opening_ood_point__L17", 566, 563),
   ("level_positions__L23_L18_L6", 567, 564),
-  ("level_positions__L12_L19_L7", 568, 565)
+  ("level_positions__L12_L19_L7", 568, 565),
+  ("level_positions__L9_L20_L2", 569, 566)
 ]
 
 /-- Block 10 of the closed set. -/
 def block10 : List (String × Nat × Nat) := [
-  ("level_positions__L9_L20_L2", 569, 566),
   ("level_positions__L7_L21_L3", 570, 567),
   ("opening_ood_point__L13", 575, 572),
   ("level_positions__L6_L17_L5", 576, 573),
@@ -1027,12 +1026,12 @@ def block10 : List (String × Nat × Nat) := [
   ("level_residual__L28_L10", 646, 643),
   ("level_residual__L25_L10", 647, 644),
   ("level_residual__L23_L10", 648, 645),
-  ("level_residual__L21_L6", 649, 646)
+  ("level_residual__L21_L6", 649, 646),
+  ("level_residual__L19_L6", 650, 647)
 ]
 
 /-- Block 11 of the closed set. -/
 def block11 : List (String × Nat × Nat) := [
-  ("level_residual__L19_L6", 650, 647),
   ("level_residual__L18_L6", 651, 648),
   ("level_residual__L16_L2", 652, 649),
   ("level_residual__L15_L2", 653, 650),
@@ -1079,12 +1078,12 @@ def block11 : List (String × Nat × Nat) := [
   ("level_residual__L38_L16", 728, 725),
   ("level_residual__L32_L16", 729, 726),
   ("level_residual__L28_L12", 730, 727),
-  ("level_residual__L25_L12", 731, 728)
+  ("level_residual__L25_L12", 731, 728),
+  ("level_residual__L23_L12", 732, 729)
 ]
 
 /-- Block 12 of the closed set. -/
 def block12 : List (String × Nat × Nat) := [
-  ("level_residual__L23_L12", 732, 729),
   ("level_residual__L21_L8", 733, 730),
   ("level_residual__L19_L8", 734, 731),
   ("level_residual__L18_L8", 735, 732),
@@ -1131,12 +1130,12 @@ def block12 : List (String × Nat × Nat) := [
   ("level_residual__L56_L22", 812, 809),
   ("level_residual__L45_L18", 813, 810),
   ("level_residual__L38_L18", 814, 811),
-  ("level_residual__L32_L18", 815, 812)
+  ("level_residual__L32_L18", 815, 812),
+  ("level_residual__L28_L14", 816, 813)
 ]
 
 /-- Block 13 of the closed set. -/
 def block13 : List (String × Nat × Nat) := [
-  ("level_residual__L28_L14", 816, 813),
   ("level_residual__L25_L14", 817, 814),
   ("level_residual__L23_L14", 818, 815),
   ("level_residual__L21_L10", 819, 816),
@@ -1183,12 +1182,12 @@ def block13 : List (String × Nat × Nat) := [
   ("level_positions__L5_L27_L3", 882, 879),
   ("level_positions__L4_L26_L2", 887, 884),
   ("level_positions__L3_L25_L7", 891, 888),
-  ("level_positions__L2_L24_L6", 895, 892)
+  ("level_positions__L2_L24_L6", 895, 892),
+  ("level_residual__L226_L24", 902, 899)
 ]
 
 /-- Block 14 of the closed set. -/
 def block14 : List (String × Nat × Nat) := [
-  ("level_residual__L226_L24", 902, 899),
   ("level_residual__L113_L24", 903, 900),
   ("level_residual__L75_L24", 904, 901),
   ("level_residual__L57_L24", 905, 902),
@@ -1235,12 +1234,12 @@ def block14 : List (String × Nat × Nat) := [
   ("__loop123", 1017, 1014),
   ("__loop124", 1018, 1015),
   ("__loop125", 1019, 1016),
-  ("__loop126", 1020, 1017)
+  ("__loop126", 1020, 1017),
+  ("__loop127", 1021, 1018)
 ]
 
 /-- Block 15 of the closed set. -/
 def block15 : List (String × Nat × Nat) := [
-  ("__loop127", 1021, 1018),
   ("__loop128", 1022, 1019),
   ("__loop129", 1023, 1020),
   ("__loop130", 1024, 1021),
@@ -1287,12 +1286,12 @@ def block15 : List (String × Nat × Nat) := [
   ("__loop171", 1070, 1067),
   ("__loop172", 1071, 1068),
   ("__loop173", 1072, 1069),
-  ("__loop174", 1073, 1070)
+  ("__loop174", 1073, 1070),
+  ("__loop175", 1074, 1071)
 ]
 
 /-- Block 16 of the closed set. -/
 def block16 : List (String × Nat × Nat) := [
-  ("__loop175", 1074, 1071),
   ("__loop176", 1075, 1072),
   ("__loop177", 1076, 1073),
   ("__loop178", 1077, 1074),
@@ -1339,12 +1338,12 @@ def block16 : List (String × Nat × Nat) := [
   ("__loop219", 1124, 1121),
   ("__loop220", 1125, 1122),
   ("__loop221", 1126, 1123),
-  ("__loop222", 1127, 1124)
+  ("__loop222", 1127, 1124),
+  ("__loop223", 1128, 1125)
 ]
 
 /-- Block 17 of the closed set. -/
 def block17 : List (String × Nat × Nat) := [
-  ("__loop223", 1128, 1125),
   ("__loop224", 1129, 1126),
   ("__loop225", 1130, 1127),
   ("__loop226", 1131, 1128),
@@ -1391,12 +1390,12 @@ def block17 : List (String × Nat × Nat) := [
   ("__loop267", 1175, 1172),
   ("__loop268", 1176, 1173),
   ("__loop269", 1177, 1174),
-  ("__loop270", 1178, 1175)
+  ("__loop270", 1178, 1175),
+  ("__loop271", 1179, 1176)
 ]
 
 /-- Block 18 of the closed set. -/
 def block18 : List (String × Nat × Nat) := [
-  ("__loop271", 1179, 1176),
   ("__loop272", 1180, 1177),
   ("__loop273", 1181, 1178),
   ("__loop274", 1182, 1179),
@@ -1443,12 +1442,12 @@ def block18 : List (String × Nat × Nat) := [
   ("__loop315", 1228, 1225),
   ("__loop316", 1229, 1226),
   ("__loop317", 1230, 1227),
-  ("__loop318", 1231, 1228)
+  ("__loop318", 1231, 1228),
+  ("__loop319", 1232, 1229)
 ]
 
 /-- Block 19 of the closed set. -/
 def block19 : List (String × Nat × Nat) := [
-  ("__loop319", 1232, 1229),
   ("__loop320", 1235, 1232),
   ("__loop321", 1236, 1233),
   ("__loop322", 1238, 1235),
@@ -1495,12 +1494,12 @@ def block19 : List (String × Nat × Nat) := [
   ("__loop363", 1282, 1279),
   ("__loop364", 1283, 1280),
   ("__loop365", 1284, 1281),
-  ("__loop366", 1285, 1282)
+  ("__loop366", 1285, 1282),
+  ("__loop367", 1286, 1283)
 ]
 
 /-- Block 20 of the closed set. -/
 def block20 : List (String × Nat × Nat) := [
-  ("__loop367", 1286, 1283),
   ("__loop368", 1287, 1284),
   ("__loop369", 1288, 1285),
   ("__loop370", 1289, 1286),
@@ -1547,12 +1546,12 @@ def block20 : List (String × Nat × Nat) := [
   ("__loop411", 1333, 1330),
   ("__loop412", 1334, 1331),
   ("__loop413", 1335, 1332),
-  ("__loop414", 1336, 1333)
+  ("__loop414", 1336, 1333),
+  ("__loop415", 1337, 1334)
 ]
 
 /-- Block 21 of the closed set. -/
 def block21 : List (String × Nat × Nat) := [
-  ("__loop415", 1337, 1334),
   ("__loop416", 1338, 1335),
   ("__loop417", 1339, 1336),
   ("__loop418", 1340, 1337),
@@ -1599,12 +1598,12 @@ def block21 : List (String × Nat × Nat) := [
   ("__loop459", 1384, 1381),
   ("__loop460", 1385, 1382),
   ("__loop461", 1386, 1383),
-  ("__loop462", 1387, 1384)
+  ("__loop462", 1387, 1384),
+  ("__loop463", 1388, 1385)
 ]
 
 /-- Block 22 of the closed set. -/
 def block22 : List (String × Nat × Nat) := [
-  ("__loop463", 1388, 1385),
   ("__loop464", 1389, 1386),
   ("__loop465", 1390, 1387),
   ("__loop466", 1391, 1388),
@@ -1651,12 +1650,12 @@ def block22 : List (String × Nat × Nat) := [
   ("__loop507", 1434, 1431),
   ("__loop508", 1435, 1432),
   ("__loop509", 1436, 1433),
-  ("decode_query_windows__L15_L3", 1437, 1434)
+  ("decode_query_windows__L15_L3", 1437, 1434),
+  ("decode_query_windows__L16_L4", 1438, 1435)
 ]
 
 /-- Block 23 of the closed set. -/
 def block23 : List (String × Nat × Nat) := [
-  ("decode_query_windows__L16_L4", 1438, 1435),
   ("decode_query_windows__L17_L5", 1439, 1436),
   ("decode_query_windows__L18_L6", 1440, 1437),
   ("decode_query_windows__L14_L2", 1447, 1444),

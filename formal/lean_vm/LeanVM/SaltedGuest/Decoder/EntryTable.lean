@@ -194,12 +194,17 @@ packed cells. -/
 def mainValK (locs : Array (Array ℕ)) (rd : Reader) (v : V) : E :=
   Guest.Located.wordWith rd 1 (cellAtK (locs.getD 1 #[]) v.idx)
 
-/-- The salted `main`'s value number of a deployed `main`'s value number (`B1.Main.mainRi`,
+/-- The salted `main`'s value number of a deployed `main`'s value number (`B1.Main.mainRiD`,
 `EntryTableEq.lean`). -/
+def mainRiDK (k : ℕ) : ℕ :=
+  if k < 26 then k else if k = 26 then 50 else if k = 27 then 54 else if k = 379 then 429
+  else if k = 380 then 430 else if k < 381 then k + 28 else if k < 401 then k + 50
+  else if k < 444 then k + 55 else k + 57
+
+/-- The salted `main`'s value number of a value number at the deployed numbering
+(`B1.Main.mainRi`): a deployed value's (`mainRiDK`), the node count's three at `1000` to `1002`. -/
 def mainRiK (k : ℕ) : ℕ :=
-  if k < 26 then k else if k = 26 then 50 else if k = 27 then 54 else if k < 369 then k + 28
-  else if k < 373 then k + 28 else if k = 379 then 429 else if k = 380 then 430
-  else if k < 381 then k + 28 else k + 50
+  if k < 1000 then mainRiDK k else if k = 1000 then 451 else if k = 1001 then 454 else 500
 
 /-- **The salted `main`'s valuation at the deployed `main`'s numbers** (`B1.Main.mainVal`): the
 word of the salted value `mainRiK v.idx`. -/
@@ -207,6 +212,7 @@ def mainValDK (locs : Array (Array ℕ)) (rd : Reader) (v : V) : E :=
   Guest.Located.wordWith rd 1 (cellAtK (locs.getD 1 #[]) (mainRiK v.idx))
 
 cost_compile mainValKC := mainValK
+cost_compile mainRiDKC := mainRiDK
 cost_compile mainRiKC := mainRiK
 cost_compile mainValDKC := mainValDK
 

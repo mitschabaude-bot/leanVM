@@ -17,17 +17,6 @@ open LeanVM.Guest.Core
 
 set_option maxRecDepth 100000
 
-kernel_rfl idx1438 : LeanVM.SaltedGuest.coreProgram[1438]? = some LeanVM.SaltedGuest.Data.core1438
-
-kernel_rfl idxD1438 : LeanVM.Guest.coreProgram[1435]? = some LeanVM.Guest.Data.core1435
-
-kernel_rfl body1438 : (LeanVM.Guest.Data.core1435).body =
-  Stmt.mapCallsList rho (LeanVM.SaltedGuest.Data.core1438).body
-
-theorem pair1438 : PairOk ("decode_query_windows__L16_L4", 1438, 1435) :=
-  ⟨LeanVM.SaltedGuest.Data.core1438, LeanVM.Guest.Data.core1435, idx1438, idxD1438, by decide +kernel,
-    by decide +kernel, by decide +kernel, body1438, by decide +kernel⟩
-
 kernel_rfl idx1439 : LeanVM.SaltedGuest.coreProgram[1439]? = some LeanVM.SaltedGuest.Data.core1439
 
 kernel_rfl idxD1439 : LeanVM.Guest.coreProgram[1436]? = some LeanVM.Guest.Data.core1436
@@ -459,7 +448,7 @@ theorem pair1533 : PairOk ("residual_batch__L24", 1533, 1530) :=
 
 theorem block23_ok : ∀ p ∈ block23, PairOk p := by
   simp only [block23, List.forall_mem_cons]
-  exact ⟨pair1438, pair1439, pair1440, pair1447, pair1452, pair1454, pair1456, pair1457, pair1458, pair1459, pair1460, pair1468, pair1469, pair1470, pair1471, pair1472, pair1477, pair1478, pair1479, pair1480, pair1481, pair1486, pair1487, pair1488, pair1489, pair1490, pair1495, pair1496, pair1497, pair1503, pair1504, pair1509, pair1510, pair1515, pair1516, pair1521, pair1522, pair1528, pair1529, pair1533, fun _ h ↦ nomatch h⟩
+  exact ⟨pair1439, pair1440, pair1447, pair1452, pair1454, pair1456, pair1457, pair1458, pair1459, pair1460, pair1468, pair1469, pair1470, pair1471, pair1472, pair1477, pair1478, pair1479, pair1480, pair1481, pair1486, pair1487, pair1488, pair1489, pair1490, pair1495, pair1496, pair1497, pair1503, pair1504, pair1509, pair1510, pair1515, pair1516, pair1521, pair1522, pair1528, pair1529, pair1533, fun _ h ↦ nomatch h⟩
 
 end
 end LeanVM.SaltedGuest.Same

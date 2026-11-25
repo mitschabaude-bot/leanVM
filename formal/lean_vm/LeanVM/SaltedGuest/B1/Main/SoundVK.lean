@@ -25,7 +25,8 @@ under it, for the public input of its arguments (`VerifySubOutK`).
 
 `decK piOf`: the decoding of the salted `main`'s run, `dec` of `End.MainSound`: the deployed
 decoders (`decSeed`, `decStmt`, `decWit`) at `mainVal σ`, the salted values read at the deployed
-numbers, with the witnesses read off the frame map: the signatures off the deployed signature
+numbers, the node's and the children's counts off the memory (`nodeCountOf`, `childCountsOf`), with
+the witnesses read off the frame map: the signatures off the deployed signature
 checks' frames (`toDV V`), the matrix off `da_verify`'s (`Da.dvWitK`), a child proof by `piOf` off
 `verify_sub`'s, the batching's hints off `aggregate_claims`' (`aggHintsS`). It mentions no hash
 and no verifier.
@@ -79,10 +80,12 @@ noncomputable def decWitK (piOf : Reader → Val → End.FrameMap → Proof) (σ
     (fun args => aggHintsS rd
       (V "aggregate_claims" ([mainVal σ (.n 26), mainVal σ (.n 27)] ++ args) []))
 
-/-- **The decoding of the salted `main`'s run**: the seed, the statement and the witness. -/
+/-- **The decoding of the salted `main`'s run**: the seed, the statement, the node's count, the
+witness and the children's counts. -/
 noncomputable def decK (piOf : Reader → Val → End.FrameMap → Proof) (σ : Val) (rd : Reader)
-    (V : End.FrameMap) : SeedStatementAndWitness :=
-  ⟨decSeed (mainVal σ), decStmt (mainVal σ) rd, decWitK piOf σ rd V⟩
+    (V : End.FrameMap) : SaltedDecoding :=
+  ⟨decSeed (mainVal σ), decStmt (mainVal σ) rd, nodeCountOf (mainVal σ), decWitK piOf σ rd V,
+    childCountsOf rd (mainVal σ)⟩
 
 /-- **The salted `main`'s obligation**, from `verify_sub`'s statement with its proof named. -/
 theorem mainSound_of_sub {piOf : Reader → Val → End.FrameMap → Proof} (hv : SubSoundWK piOf) :
@@ -132,10 +135,12 @@ theorem mainSound_of_sub {piOf : Reader → Val → End.FrameMap → Proof} (hv 
   obtain ⟨hdig, hrel, hlen⟩ := main_sound_CK End.bytecode_length hm hV hle hS2 hS3 cw hp0 hp1 hb
   have hs : decSeed (mainVal σ) = S := decSeed_eqK MF
   refine ⟨hs, ?_, ?_, hlen⟩
-  · show saltedStatementDigest (decSeed (mainVal σ)) (decStmt (mainVal σ) L.read) = D
+  · show saltedStatementDigest (decSeed (mainVal σ)) (decStmt (mainVal σ) L.read)
+      (nodeCountOf (mainVal σ)) = D
     rw [hs]; exact hdig
   · show SaltedNodeRelation (bytecodeWords guestProgram) (decSeed (mainVal σ))
-      (decStmt (mainVal σ) L.read) (decWitK piOf σ L.read V)
+      (decStmt (mainVal σ) L.read) (nodeCountOf (mainVal σ)) (decWitK piOf σ L.read V)
+      (childCountsOf L.read (mainVal σ))
     rw [hs]; exact hrel
 
 end

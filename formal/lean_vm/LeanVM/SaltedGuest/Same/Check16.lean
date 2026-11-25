@@ -17,17 +17,6 @@ open LeanVM.Guest.Core
 
 set_option maxRecDepth 100000
 
-kernel_rfl idx1074 : LeanVM.SaltedGuest.coreProgram[1074]? = some LeanVM.SaltedGuest.Data.core1074
-
-kernel_rfl idxD1074 : LeanVM.Guest.coreProgram[1071]? = some LeanVM.Guest.Data.core1071
-
-kernel_rfl body1074 : (LeanVM.Guest.Data.core1071).body =
-  Stmt.mapCallsList rho (LeanVM.SaltedGuest.Data.core1074).body
-
-theorem pair1074 : PairOk ("__loop175", 1074, 1071) :=
-  ⟨LeanVM.SaltedGuest.Data.core1074, LeanVM.Guest.Data.core1071, idx1074, idxD1074, by decide +kernel,
-    by decide +kernel, by decide +kernel, body1074, by decide +kernel⟩
-
 kernel_rfl idx1075 : LeanVM.SaltedGuest.coreProgram[1075]? = some LeanVM.SaltedGuest.Data.core1075
 
 kernel_rfl idxD1075 : LeanVM.Guest.coreProgram[1072]? = some LeanVM.Guest.Data.core1072
@@ -545,9 +534,20 @@ theorem pair1127 : PairOk ("__loop222", 1127, 1124) :=
   ⟨LeanVM.SaltedGuest.Data.core1127, LeanVM.Guest.Data.core1124, idx1127, idxD1127, by decide +kernel,
     by decide +kernel, by decide +kernel, body1127, by decide +kernel⟩
 
+kernel_rfl idx1128 : LeanVM.SaltedGuest.coreProgram[1128]? = some LeanVM.SaltedGuest.Data.core1128
+
+kernel_rfl idxD1128 : LeanVM.Guest.coreProgram[1125]? = some LeanVM.Guest.Data.core1125
+
+kernel_rfl body1128 : (LeanVM.Guest.Data.core1125).body =
+  Stmt.mapCallsList rho (LeanVM.SaltedGuest.Data.core1128).body
+
+theorem pair1128 : PairOk ("__loop223", 1128, 1125) :=
+  ⟨LeanVM.SaltedGuest.Data.core1128, LeanVM.Guest.Data.core1125, idx1128, idxD1128, by decide +kernel,
+    by decide +kernel, by decide +kernel, body1128, by decide +kernel⟩
+
 theorem block16_ok : ∀ p ∈ block16, PairOk p := by
   simp only [block16, List.forall_mem_cons]
-  exact ⟨pair1074, pair1075, pair1076, pair1077, pair1080, pair1081, pair1082, pair1084, pair1085, pair1086, pair1087, pair1088, pair1089, pair1090, pair1091, pair1092, pair1093, pair1094, pair1095, pair1096, pair1097, pair1098, pair1099, pair1100, pair1101, pair1102, pair1103, pair1104, pair1105, pair1106, pair1107, pair1108, pair1109, pair1110, pair1111, pair1112, pair1113, pair1114, pair1115, pair1118, pair1119, pair1120, pair1122, pair1123, pair1124, pair1125, pair1126, pair1127, fun _ h ↦ nomatch h⟩
+  exact ⟨pair1075, pair1076, pair1077, pair1080, pair1081, pair1082, pair1084, pair1085, pair1086, pair1087, pair1088, pair1089, pair1090, pair1091, pair1092, pair1093, pair1094, pair1095, pair1096, pair1097, pair1098, pair1099, pair1100, pair1101, pair1102, pair1103, pair1104, pair1105, pair1106, pair1107, pair1108, pair1109, pair1110, pair1111, pair1112, pair1113, pair1114, pair1115, pair1118, pair1119, pair1120, pair1122, pair1123, pair1124, pair1125, pair1126, pair1127, pair1128, fun _ h ↦ nomatch h⟩
 
 end
 end LeanVM.SaltedGuest.Same

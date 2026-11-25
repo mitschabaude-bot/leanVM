@@ -215,17 +215,6 @@ theorem pair20 : PairOk ("verify_sig_lean_sphincs", 20, 20) :=
   ⟨LeanVM.SaltedGuest.Data.core20, LeanVM.Guest.Data.core20, idx20, idxD20, by decide +kernel,
     by decide +kernel, by decide +kernel, body20, by decide +kernel⟩
 
-kernel_rfl idx21 : LeanVM.SaltedGuest.coreProgram[21]? = some LeanVM.SaltedGuest.Data.core21
-
-kernel_rfl idxD21 : LeanVM.Guest.coreProgram[21]? = some LeanVM.Guest.Data.core21
-
-kernel_rfl body21 : (LeanVM.Guest.Data.core21).body =
-  Stmt.mapCallsList rho (LeanVM.SaltedGuest.Data.core21).body
-
-theorem pair21 : PairOk ("statement_digest", 21, 21) :=
-  ⟨LeanVM.SaltedGuest.Data.core21, LeanVM.Guest.Data.core21, idx21, idxD21, by decide +kernel,
-    by decide +kernel, by decide +kernel, body21, by decide +kernel⟩
-
 kernel_rfl idx22 : LeanVM.SaltedGuest.coreProgram[22]? = some LeanVM.SaltedGuest.Data.core22
 
 kernel_rfl idxD22 : LeanVM.Guest.coreProgram[22]? = some LeanVM.Guest.Data.core22
@@ -545,9 +534,20 @@ theorem pair61 : PairOk ("eq_prefix_run__L20", 61, 59) :=
   ⟨LeanVM.SaltedGuest.Data.core61, LeanVM.Guest.Data.core59, idx61, idxD61, by decide +kernel,
     by decide +kernel, by decide +kernel, body61, by decide +kernel⟩
 
+kernel_rfl idx62 : LeanVM.SaltedGuest.coreProgram[62]? = some LeanVM.SaltedGuest.Data.core62
+
+kernel_rfl idxD62 : LeanVM.Guest.coreProgram[60]? = some LeanVM.Guest.Data.core60
+
+kernel_rfl body62 : (LeanVM.Guest.Data.core60).body =
+  Stmt.mapCallsList rho (LeanVM.SaltedGuest.Data.core62).body
+
+theorem pair62 : PairOk ("eq_prefix_run__L21", 62, 60) :=
+  ⟨LeanVM.SaltedGuest.Data.core62, LeanVM.Guest.Data.core60, idx62, idxD62, by decide +kernel,
+    by decide +kernel, by decide +kernel, body62, by decide +kernel⟩
+
 theorem block0_ok : ∀ p ∈ block0, PairOk p := by
   simp only [block0, List.forall_mem_cons]
-  exact ⟨pair1, pair2, pair3, pair4, pair5, pair6, pair7, pair8, pair9, pair10, pair11, pair12, pair13, pair14, pair15, pair16, pair19, pair20, pair21, pair22, pair29, pair32, pair33, pair36, pair37, pair38, pair39, pair41, pair42, pair43, pair44, pair45, pair46, pair47, pair48, pair49, pair50, pair51, pair52, pair53, pair54, pair55, pair56, pair57, pair58, pair59, pair60, pair61, fun _ h ↦ nomatch h⟩
+  exact ⟨pair1, pair2, pair3, pair4, pair5, pair6, pair7, pair8, pair9, pair10, pair11, pair12, pair13, pair14, pair15, pair16, pair19, pair20, pair22, pair29, pair32, pair33, pair36, pair37, pair38, pair39, pair41, pair42, pair43, pair44, pair45, pair46, pair47, pair48, pair49, pair50, pair51, pair52, pair53, pair54, pair55, pair56, pair57, pair58, pair59, pair60, pair61, pair62, fun _ h ↦ nomatch h⟩
 
 end
 end LeanVM.SaltedGuest.Same

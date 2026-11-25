@@ -41,7 +41,7 @@ theorem b2SoundL_of (hexp : ExpTablesSound) (hvd : VsDimsKnown) (hvs : VsKnown)
 
 /-- **The salted guest's open per-function obligations**, for `main`'s decoding `dec`: each a
 statement about the salted core IR alone (B1). -/
-structure Obligations (dec : Val → Reader → FrameMap → SeedStatementAndWitness) : Prop where
+structure Obligations (dec : Val → Reader → FrameMap → SaltedDecoding) : Prop where
   /-- `exponent_tables`' returned pointer holds the exponent table. -/
   expTables : ExpTablesSound
   /-- `verify_sub`'s first `560` statements bound entry `0` of `dims_g` below `g^34`. -/
@@ -55,7 +55,7 @@ structure Obligations (dec : Val → Reader → FrameMap → SeedStatementAndWit
 
 /-- **The salted guest is knowledge sound**, from its open per-function obligations and the
 decoder program's. -/
-theorem knowledgeSound {dec : Val → Reader → FrameMap → SeedStatementAndWitness}
+theorem knowledgeSound {dec : Val → Reader → FrameMap → SaltedDecoding}
     {decoder : Cost.MachineProgram} {sizeBound : ℕ} {budget : Execution guestProgram → ℕ}
     (h : Obligations dec) (hd : DecoderComputes decoder sizeBound budget dec) :
     (⟨guestProgram, decoder, sizeBound, budget⟩ : SaltedGuest).KnowledgeSound :=

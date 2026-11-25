@@ -39,11 +39,20 @@ public section
 
 attribute [local instance] lexOrd
 
-/-- The frames stage's price: `main`'s four words, the witness, the seed and the statement. -/
+/-- The price of a child's count: its cell and its logarithm. -/
+@[expose] def kidCountPriceK (R : ℕ) : ℕ := R + 2969 + 122500 + 100
+
+/-- The price of the children's counts, for at most `16` children. -/
+@[expose] def kidCountsPriceK (R : ℕ) : ℕ :=
+  gLogPrice + 2 * (R + 1400) + (kidCountPriceK R + 100 + 28) * 16 + 100
+
+/-- The frames stage's price: `main`'s four words, the witness, the seed, the statement, the
+node's count and the children's counts. -/
 @[expose] def framesPriceK (e R : ℕ) : ℕ :=
   4 * (R + 1400) + decWitPrice gLogPrice R (R + 1400) (xmssReaderK e R) (sphincsReaderK e R)
     (daReaderK e R) (proofReaderK e R) (hintsReaderK e R) 16 (2 ^ 20) (2 ^ 20) +
-    (2 * (R + 1400) + 45) + decStmtPrice gLogPrice R (R + 1400) (2 ^ 20) + 15 + 93
+    (2 * (R + 1400) + 45) + decStmtPrice gLogPrice R (R + 1400) (2 ^ 20) + 15 + 93 +
+    ((R + 1400) + 122500 + 100) + kidCountsPriceK R + 200
 
 /-- The salted precondition test's price at the reader's `R`, as the closure the states stage
 passes. -/
@@ -54,12 +63,55 @@ passes. -/
 
 variable (P : MachineProgram)
 
+/-- **A count's logarithm** (`cellLogKC`): at most `122500`. -/
+theorem cellLogK_cost (hP : Includes P cellLogKC.costDeps) (x : E) :
+    machineCost P cellLogKC.costIdx [encodeValue discreteLogTables, encodeValue x] ≤ 122500 := by
+  rw [cellLogKC.costEq P hP]
+  have := discreteLogWith_cost P (by includes) (x.limb 0)
+  generalize discreteLogWith discreteLogTables (x.limb 0) = o
+  cases o <;> dsimp only <;> omega
+
 section Reader
 
 variable {rd : Reader} {rdV : MachineValue}
   (hrd : ∀ a : K, RunsApp P rdV [encodeValue a] (encodeValue (rd a)))
   {R : ℕ} (hR : ∀ a : K, appCost P rdV [encodeValue a] ≤ R)
 include hrd hR
+
+/-- **A child's count** (`kidCountKC`), at a position below `2^40`: its cell and its logarithm. -/
+theorem kidCountK_cost (hP : Includes P kidCountKC.costDeps) (p : E) (c : ℕ) (hc : c < 2 ^ 40) :
+    machineCost P kidCountKC.costIdx
+      [encodeValue discreteLogTables, rdV, encodeValue p, encodeValue c] ≤ kidCountPriceK R := by
+  rw [kidCountKC.costEq P hP discreteLogTables rd rdV hrd]
+  have := cellAt_cost P hrd hR (by includes) p c hc
+  cost_facts [cellLogK_cost P]
+  unfold kidCountPriceK
+  omega
+
+/-- **The children's counts** (`kidCountsKC`), at most `16` children: `kidCountsPriceK R`. -/
+theorem kidCountsK_cost (hP : Includes P kidCountsKC.costDeps) {σ : Val} {σV : MachineValue}
+    (hσ : ∀ a, RunsApp P σV [encodeValue a] (encodeValue (σ a)))
+    (hS : ∀ v : V, v.idx < 2 ^ 64 → appCost P σV [encodeValue v] ≤ R + 1400)
+    (hk : LeanVM.Cost.Decoder.nKidsD discreteLogTables σ ≤ 16) :
+    machineCost P kidCountsKC.costIdx [encodeValue discreteLogTables, rdV, σV] ≤
+      kidCountsPriceK R := by
+  rw [kidCountsKC.costEq P hP discreteLogTables rd rdV hrd σ σV hσ]
+  have hG := gLog_bound P (by includes)
+  have hn := nKids_costK P hσ hS discreteLogTables (by includes) hG
+  have m := rangeMap_le P (by includes) (by includes) (kidCountK discreteLogTables rd (σ (.n 1000)))
+    (.closure kidCountsKC.lam0.costIdx [encodeValue discreteLogTables, rdV, encodeValue (σ (.n 1000))])
+    (fun c ↦ RunsApp.of_spec (kidCountsKC.lam0.costSpec P (by includes) discreteLogTables rd rdV hrd
+      (σ (.n 1000)) c))
+    (kidCountPriceK R + 100) (LeanVM.Cost.Decoder.nKidsD discreteLogTables σ) 16 hk (by norm_num)
+    (fun c hc ↦ by
+      rw [appCost_fn, List.cons_append, List.cons_append, List.cons_append, List.nil_append,
+        kidCountsKC.lam0.costEq P (by includes) discreteLogTables rd rdV hrd]
+      have := kidCountK_cost P hrd hR (by includes) (σ (.n 1000)) c (by omega)
+      simp only [List.length_cons, List.length_nil]
+      omega)
+  have h1000 := hS (.n 1000) (by idx_lt)
+  unfold kidCountsPriceK
+  omega
 
 /-- **The frames stage** (`decTopFramesKC`), the entry table sorted of at most `2^e` pairs, the
 counts within `16`, `2^20`, `2^20`: at most `framesPriceK e R`. -/
@@ -96,15 +148,22 @@ theorem decTopFramesK_costK (hP : Includes P decTopFramesKC.costDeps)
       (mainValDK locsTableK rd (.n 27)) a ha)
     discreteLogTables (by includes) hG hc
     (fun c _ ↦ proofClosure_costK P hrd hR ht hs (by includes) _ (by simp [Decoder.subArgsK]))
-  have hO : ∀ w : LeanVM.Node.NodeWitness, machineCost P Decoder.decoderOutputC.costIdx
-      [encodeValue discreteLogTables, .closure decTopStatesKC.lam1.costIdx [encodeValue locsTableK, rdV],
-        rdV, encodeValue w] ≤
-        (2 * (R + 1400) + 45) + decStmtPrice gLogPrice R (R + 1400) (2 ^ 20) + 15 := fun w ↦
-    decoderOutput_cost P (by includes) discreteLogTables _ _ hσ rd rdV hrd w _ _
-      (decSeed_costK P hσ hS (by includes))
-      (decStmt_costK P hσ hS hrd hR discreteLogTables (by includes) hG (2 ^ 20) hc.xmssClaims
-        hc.sphincsClaims)
-  cost_facts [hO]
+  have hO : ∀ (w : LeanVM.Node.NodeWitness) (cs : List ℕ),
+      machineCost P decoderOutputKC.costIdx
+        [encodeValue discreteLogTables, .closure decTopStatesKC.lam1.costIdx
+          [encodeValue locsTableK, rdV], rdV, encodeValue w, encodeValue cs] ≤
+        (2 * (R + 1400) + 45) + decStmtPrice gLogPrice R (R + 1400) (2 ^ 20) + 15 +
+          ((R + 1400) + 122500 + 100) := fun w cs ↦ by
+    rw [decoderOutputKC.costEq P (by includes) discreteLogTables _ _ hσ rd rdV hrd,
+      saltedDecodedOfC.costEq P (by includes)]
+    have hA := decSeed_costK P hσ hS (by includes)
+    have hT := decStmt_costK P hσ hS hrd hR discreteLogTables (by includes) hG (2 ^ 20)
+      hc.xmssClaims hc.sphincsClaims
+    have h1002 := hS (.n 1002) (by idx_lt)
+    cost_facts [cellLogK_cost P, hA, hT]
+    omega
+  have hK := kidCountsK_cost P hrd hR (by includes) hσ hS hc.kids
+  cost_facts [hO, hK]
   unfold framesPriceK
   omega
 

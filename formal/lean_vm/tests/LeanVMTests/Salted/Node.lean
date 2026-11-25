@@ -11,7 +11,7 @@ salt) against the definitions of `LeanVM/Salted/Hash.lean`:
 
 * the claim lists' keyed digests (`keyedHash` of `claimListPreimage`), the DA claim's keyed digest
   (`saltedDaClaimDigest`), its membership challenge (`membershipChallenge`) and the statement's
-  salted digest (`saltedStatementDigest`) are the Rust's (`claim_list_digest`,
+  salted digest with a node count (`saltedStatementDigest`) are the Rust's (`claim_list_digest`,
   `verifier::da::digest`, `membership_challenge`, `statement_digest`);
 * the batching of two children's true claims, run from the batching's seed call under the seed
   (`batchingSeed`) with the Rust's hints, defers the Rust's claim (`aggregate_deferred_claims`);
@@ -49,10 +49,16 @@ open LeanVM.Protocol.KeccakHash LeanVM.Node Recursion.Salted
 def vectorStatement : NodeStatement :=
   ⟨⟨NodeVectors.xmss, NodeVectors.sphincs, NodeVectors.daDigest⟩, NodeVectors.defer⟩
 
-#guard saltedStatementDigest NodeVectors.seed vectorStatement = NodeVectors.statementDigest
+#guard saltedStatementDigest NodeVectors.seed vectorStatement NodeVectors.nodeCount =
+  NodeVectors.statementDigest
 
 -- Mutation: another seed, another digest.
-#guard saltedStatementDigest (Vector.replicate 4 0) vectorStatement ≠ NodeVectors.statementDigest
+#guard saltedStatementDigest (Vector.replicate 4 0) vectorStatement NodeVectors.nodeCount ≠
+  NodeVectors.statementDigest
+
+-- Mutation: another node count, another digest.
+#guard saltedStatementDigest NodeVectors.seed vectorStatement (NodeVectors.nodeCount + 1) ≠
+  NodeVectors.statementDigest
 
 /-! ## The batching -/
 

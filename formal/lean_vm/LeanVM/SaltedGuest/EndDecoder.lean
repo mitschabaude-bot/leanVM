@@ -39,11 +39,11 @@ decoding the decoder's output (within its size bound and budget) decodes to has 
 at most `Decoder.decodingSizeBoundK`. -/
 theorem saltedGuest_decodingsBounded :
     ∀ (execution : Semantics.Execution saltedGuest.program) (output : Cost.MachineValue)
-      (decoding : Node.SeedStatementAndWitness),
+      (decoding : Recursion.Salted.SaltedDecoding),
       Cost.outputWithin saltedGuest.decoder saltedGuest.decoderSizeBound
           (saltedGuest.decoderBudget execution)
           (Cost.encodeGuestWitnessDecoderInput saltedGuest.program execution) = some output →
-        Cost.decodeDecoded output = some decoding →
+        Cost.MachineDecoding.decodeValue output = some decoding →
         (Cost.encodeValue decoding).size ≤ Decoder.decodingSizeBoundK := by
   intro execution output decoding h hd
   unfold saltedGuest at h

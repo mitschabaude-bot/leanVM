@@ -10,7 +10,7 @@ import LeanVM.SaltedGuest.EndSound
 
 open LeanVM.SaltedGuest.End
 
-example {dec : LeanVM.Guest.Core.Val → LeanVM.Guest.Core.Reader → FrameMap → LeanVM.Node.SeedStatementAndWitness}
+example {dec : LeanVM.Guest.Core.Val → LeanVM.Guest.Core.Reader → FrameMap → Recursion.Salted.SaltedDecoding}
     {decoder : LeanVM.Cost.MachineProgram} {sizeBound : ℕ}
     {budget : LeanVM.Semantics.Execution LeanVM.SaltedGuest.guestProgram → ℕ}
     (h : Obligations dec) (hd : DecoderComputes decoder sizeBound budget dec) :

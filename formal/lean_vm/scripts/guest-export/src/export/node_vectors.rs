@@ -100,7 +100,9 @@ pub fn file() -> File {
         bytecode_point: elements(&mut rng, kbcv),
         bytecode_value: element(&mut rng),
     };
-    let statement = statement_digest(seed, &xmss_typed, &sphincs_typed, da, &defer);
+    // A node count past `2^32`, its cell a power of `g` of a large exponent.
+    let node_count: u64 = (1 << 40) + 5;
+    let statement = statement_digest(seed, &xmss_typed, &sphincs_typed, da, &defer, node_count);
 
     // Two children with true claims on the stacked bytecode.
     let subproofs: Vec<DeferredSubproof> = (0..2)
@@ -177,7 +179,7 @@ pub fn file() -> File {
     .unwrap();
     writeln!(
         out,
-        "/-- `statement_digest` of the claims, `daDigest` and `defer` under `seed`. -/\ndef statementDigest : Digest := {}\n",
+        "/-- A node count. -/\ndef nodeCount : ℕ := {node_count}\n\n/-- `statement_digest` of the claims, `daDigest`, `defer` and `nodeCount` under `seed`. -/\ndef statementDigest : Digest := {}\n",
         cells_digest(&statement)
     )
     .unwrap();

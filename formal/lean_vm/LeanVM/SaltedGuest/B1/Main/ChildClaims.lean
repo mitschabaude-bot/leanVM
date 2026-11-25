@@ -26,12 +26,6 @@ open LeanVM.Node
 
 @[expose] public section
 
-theorem gLog_lt (x : E) : gLog x < 2 ^ 34 := by
-  unfold gLog
-  rcases indexSearch 34 (x.limb 0) with _ | i
-  · simp
-  · simp
-
 theorem segCount_le (rd : Reader) (σ : Val) (lo len a b : ℕ) : segCount rd σ lo len a b ≤ len := by
   unfold segCount
   exact (List.length_filter_le _ _).trans (by simp)

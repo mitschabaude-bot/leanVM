@@ -22,14 +22,15 @@ vectors `scripts/guest-export` writes:
 
 Then it reads the cases written by the exporter's ignored test `node_diff`
 (`scripts/guest-export/src/export/node_diff.rs`, format `leanvm-salted-node 1`): a real salted
-aggregation's seed, public input, statement `s` and node witness `w`. For each case it checks
+aggregation's seed, public input, statement `s` with its node count `n`, node witness `w` and
+children's counts. For each case it checks
 
 * the seed is the manifest's;
-* the public input is the two words of `saltedStatementDigest seed s` (`nodeInputAt`'s first
+* the public input is the two words of `saltedStatementDigest seed s n` (`nodeInputAt`'s first
   digest);
 * `w` holds `s` under the seed, `SaltedNodeRelation`'s parts, each computed: every child's
   deferred claim has the bytecode's shape and its proof is accepted by the deferring verifier with
-  a second public digest under the keyed hash for its statement's salted digest
+  a second public digest under the keyed hash for its statement's salted digest with its count
   (`SaltedChildrenProven`, `keyedVerifyDeferred`); every raw signature verifies and every
   signature claim is a raw signature's or a child's (`SignatureClaimsHeld`); the DA digest is the
   keyed digest of the claim the directly checked matrix opens under the keyed hash, that claim's
@@ -37,7 +38,8 @@ aggregation's seed, public input, statement `s` and node witness `w`. For each c
   (`SaltedDaDigestHeld`, `OpensUnder`, its commitment computed row by row,
   `LeanDa.commitCodewords_eq_commitCells`); and the batching, from the batching's seed call under
   the seed, defers the statement's claim (`SaltedDeferredClaimBatched`, its transcript as
-  `LeanVM.Node.batchWith`), or a leaf defers the bytecode at zero.
+  `LeanVM.Node.batchWith`), or a leaf defers the bytecode at zero; and the node count is one more
+  than the children's, each below `2^60` (`NodeCountHeld`).
 
 It prints each check and exits with `1` if any fails.
 -/
@@ -108,24 +110,28 @@ def deferR : R DeferredClaim := do
   expect "defer"
   return ⟨← many eR, ← eR⟩
 
-def statementR : R NodeStatement := do
+/-- A statement and its node count. -/
+def statementR : R (NodeStatement × ℕ) := do
   expect "xmss"
   let xmss ← many do let ((r, p), m) ← claimR; return ((⟨r, p⟩ : HashSig.PublicKey), m)
   expect "sphincs"
   let sphincs ← many do let ((p, r), m) ← claimR; return ((⟨p, r⟩ : Sphincs.PublicKey), m)
   expect "da"
   let da ← digestR
-  return ⟨⟨xmss, sphincs, da⟩, ← deferR⟩
+  let defer ← deferR
+  expect "count"
+  return (⟨⟨xmss, sphincs, da⟩, defer⟩, ← nat)
 
-def childR : R Child := do
+/-- A child and its node count. -/
+def childR : R (Child × ℕ) := do
   expect "child"
-  let statement ← statementR
+  let (statement, count) ← statementR
   expect "fresh"
   let fresh : BytecodeClaim := ⟨← many eR, ← eR⟩
   expect "proof"
   let stream ← many eR
   let openings ← many do many do return (⟨← nat, ← many kR, ← many digestR⟩ : Opening)
-  return ⟨statement, fresh, ⟨stream, openings⟩⟩
+  return (⟨statement, fresh, ⟨stream, openings⟩⟩, count)
 
 def fn128 {n : Nat} (xs : List (BitVec 128)) : Fin n → BitVec 128 := fun i => xs.getD i 0
 
@@ -176,14 +182,16 @@ structure Case where
   seed : Digest
   publicInput : List E
   statement : NodeStatement
+  nodeCount : ℕ
   witness : NodeWitness
+  childCounts : List ℕ
 
 def caseR : R Case := do
   expect "leanvm-salted-node"; expect "1"
   expect "case"; let name ← tok
   expect "seed"; let seed ← digestR
   expect "public_input"; let publicInput ← many eR
-  expect "statement"; let statement ← statementR
+  expect "statement"; let (statement, nodeCount) ← statementR
   expect "children"; let children ← many childR
   expect "raw_xmss"; let xmss ← many rawXmssR
   expect "raw_sphincs"; let sphincs ← many rawSphincsR
@@ -194,7 +202,8 @@ def caseR : R Case := do
   let stars ← many eR
   let hints : BatchingHints := ⟨pairs bc, stars.getD 0 0⟩
   expect "end"
-  return ⟨name, seed, publicInput, statement, ⟨children, xmss, sphincs, da, hints⟩⟩
+  return ⟨name, seed, publicInput, statement, nodeCount,
+    ⟨children.map (·.1), xmss, sphincs, da, hints⟩, children.map (·.2)⟩
 
 def readCase (path : System.FilePath) : IO Case := do
   let text ← IO.FS.readFile path
@@ -242,16 +251,19 @@ def caseChecks (c : Case) : List (String × (Unit → Bool)) :=
   let w := c.witness
   let seed := c.seed
   let shaped := fun (d : DeferredClaim) => d.bytecodePoint.length == Nat.log2 bytecode.length
-  let input := PublicInput.ofDigest (saltedStatementDigest seed s)
+  let input := PublicInput.ofDigest (saltedStatementDigest seed s c.nodeCount)
   [("the seed is the manifest's", fun (_ : Unit) => digestEq seed LeanVMTests.SaltedGuest.Manifest.seed),
     ("the public input is the statement's salted digest", fun (_ : Unit) =>
       [input.word0, input.word1] == c.publicInput),
     ("the statement's deferred claim is shaped", fun (_ : Unit) => shaped s.deferredClaim)] ++
-  w.children.zipIdx.flatMap (fun (ch, i) =>
+  (w.children.zip c.childCounts).zipIdx.flatMap (fun ((ch, n), i) =>
     [(s!"child {i}'s deferred claim is shaped", fun (_ : Unit) => shaped ch.statement.deferredClaim),
       (s!"child {i}'s proof is accepted under the seed (keyedVerifyDeferred)", fun (_ : Unit) =>
-        keyedVerifyDeferred bytecode seed (saltedStatementDigest seed ch.statement) ch.freshClaim
+        keyedVerifyDeferred bytecode seed (saltedStatementDigest seed ch.statement n) ch.freshClaim
           ch.proof)]) ++
+  [("the node count is one more than the children's, each below 2^60", fun (_ : Unit) =>
+      c.childCounts.length == w.children.length && c.childCounts.all (· < childCountBound) &&
+        c.nodeCount == c.childCounts.sum + 1)] ++
   ((held w.children "leanXMSS" s.claims.xmss w.xmssSignatures (fun cl σ
       => LeanXmss.verifyWithKeccak cl.1 cl.2 σ)
     (fun ch cl => ch.statement.claims.xmss.any (· == cl)) ++
@@ -272,8 +284,9 @@ def caseChecks (c : Case) : List (String × (Unit → Bool)) :=
   [if w.children = [] then
       ("the leaf defers the bytecode at zero", fun (_ : Unit) => s.deferredClaim.bytecodePoint.all (· == 0))
     else ("the batching from the seed's batching seed call defers the statement's claim", fun (_ : Unit) =>
-      (Id.run (batchWith (m := Id) keccakF1600 (batchingSeed seed) (saltedChildClaims seed w.children)
-        w.batchingHints)).map DeferredClaim.cells == some s.deferredClaim.cells)]
+      (Id.run (batchWith (m := Id) keccakF1600 (batchingSeed seed)
+        (saltedChildClaims seed w.children c.childCounts) w.batchingHints)).map DeferredClaim.cells ==
+          some s.deferredClaim.cells)]
 
 /-- The vectors' checks. -/
 def vectorChecks : List (String × (Unit → Bool)) := [

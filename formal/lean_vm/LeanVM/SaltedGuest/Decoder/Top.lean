@@ -25,7 +25,9 @@ once and passed down:
 * `decTopStatesK`: the salted `main`'s valuation (`mainValK`) and at the deployed numbers
   (`mainValDK`), and the entry table (`entryArrayTK`, the salted precondition
   `Located.preTestAtK D T Pw rd`);
-* `decTopFramesK`: the decoding (`decoderOutput`: the seed, the statement), the witness by the
+* `decTopFramesK`: the decoding (`decoderOutputK`: the seed, the statement, the node's count, the
+  logarithm of `main`'s deployed-numbered word `1002`, and the children's counts `kidCountsK`, each
+  the logarithm of its cell of `child_count`, the word `1000`), the witness by the
   deployed staged `decWitStaged` with the salted readers (`xmssAtFrameTK`, `sphincsAtFrameTK`,
   `daAtFrameK` with the key's word `34`, `proofAtFrameK`, `hintsAtFrameK` with the seed's words),
   the frame map the closure `frameAtAK table locs rd`.
@@ -70,22 +72,57 @@ cost_compile preChunk7C := preChunk7
 cost_compile preTableKC := preTableK
 cost_compile preTestAtKC := Located.preTestAtK
 
+/-! ## The node counts -/
+
+/-- **A count's cell's logarithm**, the logarithm's tables `D` given (`B1.Main.cellLog`). -/
+def cellLogK (D : DiscreteLogTables) (x : E) : ℕ := (discreteLogWith D (x.limb 0)).getD 0
+
+/-- **A child's node count** off the cell `child_count[c]` at `p`, the logarithm's tables `D`
+given (`B1.Main.kidCount`). -/
+noncomputable def kidCountK (D : DiscreteLogTables) (rd : Reader) (p : E) (c : ℕ) : ℕ :=
+  cellLogK D (LeanVM.Guest.B1.Main.cellAt rd p c)
+
+/-- **The children's node counts** off `main`'s valuation at the deployed numbers `σ`
+(`B1.Main.childCountsOf`). -/
+noncomputable def kidCountsK (D : DiscreteLogTables) (rd : Reader) (σ : Val) : List ℕ :=
+  (List.range (nKidsD D σ)).map (kidCountK D rd (σ (.n 1000)))
+
+/-- A salted decoding of its five fields. Compiled as a function of its own: the caller passes the
+fields as values. -/
+def saltedDecodedOf (s : LeanVM.Protocol.Digest) (st : NodeStatement) (n : ℕ) (w : NodeWitness)
+    (cs : List ℕ) : Recursion.Salted.SaltedDecoding :=
+  ⟨s, st, n, w, cs⟩
+
+/-- **The salted decoding**: the seed, the statement and the node's count (the logarithm of the
+word `1002`) off `main`'s valuation at the deployed numbers `σ` and the reader `rd`, the witness
+`w` and the children's counts `cs` given. -/
+noncomputable def decoderOutputK (D : DiscreteLogTables) (σ : Val) (rd : Reader) (w : NodeWitness)
+    (cs : List ℕ) : Recursion.Salted.SaltedDecoding :=
+  saltedDecodedOf (LeanVM.Guest.B1.Main.decSeed σ) (decStmtD D σ rd) (cellLogK D (σ (.n 1002))) w cs
+
+cost_compile cellLogKC := cellLogK
+cost_compile kidCountKC := kidCountK
+cost_compile kidCountsKC := kidCountsK
+cost_compile saltedDecodedOfC := saltedDecodedOf
+cost_compile decoderOutputKC := decoderOutputK
+
 /-! ## The top -/
 
 /-- **The decoding off `main`'s valuations and the entry table**: the salted valuation `σs` and
 at the deployed numbers `σd`. -/
 noncomputable def decTopFramesK (D : DiscreteLogTables) (R : ReaderTabs) (W : WhirTabs)
     (locs : Array (Array ℕ)) (rd : Reader) (σs σd : Val)
-    (table : Array (Guest.Located.CallKey × K)) : SeedStatementAndWitness :=
-  decoderOutput D σd rd (decWitStaged D σd rd (xmssAtFrameTK R table locs rd)
+    (table : Array (Guest.Located.CallKey × K)) : Recursion.Salted.SaltedDecoding :=
+  decoderOutputK D σd rd (decWitStaged D σd rd (xmssAtFrameTK R table locs rd)
     (sphincsAtFrameTK R table locs rd (σd (.n 47))) (daAtFrameK D (frameAtAK table locs rd) (σs (.n 55)))
     (proofAtFrameK W rd (frameAtAK table locs rd) (cursorLength D))
     (hintsAtFrameK rd (frameAtAK table locs rd) (σd (.n 26)) (σd (.n 27))))
+    (kidCountsK D rd σd)
 
 /-- The decoding off the reader and the replayed states. -/
 noncomputable def decTopStatesK (D : DiscreteLogTables) (T : Array (Option FnPre))
     (Pw : Array E) (R : ReaderTabs) (W : WhirTabs) (pcT : SortedMap ℕ (List ℕ)) (ac rc : Array ℕ)
-    (locs : Array (Array ℕ)) (rd : Reader) (states : List (Registers K)) : SeedStatementAndWitness :=
+    (locs : Array (Array ℕ)) (rd : Reader) (states : List (Registers K)) : Recursion.Salted.SaltedDecoding :=
   decTopFramesK D R W locs rd (mainValK locs rd) (mainValDK locs rd)
     (entryArrayTK pcT ac rc (Located.preTestAtK D T Pw rd) states rd)
 
@@ -93,14 +130,14 @@ noncomputable def decTopStatesK (D : DiscreteLogTables) (T : Array (Option FnPre
 noncomputable def decTopTablesK (D : DiscreteLogTables) (T : Array (Option FnPre))
     (Pw : Array E) (R : ReaderTabs) (W : WhirTabs) (pcT : SortedMap ℕ (List ℕ)) (ac rc : Array ℕ)
     (locs : Array (Array ℕ)) (tabs : Array (ℕ × ℕ) × Array (ℕ × ℕ)) (prog : LeanIsaProgram) {κ : ℕ}
-    (mem : Vector E (2 ^ κ)) : SeedStatementAndWitness :=
+    (mem : Vector E (2 ^ κ)) : Recursion.Salted.SaltedDecoding :=
   decTopStatesK D T Pw R W pcT ac rc locs (memReader tabs.1 mem)
     (replayStatesOf tabs.1 tabs.2 prog mem)
 
 /-- **The salted decoder's top**: the decoding of an execution of `prog`, its memory the vector
 `mem` of `2^κ` words. -/
 noncomputable def decTopK (prog : LeanIsaProgram) (κ : ℕ) (mem : Vector E (2 ^ κ)) :
-    SeedStatementAndWitness :=
+    Recursion.Salted.SaltedDecoding :=
   decTopTablesK discreteLogTables preTableK genPows readerTabs whirTabsK (pcTableTK entriesK)
     argCountsK retCountsK locsTableK (decoderTables prog κ) prog mem
 

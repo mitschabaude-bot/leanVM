@@ -32,8 +32,8 @@ open LeanVM.Protocol LeanVM.Protocol.KeccakHash Recursion.Salted Recursion.Secon
 
 /-- **The decoding off a memory, by replay**: `dec` at `main`'s frame, the memory, and the
 replayed frame map. -/
-noncomputable def decodeWithR (dec : Val → Reader → FrameMap → SeedStatementAndWitness)
-    {κ : ℕ} (L : MemoryImage κ) : SeedStatementAndWitness :=
+noncomputable def decodeWithR (dec : Val → Reader → FrameMap → SaltedDecoding)
+    {κ : ℕ} (L : MemoryImage κ) : SaltedDecoding :=
   dec (valG L 1 (certOf 1)) L.read (Located.replayFrameVK L)
 
 /-- **The decoder program's obligation, by replay**: on every valid execution of the salted guest
@@ -41,23 +41,24 @@ for a public input of two digests, the decoder, of size at most `sizeBound`, run
 program and execution within `budget`, outputs the encoding of `dec`'s decoding off the memory by
 replay. -/
 def DecoderComputesR (decoder : Cost.MachineProgram) (sizeBound : ℕ)
-    (budget : Execution guestProgram → ℕ) (dec : Val → Reader → FrameMap → SeedStatementAndWitness) :
+    (budget : Execution guestProgram → ℕ) (dec : Val → Reader → FrameMap → SaltedDecoding) :
     Prop :=
   ∀ input (t : Execution guestProgram), ValidExecution₂ guestProgram input t →
     Cost.outputWithin decoder sizeBound (budget t) (Cost.encodeGuestWitnessDecoderInput guestProgram t) =
       some (Cost.encodeValue (decodeWithR dec t.memory))
 
-variable {dec : Val → Reader → FrameMap → SeedStatementAndWitness}
+variable {dec : Val → Reader → FrameMap → SaltedDecoding}
 
 /-- **Every valid execution explains its public input under its second digest**, its decoding by
 replay. -/
 theorem explains_ofR (hb2 : B2SoundL) (hmain : MainSound dec) (input : PublicInput₂)
     (t : Execution guestProgram) (hv : ValidExecution₂ guestProgram input t) :
     (decodeWithR dec t.memory).seed = publicInputDigest input.second ∧
-      saltedStatementDigest (decodeWithR dec t.memory).seed (decodeWithR dec t.memory).statement =
-        publicInputDigest input.first ∧
+      saltedStatementDigest (decodeWithR dec t.memory).seed (decodeWithR dec t.memory).statement
+          (decodeWithR dec t.memory).nodeCount = publicInputDigest input.first ∧
       SaltedNodeRelation (bytecodeWords guestProgram) (decodeWithR dec t.memory).seed
-        (decodeWithR dec t.memory).statement (decodeWithR dec t.memory).witness ∧
+        (decodeWithR dec t.memory).statement (decodeWithR dec t.memory).nodeCount
+        (decodeWithR dec t.memory).witness (decodeWithR dec t.memory).childCounts ∧
       (decodeWithR dec t.memory).witness.children.length ≤ 16 := by
   obtain ⟨hb, h0, h1⟩ := mainBodyL_of hb2 hv.1
   obtain ⟨h2, h3⟩ := second_loads hv

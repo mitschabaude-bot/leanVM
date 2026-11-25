@@ -35,7 +35,7 @@ theorem b2SoundL : B2SoundL :=
   b2SoundL_of expTablesSound vsDimsKnown_proved vsKnown_proved walkKnown_proved
 
 /-- **The salted guest is knowledge sound**, from `main`'s obligation and the decoder program's. -/
-theorem knowledgeSound_of_main {dec : Val → Reader → FrameMap → SeedStatementAndWitness}
+theorem knowledgeSound_of_main {dec : Val → Reader → FrameMap → SaltedDecoding}
     {decoder : Cost.MachineProgram} {sizeBound : ℕ} {budget : Execution guestProgram → ℕ}
     (hmain : MainSound dec) (hd : DecoderComputes decoder sizeBound budget dec) :
     (⟨guestProgram, decoder, sizeBound, budget⟩ : SaltedGuest).KnowledgeSound :=

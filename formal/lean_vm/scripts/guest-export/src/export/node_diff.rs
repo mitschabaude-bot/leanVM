@@ -75,7 +75,8 @@ impl Out {
         self.e(c.bytecode_value);
     }
 
-    /// `NodeStatement`: the claims, the DA digest under the seed (`verifier::da::digest`), and the deferred claim.
+    /// `NodeStatement`: the claims, the DA digest under the seed (`verifier::da::digest`), and the deferred claim;
+    /// then the node count.
     fn statement(&mut self, p: &EthereumProof) {
         self.tag("xmss");
         self.n(p.claims.xmss.len());
@@ -92,6 +93,8 @@ impl Out {
         self.tag("da");
         self.bytes(&verifier::da::digest(&seed().to_bytes(), p.claims.da_commitment));
         self.deferred(&p.defer);
+        self.tag("count");
+        self.n(p.node_count as usize);
     }
 
     /// The leaf index, then each layer, bottom first, its randomizer, chain values and path: read off the

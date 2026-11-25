@@ -15,10 +15,12 @@ public import LeanVM.Cost.Decoder.TopEq
 /-!
 # The salted decoder's top is the decoding by replay
 
+* `kidCountsK_tables`: the children's counts at the logarithm's tables are `childCountsOf`;
 * `decTopFramesK_eq`: off any entry table and frame cells, the decoding is
   `B1.Main.decK B1.VerifySub.vsPiOfK` at the salted valuation `σs`, its deployed numbers
   `B1.Main.mainVal σs`, and the frame map by name of `frameAtAK table locs rd` (`byName`): the
-  deployed staged witness (`decWitStaged_eq`), the statement (`decStmtD_tables`), the cursor's
+  deployed staged witness (`decWitStaged_eq`), the statement (`decStmtD_tables`), the counts
+  (`kidCountsK_tables`), the cursor's
   length (`cursorLength_tables`, `cursorLenWith_eq`) and the salted readers (`ReadersEq.lean`,
   `ProofEq.lean`);
 * **`decTopK_eq`**: on a memory below `2^64` words, the compiled top on the salted guest is
@@ -36,15 +38,25 @@ open LeanVM.Node LeanVM.Cost.Decoder LeanVM.SaltedGuest.Located LeanVM.SaltedGue
 
 @[expose] public section
 
+/-- **The children's counts at the logarithm's tables** are `B1.Main.childCountsOf`. -/
+theorem kidCountsK_tables (rd : Reader) (σ : Val) :
+    kidCountsK discreteLogTables rd σ = B1.Main.childCountsOf rd σ := by
+  unfold kidCountsK B1.Main.childCountsOf nKidsD
+  rw [gLogD_tables]
+  rfl
+
+/-- **A count's logarithm at the logarithm's tables** is `B1.Main.cellLog`. -/
+theorem cellLogK_tables (x : E) : cellLogK discreteLogTables x = B1.Main.cellLog x := rfl
+
 /-- **Off an entry table, the compiled decoding is `decK vsPiOfK`.** -/
 theorem decTopFramesK_eq (locs : Array (Array ℕ)) (rd : Reader) (σs : Val)
     (table : Array (Guest.Located.CallKey × K)) :
     decTopFramesK discreteLogTables readerTabs whirTabsK locs rd σs (Main.mainVal σs) table =
       Main.decK VerifySub.vsPiOfK σs rd (byName (frameAtAK table locs rd)) := by
-  unfold decTopFramesK decoderOutput decodedOf Main.decK Main.decWitK
+  unfold decTopFramesK decoderOutputK saltedDecodedOf Main.decK Main.decWitK Main.nodeCountOf
   rw [xmssAtFrameTK_eq, sphincsAtFrameTK_eq, daAtFrameK_eq, cursorLength_tables,
     cursorLenWith_eq discreteLog_discreteLogSpec, proofAtFrameK_eq, hintsAtFrameK_eq,
-    decWitStaged_eq, decStmtD_tables]
+    decWitStaged_eq, decStmtD_tables, kidCountsK_tables, cellLogK_tables]
 
 /-- **The salted decoder's compiled top is the decoding by replay**, on a memory below `2^64`
 words. -/
