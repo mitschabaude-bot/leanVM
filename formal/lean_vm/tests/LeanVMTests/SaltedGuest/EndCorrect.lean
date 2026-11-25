@@ -35,5 +35,5 @@ example : LeanVM.SaltedGuest.Bounds.saltedPrice35 = 63883479205009923 := by deci
 #guard_msgs in
 #print axioms LeanVM.SaltedGuest.Decoder.saltedDecoder_bits_le
 
-/-- The bit length's bound evaluated: `57790849`. -/
-example : LeanVM.SaltedGuest.Decoder.saltedDecoderBitsBound = 57790849 := by decide +kernel
+/-- The bit length's bound evaluated: `57794817`. -/
+example : LeanVM.SaltedGuest.Decoder.saltedDecoderBitsBound = 57794817 := by decide +kernel

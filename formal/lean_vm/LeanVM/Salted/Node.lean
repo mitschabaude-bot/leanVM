@@ -25,9 +25,10 @@ count for the statement and one for each child:
 * the deferred claim batches the children's claims in leanVM's batching program run from the
   batching's seed call under `seed` (`SaltedDeferredClaimBatched`);
 * the node count is one more than the sum of the children's counts, one count for each child, each
-  below `2^60` (`NodeCountHeld`). A child's count is then below its parent's
-  (`NodeCountHeld.lt_of_mem`), so no node is its own descendant, and a tree of nodes whose counts
-  are held has at most its root's count of nodes (`CountTree.size_le_count`).
+  positive and below `2^60` (`NodeCountHeld`). A child's count is then below its parent's
+  (`NodeCountHeld.lt_of_mem`), so no node is its own descendant, and a tree whose first nodes in
+  preorder, as many as its root's count, have their counts held has at most its root's count of
+  nodes (`CountTree.length_nodes_le`).
 
 **The guest is a parameter** (`SaltedGuest`): a leanISA program, the program of leanVM's cost
 machine that decodes a node's seed, statement, node count, witness and children's counts from an
@@ -102,11 +103,11 @@ sum of `16` children's counts is below `2^64 - 1`, the order of `g`, in whose ex
 adds them. -/
 abbrev childCountBound : ℕ := 2 ^ 60
 
-/-- **The node count is held**: a count for each child, each below `2^60`, and the node's count
-one more than their sum. -/
+/-- **The node count is held**: a count for each child, each positive and below `2^60`, and the
+node's count one more than their sum. -/
 def NodeCountHeld (nodeCount : ℕ) (witness : NodeWitness) (childCounts : List ℕ) : Prop :=
-  childCounts.length = witness.children.length ∧ (∀ c ∈ childCounts, c < childCountBound) ∧
-    nodeCount = childCounts.sum + 1
+  childCounts.length = witness.children.length ∧
+    (∀ c ∈ childCounts, 0 < c ∧ c < childCountBound) ∧ nodeCount = childCounts.sum + 1
 
 /-- **The salted node relation**, `nodeCount` the statement's node count and `childCounts` the
 children's: leanVM's node relation with every hash and sponge under `seed`, and the node count one
@@ -159,7 +160,7 @@ theorem NodeCountHeld.lt_order {nodeCount : ℕ} {witness : NodeWitness} {childC
   obtain ⟨hl, hb, hn⟩ := h
   have hs : childCounts.sum ≤ childCounts.length * (childCountBound - 1) := by
     have := sum_map_le (l := childCounts) (f := id) (g := fun _ ↦ childCountBound - 1)
-      (fun c hc ↦ Nat.le_sub_one_of_lt (hb c hc))
+      (fun c hc ↦ Nat.le_sub_one_of_lt (hb c hc).2)
     simpa using this
   rw [hl] at hs
   have : witness.children.length * (childCountBound - 1) ≤ 16 * (childCountBound - 1) :=
@@ -176,26 +177,59 @@ inductive CountTree where
 def CountTree.count : CountTree → ℕ
   | .node count _ => count
 
-/-- The number of nodes of a tree. -/
-def CountTree.size : CountTree → ℕ
-  | .node _ children => (children.map CountTree.size).sum + 1
+/-- The subtrees at a tree's root. -/
+def CountTree.children : CountTree → List CountTree
+  | .node _ children => children
 
-/-- **The counts of a tree are held**: at every node, the count is at least one more than the sum
-of its subtrees' counts. A node whose count is held (`NodeCountHeld`), its subtrees' counts its
-children's, satisfies it with equality. -/
-inductive CountTree.Held : CountTree → Prop
-  /-- A node's count is at least one more than its subtrees', whose counts are held. -/
-  | node {count : ℕ} {children : List CountTree} :
-      (children.map CountTree.count).sum + 1 ≤ count → (∀ t ∈ children, t.Held) →
-        (CountTree.node count children).Held
+/-- A tree's nodes in preorder, each as the subtree at it: the tree, then its subtrees' nodes in
+turn. -/
+def CountTree.nodes : CountTree → List CountTree
+  | .node count children => .node count children :: children.flatMap CountTree.nodes
 
-/-- **A tree has at most its root's count of nodes**, where its counts are held. -/
-theorem CountTree.size_le_count {t : CountTree} (h : t.Held) : t.size ≤ t.count := by
-  induction h with
-  | @node count children hc _ ih =>
-    have hs := sum_map_le (f := CountTree.size) (g := CountTree.count) ih
-    simp only [CountTree.size, CountTree.count]
+/-- **A node's count is held**: it is at least one more than the sum of its subtrees' counts, each
+positive. A node whose count is held (`NodeCountHeld`), its subtrees' counts its children's,
+satisfies it with equality. -/
+def CountTree.HeldAt (t : CountTree) : Prop :=
+  (t.children.map CountTree.count).sum + 1 ≤ t.count ∧ ∀ s ∈ t.children, 0 < s.count
+
+/-- **A tree has at most its root's count of nodes** where its first `j` nodes in preorder have
+their counts held, the root's count positive and at most `j`. The counts of the first `n` nodes
+bound the tree: a subtree's nodes are a block of consecutive nodes, at most its count by induction,
+and the blocks of a node's subtrees, met in turn, fit in the count left. -/
+theorem CountTree.length_nodes_le : ∀ (t : CountTree) (j : ℕ), 0 < t.count → t.count ≤ j →
+    (∀ s ∈ t.nodes.take j, s.HeldAt) → t.nodes.length ≤ t.count
+  | .node n children, j, h0, hj, hp => by
+    simp only [CountTree.count] at h0 hj
+    obtain ⟨j, rfl⟩ : ∃ i, j = i + 1 := ⟨j - 1, by omega⟩
+    simp only [CountTree.nodes, List.take_succ_cons, List.mem_cons, forall_eq_or_imp] at hp
+    obtain ⟨⟨hsum, hpos⟩, hrest⟩ := hp
+    simp only [CountTree.children, CountTree.count] at hsum hpos
+    have aux : ∀ ps : List CountTree, (∀ p ∈ ps, p ∈ children) → ∀ i,
+        (ps.map CountTree.count).sum ≤ i → (∀ s ∈ (ps.flatMap CountTree.nodes).take i, s.HeldAt) →
+        (ps.flatMap CountTree.nodes).length ≤ (ps.map CountTree.count).sum := by
+      intro ps
+      induction ps with
+      | nil => intro _ _ _ _; simp
+      | cons p ps ih =>
+        intro hsub i hi hgi
+        rw [List.flatMap_cons, List.take_append] at hgi
+        simp only [List.map_cons, List.sum_cons] at hi
+        have hmem : p ∈ children := hsub p List.mem_cons_self
+        have h1 : p.nodes.length ≤ p.count := CountTree.length_nodes_le p i (hpos p hmem)
+          (by omega) fun s hs ↦ hgi s (List.mem_append_left _ hs)
+        have h2 := ih (fun q hq ↦ hsub q (List.mem_cons_of_mem _ hq)) (i - p.nodes.length)
+          (by omega) fun s hs ↦ hgi s (List.mem_append_right _ hs)
+        simp only [List.flatMap_cons, List.length_append, List.map_cons, List.sum_cons]
+        omega
+    have h := aux children (fun _ h ↦ h) j (by omega) hrest
+    simp only [CountTree.nodes, CountTree.count, List.length_cons]
     omega
+
+/-- **A tree has at most its root's count of nodes** where every node's count is held and the
+root's count is positive. -/
+theorem CountTree.length_nodes_le_of_held {t : CountTree} (h0 : 0 < t.count)
+    (h : ∀ s ∈ t.nodes, s.HeldAt) : t.nodes.length ≤ t.count :=
+  t.length_nodes_le t.count h0 le_rfl fun s hs ↦ h s (List.mem_of_mem_take hs)
 
 /-! ## The salted guest -/
 

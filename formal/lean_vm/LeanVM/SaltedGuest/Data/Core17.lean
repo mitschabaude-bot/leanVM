@@ -87,7 +87,7 @@ noncomputable def body : List Core.Stmt := (
   .atom (.mul (.n 38) (.n 11) (.n 37)) ::
   .atom (.hint (.witness "child_da" (.heap (.n 38) 0 2))) ::
   .atom (.hint (.witness "child_count" (.stack [.n 39, .n 40, .n 41, .n 42]))) ::
-  .atom (.const (.n 43) (word 36029349141217455 0 0)) ::
+  .atom (.const (.n 43) (word 9241386711425384538 0 0)) ::
   .atom (.rangeCheck (.n 39) (.n 44) (.n 45) (.n 46) (.n 43)) ::
   .atom (.const (.n 47) (word 36029349141217455 0 0)) ::
   .atom (.rangeCheck (.n 40) (.n 48) (.n 49) (.n 50) (.n 47)) ::
@@ -143,37 +143,39 @@ noncomputable def body : List Core.Stmt := (
   .atom (.mul (.n 104) (.n 103) (.n 103)) ::
   .atom (.mul (.n 105) (.n 104) (.n 104)) ::
   .atom (.mul (.n 106) (.n 105) (.n 42)) ::
-  .atom (.mul (.n 107) (.n 12) (.n 0)) ::
-  .atom (.load (.n 106) (.n 107) 0) ::
-  .atom (.mul (.n 108) (.n 13) (.n 0)) ::
-  .atom (.load (.n 109) (.n 108) 0) ::
-  .atom (.mul (.n 110) (.n 109) (.n 106)) ::
-  .atom (.mul (.n 111) (.n 13) (.n 0)) ::
-  .atom (.load (.n 110) (.n 111) 1) ::
-  .atom (.load (.n 112) (.n 38) 0) ::
-  .atom (.load (.n 113) (.n 38) 1) ::
-  .call "statement_digest" [.n 14, .n 15, .n 26, .n 27, .n 29, .n 30, .n 112, .n 113, .n 36, .n 106] [.n 114, .n 115] ::
-  .atom (.mul (.n 116) (.n 0) (.n 0)) ::
-  .atom (.mul (.n 117) (.n 16) (.n 116)) ::
-  .atom (.load (.n 114) (.n 117) 0) ::
-  .atom (.mul (.n 118) (.n 16) (.n 116)) ::
-  .atom (.load (.n 115) (.n 118) 1) ::
-  .atom (.mul (.n 119) (.n 0) (.n 0)) ::
-  .atom (.mul (.n 120) (.n 119) (.n 0)) ::
-  .atom (.mul (.n 121) (.n 120) (.n 120)) ::
-  .atom (.mul (.n 122) (.n 121) (.n 121)) ::
+  .atom (.const (.n 107) (word 2 0 0)) ::
+  .atom (.mul (.n 108) (.n 106) (.n 107)) ::
+  .atom (.mul (.n 109) (.n 12) (.n 0)) ::
+  .atom (.load (.n 108) (.n 109) 0) ::
+  .atom (.mul (.n 110) (.n 13) (.n 0)) ::
+  .atom (.load (.n 111) (.n 110) 0) ::
+  .atom (.mul (.n 112) (.n 111) (.n 108)) ::
+  .atom (.mul (.n 113) (.n 13) (.n 0)) ::
+  .atom (.load (.n 112) (.n 113) 1) ::
+  .atom (.load (.n 114) (.n 38) 0) ::
+  .atom (.load (.n 115) (.n 38) 1) ::
+  .call "statement_digest" [.n 14, .n 15, .n 26, .n 27, .n 29, .n 30, .n 114, .n 115, .n 36, .n 108] [.n 116, .n 117] ::
+  .atom (.mul (.n 118) (.n 0) (.n 0)) ::
+  .atom (.mul (.n 119) (.n 16) (.n 118)) ::
+  .atom (.load (.n 116) (.n 119) 0) ::
+  .atom (.mul (.n 120) (.n 16) (.n 118)) ::
+  .atom (.load (.n 117) (.n 120) 1) ::
+  .atom (.mul (.n 121) (.n 0) (.n 0)) ::
+  .atom (.mul (.n 122) (.n 121) (.n 0)) ::
   .atom (.mul (.n 123) (.n 122) (.n 122)) ::
-  .atom (.mul (.n 124) (.n 18) (.n 123)) ::
-  .call "verify_sub" [.n 114, .n 115, .n 14, .n 15, .n 17, .n 124] [] ::
-  .atom (.mul (.n 125) (.n 20) (.n 25)) ::
-  .atom (.mul (.n 126) (.n 2) (.n 0)) ::
-  .atom (.load (.n 125) (.n 126) 1) ::
-  .atom (.const (.n 127) (word 2 0 0)) ::
-  .atom (.mul (.n 128) (.n 0) (.n 127)) ::
-  .atom (.add (.n 129) (.n 128) (.n 1)) ::
-  .atom (.const (.n 130) (word 2 0 0)) ::
-  .atom (.mul (.n 131) (.n 0) (.n 130)) ::
-  .callIf (.n 129) "__loop4" [.n 131, .n 1, .n 2, .n 3, .n 4, .n 5, .n 6, .n 7, .n 8, .n 9, .n 10, .n 11, .n 12, .n 13, .n 14, .n 15, .n 16, .n 17, .n 18] ::
+  .atom (.mul (.n 124) (.n 123) (.n 123)) ::
+  .atom (.mul (.n 125) (.n 124) (.n 124)) ::
+  .atom (.mul (.n 126) (.n 18) (.n 125)) ::
+  .call "verify_sub" [.n 116, .n 117, .n 14, .n 15, .n 17, .n 126] [] ::
+  .atom (.mul (.n 127) (.n 20) (.n 25)) ::
+  .atom (.mul (.n 128) (.n 2) (.n 0)) ::
+  .atom (.load (.n 127) (.n 128) 1) ::
+  .atom (.const (.n 129) (word 2 0 0)) ::
+  .atom (.mul (.n 130) (.n 0) (.n 129)) ::
+  .atom (.add (.n 131) (.n 130) (.n 1)) ::
+  .atom (.const (.n 132) (word 2 0 0)) ::
+  .atom (.mul (.n 133) (.n 0) (.n 132)) ::
+  .callIf (.n 131) "__loop4" [.n 133, .n 1, .n 2, .n 3, .n 4, .n 5, .n 6, .n 7, .n 8, .n 9, .n 10, .n 11, .n 12, .n 13, .n 14, .n 15, .n 16, .n 17, .n 18] ::
   .ret [] ::
   [])
 

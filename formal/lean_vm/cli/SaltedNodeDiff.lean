@@ -39,7 +39,7 @@ children's counts. For each case it checks
   `LeanDa.commitCodewords_eq_commitCells`); and the batching, from the batching's seed call under
   the seed, defers the statement's claim (`SaltedDeferredClaimBatched`, its transcript as
   `LeanVM.Node.batchWith`), or a leaf defers the bytecode at zero; and the node count is one more
-  than the children's, each below `2^60` (`NodeCountHeld`).
+  than the children's, each positive and below `2^60` (`NodeCountHeld`).
 
 It prints each check and exits with `1` if any fails.
 -/
@@ -261,8 +261,8 @@ def caseChecks (c : Case) : List (String × (Unit → Bool)) :=
       (s!"child {i}'s proof is accepted under the seed (keyedVerifyDeferred)", fun (_ : Unit) =>
         keyedVerifyDeferred bytecode seed (saltedStatementDigest seed ch.statement n) ch.freshClaim
           ch.proof)]) ++
-  [("the node count is one more than the children's, each below 2^60", fun (_ : Unit) =>
-      c.childCounts.length == w.children.length && c.childCounts.all (· < childCountBound) &&
+  [("the node count is one more than the children's, each positive and below 2^60", fun (_ : Unit) =>
+      c.childCounts.length == w.children.length && c.childCounts.all (fun k ↦ 0 < k && k < childCountBound) &&
         c.nodeCount == c.childCounts.sum + 1)] ++
   ((held w.children "leanXMSS" s.claims.xmss w.xmssSignatures (fun cl σ
       => LeanXmss.verifyWithKeccak cl.1 cl.2 σ)

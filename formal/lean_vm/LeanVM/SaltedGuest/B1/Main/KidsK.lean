@@ -15,8 +15,8 @@ public import LeanVM.SaltedGuest.B1.Main.CountK
 
 `KidOkK C rd σ S c k` is the deployed `Main.KidOk` (at the deployed numbering, `MainFactsK`) with
 the child's claim lists' digests the keyed hashes under the seed `S` (`xdig`, `sdig`) and its node
-count `kidCount rd σ c`: below `2^60`, its cell at `child_count · g^c`, multiplied into the running
-count (`count`, `run`), and hashed last into the child's statement (`pdig`). `kid_recK`: from
+count `kidCount rd σ c`: positive and below `2^60`, its cell at `child_count · g^c`, multiplied
+into the running count (`count`, `run`), and hashed last into the child's statement (`pdig`). `kid_recK`: from
 `MainFactsK`, every child has its records, by the salted `child_claim_list_digest` under the key
 (`child_claim_list_digest_soundK`) and the salted `statement_digest` (`statement_digest_soundK`).
 -/
@@ -57,8 +57,9 @@ structure KidOkK (C : CallRel) (rd : Reader) (σ : Val) (S : Digest) (c : ℕ) (
   deflen : k.defer.length = 24
   defreads : ReadsAt rd (σ (.n 396) * gen ^ (24 * c)) k.defer
   hdrcan : AllCanonical [σ (.n 26), σ (.n 27), k.cx0, k.cx1, k.cs0, k.cs1, k.d0, k.d1]
-  /-- The child's node count is below `2^60`, its cell at `child_count · g^c`. -/
-  count : kidCount rd σ c < 2 ^ 60 ∧ LoadHolds rd (σ (.n 1000)) c (gen ^ kidCount rd σ c)
+  /-- The child's node count is positive and below `2^60`, its cell at `child_count · g^c`. -/
+  count : 0 < kidCount rd σ c ∧ kidCount rd σ c < 2 ^ 60 ∧
+    LoadHolds rd (σ (.n 1000)) c (gen ^ kidCount rd σ c)
   /-- The running count after the child is the one before it times the child's. -/
   run : ∃ r, LoadHolds rd (σ (.n 1001)) c r ∧
     LoadHolds rd (σ (.n 1001)) (c + 1) (r * gen ^ kidCount rd σ c)
@@ -76,7 +77,7 @@ theorem kid_recK {rd : Reader} (hm : End.MemOk rd) {σ : Val} {S : Digest} {key 
     ∀ c < lg σ 6, ∃ k : KidRec, KidOkK C rd σ S c k := by
   intro c hc
   obtain ⟨base, cx0, cx1, cs0, cs1, d0, d1, p0, p1, r, ex, es, n, hb, hex, hes, hcx, hcs, hd0, hd1,
-    hn, hcc, hr0, hr1, hsd, hp0, hp1, hsub, hnext⟩ := MF.children c hc
+    hn0, hn, hcc, hr0, hr1, hsd, hp0, hp1, hsub, hnext⟩ := MF.children c hc
   -- the child's count
   have hcc' := loadHolds_gen_pow_iff.mp hcc
   rw [Nat.add_zero] at hcc'
@@ -92,7 +93,8 @@ theorem kid_recK {rd : Reader} (hm : End.MemOk rd) {σ : Val} {S : Digest} {key 
   refine ⟨⟨base, cx0, cx1, cs0, cs1, d0, d1, p0, p1, ex, es, ox, cellsx, os, cellss, defer, mx, ms⟩,
     ?_⟩
   refine ⟨?_, ?_, ⟨hex, hes⟩, hlx, hcanx, hrecx, hmonox, hdigx, hls, hcans, hrecs, hmonos, hdigs,
-    ?_, ?_, hdlen, ?_, ?_, ⟨by rw [hkc]; exact hn, by rw [hkc]; exact hcc'⟩, ⟨r, ?_, ?_⟩,
+    ?_, ?_, hdlen, ?_, ?_, ⟨by rw [hkc]; exact hn0, by rw [hkc]; exact hn,
+      by rw [hkc]; exact hcc'⟩, ⟨r, ?_, ?_⟩,
     by rw [hkc]; exact hpdig, ?_, ?_, ?_⟩
   · have := loadHolds_gen_pow_iff.mp hb; simpa using this
   · have := loadHolds_gen_pow_iff.mp hnext; exact this

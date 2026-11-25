@@ -120,7 +120,7 @@ theorem nodeCountOf_eqK (MF : MainFactsK C rd σ S key)
   have hs := sum_le_length_mul (l := childCountsOf rd σ) (B := 2 ^ 60 - 1) fun x hx ↦ by
     obtain ⟨c, hc, rfl⟩ := List.mem_map.mp hx
     rw [List.mem_range, nKids_eq] at hc
-    exact Nat.le_sub_one_of_lt (hK c hc).count.1
+    exact Nat.le_sub_one_of_lt (hK c hc).count.2.1
   have hl : (childCountsOf rd σ).length ≤ 16 := by
     simp only [childCountsOf, List.length_map, List.length_range, nKids_eq]
     exact MF.kids.2

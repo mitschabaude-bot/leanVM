@@ -24,7 +24,7 @@ Over the executions `SaltedGuest.KnowledgeSound` quantifies over (`ValidExecutio
   `decoderBound = 2^52`);
 * **`saltedGuest_decoderBits`**: the decoder program's bit length (`MachineProgram.bits`, the
   recursion statement's, `LeanVM/Salted/ProgramCode.lean`) is at most `2^64`
-  (`Decoder.saltedDecoder_bits_le`: at most `57790849`);
+  (`Decoder.saltedDecoder_bits_le`: at most `57794817`);
 * **`saltedGuest_correct`**: knowledge soundness, `saltedGuest_decodesWithin`, the hints' rounds
   and the decoder's bits together, the clauses of the recursion's `SaltedGuest.Correct`.
 -/

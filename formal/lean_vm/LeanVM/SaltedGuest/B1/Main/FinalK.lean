@@ -22,8 +22,8 @@ decoded witness and the children's counts (`childCountsOf`): the signatures held
 (`signatures_heldK`), the DA digest under `S` (`da_relK`), every child proven by the deferring
 verifier with a second public digest for its statement with its count (`kid_subK`), the deferred
 claim the leaf's zero point or the batching from the batching's seed call under `S`
-(`batchRun_batchFrom_iff`), the node's count one more than the children's, each below `2^60`
-(`counts_heldK`); and at most `16` children. As the deployed `Main.main_sound_C`.
+(`batchRun_batchFrom_iff`), the node's count one more than the children's, each positive and
+below `2^60` (`counts_heldK`); and at most `16` children. As the deployed `Main.main_sound_C`.
 -/
 
 namespace LeanVM.SaltedGuest.B1.Main
@@ -186,8 +186,8 @@ theorem deferred_batchedK {τ : Val} (hbl : bytecode.length = 2 ^ bytecodeVars)
       rw [readCells_of_readsAt k.defreads k.deflen, deferOfCells_cells k.deflen]
       exact k.defreads
 
-/-- **The decoded node count is held**: a count for each decoded child, each below `2^60`, and the
-node's one more than their sum. -/
+/-- **The decoded node count is held**: a count for each decoded child, each positive and below
+`2^60`, and the node's one more than their sum. -/
 theorem counts_heldK {τ : Val} (MF : MainFactsK C rd τ S key)
     (hK : ∀ c < lg τ 6, KidOkK C rd τ S c (Kr c)) :
     NodeCountHeld (nodeCountOf τ) (decWit τ rd wX wS wD wV wA) (childCountsOf rd τ) := by
@@ -197,7 +197,7 @@ theorem counts_heldK {τ : Val} (MF : MainFactsK C rd τ S key)
     simp only [List.length_map]
   · obtain ⟨c, hc, rfl⟩ := List.mem_map.mp hn
     rw [List.mem_range, nKids_eq] at hc
-    exact (hK c hc).count.1
+    exact ⟨(hK c hc).count.1, (hK c hc).count.2.1⟩
 
 /-- **The salted `main`, soundly, its witness decoded, under a call relation `C`** that unfolds at
 a frame map and lies below the salted core IR's, given the callees' contracts under the seed `S`
