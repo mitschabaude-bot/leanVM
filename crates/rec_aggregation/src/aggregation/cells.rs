@@ -1,10 +1,27 @@
 //! Field-element encodings shared by the host and the guest.
 
+use super::COUNT_RADIX;
 use primitives::field::{F192, g_pow};
 
 /// A count as the guest carries it: in the exponent, `g^n`.
 pub(super) fn count(n: usize) -> F192 {
     F192::from(g_pow(n))
+}
+
+/// A node count as the guest's statement carries it: in the exponent, `g^n`.
+pub(super) fn node_count_cell(n: u64) -> F192 {
+    F192::from(primitives::field::F64::G.pow(u128::from(n)))
+}
+
+/// A child's node count as the guest reads it: its four digits in base [`COUNT_RADIX`], the
+/// most significant first, each in the exponent. The count is at most
+/// [`MAX_NODE_COUNT`](super::MAX_NODE_COUNT).
+pub(super) fn node_count_digits(n: u64) -> Vec<F192> {
+    assert!(n <= super::MAX_NODE_COUNT, "a node count has four digits");
+    (0..4)
+        .rev()
+        .map(|k| count(((n / COUNT_RADIX.pow(k)) % COUNT_RADIX) as usize))
+        .collect()
 }
 
 /// Bytes, each in the exponent: how the guest bounds a value it rebuilds

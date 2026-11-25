@@ -1,4 +1,4 @@
-use super::cells::{count, pack_16_bytes};
+use super::cells::{self, count, pack_16_bytes};
 use super::deferred::{DeferredClaim, bytecode_sums, bytecode_value, bytecode_vars, stacked_bytecode};
 use super::error::{AggregateVerifyError, AggregationError};
 use super::guest::{compile_guest, unified_guest};
@@ -58,15 +58,27 @@ fn signing(
 fn the_wire_layout_is_pinned() {
     let le = u64::to_le_bytes;
     let (point, proof) = (vec![F192::new(1, 2, 3), F192::new(4, 5, 6)], vec![9, 8, 7]);
-    let bytes = encode(&point, &proof);
+    let bytes = encode(17, &point, &proof);
     assert_eq!(
         bytes,
-        [&le(2)[..], &le(1), &le(2), &le(3), &le(4), &le(5), &le(6), &proof].concat()
+        [
+            &le(17)[..],
+            &le(2),
+            &le(1),
+            &le(2),
+            &le(3),
+            &le(4),
+            &le(5),
+            &le(6),
+            &proof
+        ]
+        .concat()
     );
-    assert_eq!(decode(&bytes), Some((point, &proof[..])));
+    assert_eq!(decode(&bytes), Some((17, point, &proof[..])));
     // A count beyond the input, or beyond any input, fails whatever it claims.
-    assert_eq!(decode(&[&le(3)[..], &bytes[8..]].concat()), None);
-    assert_eq!(decode(&le(u64::MAX)), None);
+    assert_eq!(decode(&[&le(17)[..], &le(3), &bytes[16..]].concat()), None);
+    assert_eq!(decode(&[le(17), le(u64::MAX)].concat()), None);
+    assert_eq!(decode(&le(17)), None);
 }
 
 /// The guest compiles to one program, always.
@@ -211,6 +223,103 @@ fn too_many_claims_are_refused() {
     assert!(matches!(result, Err(AggregationError::TooManyClaims)), "over the cap");
     let result = aggregate(seed(), &[child], vec![], vec![], &[], None, LOG_INV_RATE);
     assert!(!matches!(result, Err(AggregationError::TooManyClaims)), "at the cap");
+}
+
+/// A node's count is one more than the sum of its children's: a leaf's is one, and the guest
+/// refuses a child count other than the child's own, which would make the node's count other
+/// than one more than its children's. A count other than the proved one fails verification,
+/// and the prover refuses a child count the guest cannot read.
+#[test]
+fn a_node_count_other_than_one_more_than_the_childrens_is_refused() {
+    leanvm_core::init_prover();
+    let leaf = prove_leaf(&get_signers(1));
+    assert_eq!(leaf.node_count(), 1);
+    let node = aggregate(
+        seed(),
+        &[leaf.clone(), leaf.clone()],
+        vec![],
+        vec![],
+        &[],
+        None,
+        LOG_INV_RATE,
+    )
+    .expect("node aggregates");
+    assert_eq!(node.node_count(), 3);
+    node.verify(seed()).expect("node verifies");
+    let mut miscounted = node.clone();
+    miscounted.node_count = 4;
+    assert!(matches!(miscounted.verify(seed()), Err(AggregateVerifyError::Snark(_))));
+    let children = [leaf.clone(), leaf.clone()];
+    let forgery: Forgery = Box::new(|hints: &mut Hints| {
+        *hints.entry_mut("child_count", 1) = cells::node_count_digits(2);
+    });
+    FORGE.with(|forge| *forge.borrow_mut() = Some(forgery));
+    let forged = aggregate(seed(), &children, vec![], vec![], &[], None, LOG_INV_RATE);
+    assert!(
+        matches!(forged, Err(AggregationError::ProofError(_))),
+        "{:?}",
+        forged.err()
+    );
+    let mut huge = leaf;
+    huge.node_count = MAX_NODE_COUNT + 1;
+    let refused = aggregate(seed(), &[huge], vec![], vec![], &[], None, LOG_INV_RATE);
+    assert!(
+        matches!(refused, Err(AggregationError::TooManyNodes)),
+        "{:?}",
+        refused.err()
+    );
+}
+
+/// A proof cannot be its own child: a node's count is one more than its child's, so the node
+/// over a child has another statement than the child, and a node whose count is its child's,
+/// as a node verifying itself would be, is refused by the guest: its hinted child count then
+/// is not the child's own.
+#[test]
+fn a_self_referential_child_is_refused() {
+    leanvm_core::init_prover();
+    let leaf = prove_leaf(&get_signers(1));
+    let declare = Some(&leaf.claims);
+    let node = aggregate(
+        seed(),
+        std::slice::from_ref(&leaf),
+        vec![],
+        vec![],
+        &[],
+        declare,
+        LOG_INV_RATE,
+    )
+    .expect("node aggregates");
+    assert_eq!((node.claims.clone(), node.node_count()), (leaf.claims.clone(), 2));
+    let parent = aggregate(
+        seed(),
+        std::slice::from_ref(&node),
+        vec![],
+        vec![],
+        &[],
+        declare,
+        LOG_INV_RATE,
+    )
+    .expect("parent aggregates");
+    assert_eq!(parent.node_count(), 3);
+    // The parent with the child's count: its child's count hinted one less.
+    let forgery: Forgery = Box::new(|hints: &mut Hints| {
+        *hints.entry_mut("child_count", 0) = cells::node_count_digits(1);
+    });
+    FORGE.with(|forge| *forge.borrow_mut() = Some(forgery));
+    let parent = aggregate(
+        seed(),
+        std::slice::from_ref(&node),
+        vec![],
+        vec![],
+        &[],
+        declare,
+        LOG_INV_RATE,
+    );
+    assert!(
+        matches!(parent, Err(AggregationError::ProofError(_))),
+        "{:?}",
+        parent.err()
+    );
 }
 
 /// A leaf holding claims of both schemes, each list in its own region.

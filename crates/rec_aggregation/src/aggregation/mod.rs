@@ -80,3 +80,12 @@ const CLAIMS_RADIX: usize = 1 << 10;
 /// claims together, each taking one slot of the guest's coverage table. It bounds the
 /// claims the aggregate declares as well.
 pub const MAX_CLAIMS: usize = CLAIMS_RADIX * CLAIMS_RADIX - 1;
+
+/// The base of the four digits in which the guest's `main` reads a child's node count.
+const COUNT_RADIX: u64 = 1 << 15;
+
+/// The largest node count of a child: the guest reads a child's count as four digits in base
+/// `2^15`, so below `2^60`. One plus the sum of [`MAX_RECURSIONS`] such counts is below
+/// `2^64 - 1`, the order of the generator in whose exponent the guest adds them, so a node's
+/// count, one more than the sum of its children's, is at most `16 * (2^60 - 1) + 1`.
+pub const MAX_NODE_COUNT: u64 = COUNT_RADIX * COUNT_RADIX * COUNT_RADIX * COUNT_RADIX - 1;

@@ -358,13 +358,14 @@ AGG_CHILD_PAD = AGG_CHILD_PAD_PLACEHOLDER
 AGG_CHILD_WORDS = 2 + DEFER_SIZE + DEFER_STMT_CELLS
 # The statement digest's preimage: the STMT_HEADER header values as the 16-byte
 # cells they already are (the seed, then the leanXMSS and leanSPHINCS claim-list
-# digests and the DA one), then the deferred cells' tower limbs, two to a cell. No
-# domain tag: every field has a fixed width, and the seed leads, binding this
-# bytecode and the proof system's version.
+# digests and the DA one), then the deferred cells' tower limbs, two to a cell, then
+# the node count g^n, a canonical cell. No domain tag: every field has a fixed width,
+# and the seed leads, binding this bytecode and the proof system's version.
 STMT_HEADER = STMT_HEADER_PLACEHOLDER
 STMT_DEFER_OFF = STMT_HEADER
 STMT_PAIRS = STMT_PAIRS_PLACEHOLDER
-STMT_CELLS = STMT_DEFER_OFF + 3 * STMT_PAIRS
+STMT_COUNT_OFF = STMT_DEFER_OFF + 3 * STMT_PAIRS
+STMT_CELLS = STMT_COUNT_OFF + 1
 
 # ------------------------------------------------------------------ the hash
 # Every hash is Keccak-256 (primitives::hash::hash): a block is 136 bytes, eight and a
@@ -508,8 +509,12 @@ SP_UNUSED_BYTES = 8 - SP_TAIL_BYTES
 # log is below the announced memory size, at most 2^30, and sums of a few never wrap.
 # MAX_RECURSIONS is the arity of an aggregation tree. A node's coverage table has at most
 # CLAIMS_RADIX^2 - 1 slots, its count written as two digits in base CLAIMS_RADIX.
+# A node count, the number of nodes of the tree below and at a node, is below
+# COUNT_RADIX^4 = 2^60, written as four digits in base COUNT_RADIX: one plus the sum of
+# MAX_RECURSIONS such counts is below 2^64 - 1, the order of g.
 MAX_RECURSIONS = MAX_RECURSIONS_PLACEHOLDER
 CLAIMS_RADIX = CLAIMS_RADIX_PLACEHOLDER
+COUNT_RADIX = COUNT_RADIX_PLACEHOLDER
 
 
 # ---------------------------------- LeanDA ------------------------------------------
@@ -4144,10 +4149,11 @@ def verify_sig_lean_sphincs(signer, byte_bits):
 # ========================== statements and the claim lists ==========================
 
 
-def statement_digest(seed_0, seed_1, xd_0, xd_1, sd_0, sd_1, da_0, da_1, defer):
+def statement_digest(seed_0, seed_1, xd_0, xd_1, sd_0, sd_1, da_0, da_1, defer, count_g):
     # A node's statement, hashed to the two words the VM publishes, over the
     # tree's seed (the salt, the proof system's version and this bytecode), the leanXMSS and leanSPHINCS claim-list digests, its DA digest (zeros
-    # without a root), and the DEFER_STMT_CELLS deferred-claim cells. A
+    # without a root), the DEFER_STMT_CELLS deferred-claim cells, and its node count in
+    # the exponent. A
     # parent rebuilds a child's statement with this same call, over list digests it
     # re-absorbed itself, which forces the child to be a proof of THIS bytecode over
     # claims read out of the parent's own tables.
@@ -4172,6 +4178,7 @@ def statement_digest(seed_0, seed_1, xd_0, xd_1, sd_0, sd_1, da_0, da_1, defer):
         else:
             t = defer[GEN ** (2 * p + 1)]
         pack_pair(cells, STMT_DEFER_OFF + 3 * p, s, t)
+    cells[STMT_COUNT_OFF] = count_g
     st = StackBuf(2)
     keccak_cells(cells, st)
     return st[0], st[1]
@@ -4757,6 +4764,11 @@ def main():
     child_carried = HeapBuf(n_children_g ** DEFER_STMT_CELLS)
     written = HeapBuf(n_children_g * GEN)  # loop-carried write count, one per child
     written[GEN ** 0] = n_raw_x_g * n_raw_s_g
+    # The node count: one, then each child's count, in the exponent. A child's count is
+    # below 2^60, so the running product's exponent is the count's sum over the integers.
+    child_count = HeapBuf(n_children_g)
+    count_run = HeapBuf(n_children_g * GEN)  # loop-carried count, one per child
+    count_run[GEN ** 0] = GEN
     for xc in mul_range(1, n_children_g):
         base = written[xc]
         # The child's two list lengths, then its two lists, rebuilt from THIS node's
@@ -4776,7 +4788,22 @@ def main():
         hint_witness(carried[0:DEFER_STMT_CELLS], "child_defer")
         child_da = da_digests * xc ** 2
         hint_witness(child_da[0:2], "child_da")
-        pi_0, pi_1 = statement_digest(seed_0, seed_1, cx_0, cx_1, cs_0, cs_1, child_da[1], child_da[GEN], carried)
+        # The child's node count, four hinted digits in base COUNT_RADIX in the exponent,
+        # the most significant first, each range checked, composed by squarings.
+        digits = StackBuf(4)
+        hint_witness(digits, "child_count")
+        d_3 = digits[0]
+        d_2 = digits[1]
+        d_1 = digits[2]
+        d_0 = digits[3]
+        assert log(d_3) < COUNT_RADIX
+        assert log(d_2) < COUNT_RADIX
+        assert log(d_1) < COUNT_RADIX
+        assert log(d_0) < COUNT_RADIX
+        count_g = ((d_3 ** COUNT_RADIX * d_2) ** COUNT_RADIX * d_1) ** COUNT_RADIX * d_0
+        child_count[xc] = count_g
+        count_run[xc * GEN] = count_run[xc] * count_g
+        pi_0, pi_1 = statement_digest(seed_0, seed_1, cx_0, cx_1, cs_0, cs_1, child_da[1], child_da[GEN], carried, count_g)
         pi = xc * xc
         child_pi[pi] = pi_0
         child_pi[pi * GEN] = pi_1
@@ -4804,7 +4831,8 @@ def main():
     else:
         aggregate_claims(seed_0, seed_1, n_children_g, child_pi, child_fresh, child_carried, defer_stmt)
 
-    own_0, own_1 = statement_digest(seed_0, seed_1, xd_0, xd_1, sd_0, sd_1, da[1], da[GEN], defer_stmt)
+    own_count_g = count_run[n_children_g]
+    own_0, own_1 = statement_digest(seed_0, seed_1, xd_0, xd_1, sd_0, sd_1, da[1], da[GEN], defer_stmt, own_count_g)
     assert pub_ptr[1] == own_0
     assert pub_ptr[GEN] == own_1
     return

@@ -1,6 +1,6 @@
 //! Claim-list digests and a node's public statement.
 
-use super::cells::{cell_bytes, count, pack_16_bytes};
+use super::cells::{cell_bytes, count, node_count_cell, pack_16_bytes};
 use super::deferred::DeferredClaim;
 use super::seed::Seed;
 use super::{LeanSphincsClaim, LeanXmssClaim};
@@ -79,15 +79,16 @@ fn lane_hash(lanes: impl Iterator<Item = u64>) -> [F192; 2] {
 /// field has a fixed width, and the header leads with the tree's seed, which binds
 /// the salt, this bytecode and the proof system's version. The header is hashed as the
 /// canonical cells it already is (two lanes each, whence the assert, the guest being
-/// unable to hash a third), then all three lanes of each deferred cell. Each claim
-/// list's digest binds its own length through the hash's padding, so the pair binds
-/// both lists whole.
+/// unable to hash a third), then all three lanes of each deferred cell, then the node
+/// count `g^node_count`, a canonical cell. Each claim list's digest binds its own length
+/// through the hash's padding, so the pair binds both lists whole.
 pub(super) fn statement_digest(
     seed: &Seed,
     xmss_signers: &[LeanXmssClaim],
     lean_sphincs_signers: &[LeanSphincsClaim],
     da_digest: [u8; 32],
     defer: &DeferredClaim,
+    node_count: u64,
 ) -> [F192; 2] {
     let seed_cells = hash_to_scalars(&seed.to_bytes());
     let xmss_digest = claim_list_digest(seed, xmss_signers.iter().map(lean_xmss_claim_cells));
@@ -111,5 +112,9 @@ pub(super) fn statement_digest(
         assert_eq!(x.c2, 0, "a header value is a canonical cell");
         [x.c0, x.c1]
     });
-    lane_hash(head.chain(cells.iter().flat_map(|x| x.to_limbs())))
+    let node_count = node_count_cell(node_count);
+    lane_hash(
+        head.chain(cells.iter().flat_map(|x| x.to_limbs()))
+            .chain([node_count.c0, node_count.c1]),
+    )
 }

@@ -40,28 +40,34 @@ pub struct EthereumProof {
     /// What this aggregate defers to whoever discharges it: its parent, in
     /// circuit, or [`Self::verify`], natively.
     pub(super) defer: DeferredClaim,
+    /// The number of nodes of the tree of proofs this aggregate stands for, itself included:
+    /// one more than the sum of its children's. The statement carries it.
+    pub(super) node_count: u64,
     pub(super) proof: leanvm_core::cpu::Proof,
 }
 
-// The wire format: the deferred point as a little-endian u64 count of limb triples `c0, c1, c2`,
-// each a little-endian u64, then the VM proof in its own encoding, to the end. The claims are not
-// sent: the receiver knows what it expects a proof to attest, and supplies it.
+// The wire format: the node count as a little-endian u64, the deferred point as a little-endian u64
+// count of limb triples `c0, c1, c2`, each a little-endian u64, then the VM proof in its own
+// encoding, to the end. The claims are not sent: the receiver knows what it expects a proof to
+// attest, and supplies it.
 //
 // Given the claims, every byte string decodes to at most one aggregate and back to itself: the VM
 // proof's decoder rejects trailing bytes. Otherwise anything downstream that dedupes or indexes on the
 // serialized bytes could be made to see one aggregate as many.
 
-pub(super) fn encode(point: &[F192], proof: &[u8]) -> Vec<u8> {
-    let mut out = (point.len() as u64).to_le_bytes().to_vec();
+pub(super) fn encode(node_count: u64, point: &[F192], proof: &[u8]) -> Vec<u8> {
+    let mut out = node_count.to_le_bytes().to_vec();
+    out.extend((point.len() as u64).to_le_bytes());
     out.extend(point.iter().flat_map(|x| x.to_limbs()).flat_map(u64::to_le_bytes));
     out.extend(proof);
     out
 }
 
-/// The deferred point and the VM proof's bytes. The point's limbs are cut from the input before
-/// any is read, so a forged count allocates nothing.
-pub(super) fn decode(bytes: &[u8]) -> Option<(Vec<F192>, &[u8])> {
-    let (count, rest) = bytes.split_first_chunk::<8>()?;
+/// The node count, the deferred point and the VM proof's bytes. The point's limbs are cut from the
+/// input before any is read, so a forged count allocates nothing.
+pub(super) fn decode(bytes: &[u8]) -> Option<(u64, Vec<F192>, &[u8])> {
+    let (node_count, rest) = bytes.split_first_chunk::<8>()?;
+    let (count, rest) = rest.split_first_chunk::<8>()?;
     let count = usize::try_from(u64::from_le_bytes(*count)).ok()?;
     let (limbs, proof) = rest.split_at_checked(count.checked_mul(24)?)?;
     let limb = |bytes: &[u8; 8]| u64::from_le_bytes(*bytes);
@@ -70,7 +76,7 @@ pub(super) fn decode(bytes: &[u8]) -> Option<(Vec<F192>, &[u8])> {
         .iter()
         .map(|[c0, c1, c2]| F192::new(limb(c0), limb(c1), limb(c2)))
         .collect();
-    Some((point, proof))
+    Some((u64::from_le_bytes(*node_count), point, proof))
 }
 
 /// Reject a signer set that the coverage argument does not cover: strict sorting
@@ -100,7 +106,22 @@ impl EthereumProof {
     /// The VM's public input for this aggregate under `seed`: the digest of its claims and its deferred claim.
     pub(super) fn vm_public_input(&self, seed: &Seed) -> [F192; 2] {
         let da = verifier::da::digest(&seed.to_bytes(), self.claims.da_commitment);
-        statement_digest(seed, &self.claims.xmss, &self.claims.lean_sphincs, da, &self.defer)
+        statement_digest(
+            seed,
+            &self.claims.xmss,
+            &self.claims.lean_sphincs,
+            da,
+            &self.defer,
+            self.node_count,
+        )
+    }
+
+    /// The number of nodes of the tree of proofs this aggregate stands for, itself included, as
+    /// its statement carries it. [`Self::verify`] establishes it with the claims; a verifier
+    /// compares it with the largest tree it accepts. A child's count is at most
+    /// [`MAX_NODE_COUNT`](super::MAX_NODE_COUNT).
+    pub fn node_count(&self) -> u64 {
+        self.node_count
     }
 
     /// What this aggregate claims, which [`Self::verify`] checks.
@@ -108,11 +129,11 @@ impl EthereumProof {
         &self.claims
     }
 
-    /// What goes on the wire: the deferred point and the VM proof. Neither the claims nor the
+    /// What goes on the wire: the node count, the deferred point and the VM proof. Neither the claims nor the
     /// deferred claim's value is transmitted: the receiver supplies the claims to
     /// [`Self::from_proof_bytes`], which recomputes the value, so there is nothing to lie about.
     pub fn proof_bytes(&self) -> Vec<u8> {
-        encode(&self.defer.bytecode_point, &self.proof.to_bytes())
+        encode(self.node_count, &self.defer.bytecode_point, &self.proof.to_bytes())
     }
 
     /// The aggregate `bytes` encode under the tree's `seed`, as a proof of `claims`: what the
@@ -121,7 +142,7 @@ impl EthereumProof {
     /// WARNING: Parsing does NOT verify: the proof is untouched, only shapes are checked.
     /// Call [`Self::verify`] before believing any of it.
     pub fn from_proof_bytes(seed: &Seed, bytes: &[u8], claims: EthereumClaims) -> Result<Self, AggregateVerifyError> {
-        let (bytecode_point, proof) = decode(bytes).ok_or(AggregateVerifyError::MalformedEncoding)?;
+        let (node_count, bytecode_point, proof) = decode(bytes).ok_or(AggregateVerifyError::MalformedEncoding)?;
         // Cheap rejections first. `recompute_scalar` below is a pass over the whole stacked
         // bytecode, on a point a peer chose, so anything decidable without it has to be
         // decided before it.
@@ -132,13 +153,15 @@ impl EthereumProof {
             claims,
             // The wire carries no value, only the point to derive it from.
             defer: DeferredClaim::recompute_scalar(bytecode_point)?,
+            node_count,
             proof,
         })
     }
 
     /// Verify the aggregate under the tree's `seed` ([`Seed::of_salt`] of the published salt): the
     /// signer set is well formed, the deferred bytecode claim holds at its transmitted point, and
-    /// the VM proof under the seed satisfies the statement built from all of it.
+    /// the VM proof under the seed satisfies the statement built from all of it, the node count
+    /// included.
     ///
     /// This says "every `(pubkey, message)` in the claims' `xmss` is a valid leanXMSS signature,
     /// and every one in their `lean_sphincs` a valid leanSPHINCS signature", and that the

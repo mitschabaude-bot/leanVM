@@ -1,6 +1,6 @@
 //! The entry points that prove one node of an aggregation tree.
 
-use super::cells::count;
+use super::cells::{count, node_count_digits};
 use super::child::gen_verify;
 use super::coverage::plan_coverage;
 use super::deferred::{DeferredClaim, aggregate_deferred_claims, bytecode_sums, bytecode_value, scalar_bytecode};
@@ -12,7 +12,7 @@ use super::hints::{Hints, lean_sphincs_hints, lean_xmss_hints};
 use super::proof::{EthereumClaims, EthereumProof, check_signer_set};
 use super::seed::Seed;
 use super::statement::{lean_sphincs_claim_cells, lean_xmss_claim_cells, list_split, statement_digest};
-use super::{CLAIMS_RADIX, LeanSphincsClaim, LeanXmssClaim, MAX_CLAIMS, MAX_RECURSIONS};
+use super::{CLAIMS_RADIX, LeanSphincsClaim, LeanXmssClaim, MAX_CLAIMS, MAX_NODE_COUNT, MAX_RECURSIONS};
 use fiat_shamir::merkle::hash_to_scalars;
 use lean_da::{BLOB_SYMBOLS, CELL_SYMBOLS, CELLS_PER_ROW, CODEWORD_SYMBOLS};
 use leanvm_core::cpu::{from_scalar, prove, public_input_bytes, scalar_proof};
@@ -37,6 +37,8 @@ use signatures::{lean_sphincs, lean_xmss};
 ///   covered by the inputs above.
 /// - The raw signatures, after dropping repeated claims, and the children's claims together are at
 ///   most [`MAX_CLAIMS`].
+/// - Each child's node count is at most [`MAX_NODE_COUNT`]; the aggregate's is one more than the
+///   sum of its children's ([`EthereumProof::node_count`]).
 /// - `log_inv_rate`: PCS code rate `2^-log_inv_rate`, higher `log_inv_rate` means a smaller proof
 ///   but slower proving; in [`MIN_LOG_INV_RATE`](pcs::whir::MIN_LOG_INV_RATE)..=[`MAX_LOG_INV_RATE`](pcs::whir::MAX_LOG_INV_RATE).
 ///
@@ -136,6 +138,11 @@ pub fn aggregate_with_stats(
     if claims_made > MAX_CLAIMS {
         return Err(AggregationError::TooManyClaims);
     }
+    if children.iter().any(|child| child.node_count > MAX_NODE_COUNT) {
+        return Err(AggregationError::TooManyNodes);
+    }
+    // At most 16 * MAX_NODE_COUNT + 1, below 2^64.
+    let node_count = 1 + children.iter().map(|child| child.node_count).sum::<u64>();
 
     // The children are assumed checked. Nothing here verifies one: the replay
     // only reads out of its proof the summary `gen_verify` derives the guest's
@@ -300,6 +307,7 @@ pub fn aggregate_with_stats(
         }
         hints.push("child_defer", child.defer.cells());
         hints.push("child_da", hash_to_scalars(&child_da[i]).to_vec());
+        hints.push("child_count", node_count_digits(child.node_count));
         let (sub_hints, defer) = verified?;
         for (name, entry) in sub_hints {
             hints.push(name, entry);
@@ -359,7 +367,14 @@ pub fn aggregate_with_stats(
         return Err(AggregationError::Empty);
     }
 
-    let public_input = statement_digest(seed, &cover.xmss.signers, &cover.lean_sphincs.signers, da, &defer);
+    let public_input = statement_digest(
+        seed,
+        &cover.xmss.signers,
+        &cover.lean_sphincs.signers,
+        da,
+        &defer,
+        node_count,
+    );
     let mut program = guest.clone();
     #[cfg(test)]
     if let Some(forge) = FORGE.with(|forge| forge.borrow_mut().take()) {
@@ -376,6 +391,7 @@ pub fn aggregate_with_stats(
                 da_commitment: da_root,
             },
             defer,
+            node_count,
             proof,
         },
         stats,
